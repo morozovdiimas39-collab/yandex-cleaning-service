@@ -1,7 +1,7 @@
 {
   "tests": [{
-    "name": "Update yc-debug env",
-    "method": "POST",
+    "name": "Check Yandex Cloud state",
+    "method": "GET",
     "path": "/",
     "expectedStatus": 200
   }]

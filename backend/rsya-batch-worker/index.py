@@ -79,7 +79,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Обновляем статус батча
         cursor.execute("""
-            UPDATE rsya_campaign_batches
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
             SET status = 'processing', started_at = NOW()
             WHERE id = %s
         """, (batch_id,))
@@ -115,7 +115,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Обновляем статус батча
         cursor.execute("""
-            UPDATE rsya_campaign_batches
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
             SET status = 'completed',
                 completed_at = NOW(),
                 processing_time_sec = %s
@@ -149,7 +149,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Пытаемся обновить статус батча в БД
         try:
             cursor.execute("""
-                UPDATE rsya_campaign_batches
+                UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
                 SET status = 'failed',
                     error_message = %s,
                     retry_count = retry_count + 1
@@ -278,13 +278,13 @@ def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn) -> bo
     '''Блокирует кампанию для обработки (избегаем race condition)'''
     try:
         cursor.execute("""
-            INSERT INTO rsya_campaign_locks (campaign_id, locked_by, expires_at)
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaign_locks (campaign_id, locked_by, expires_at)
             VALUES (%s, %s, NOW() + INTERVAL '5 minutes')
             ON CONFLICT (campaign_id) DO UPDATE
             SET locked_by = EXCLUDED.locked_by,
                 locked_at = NOW(),
                 expires_at = EXCLUDED.expires_at
-            WHERE rsya_campaign_locks.expires_at < NOW()
+            WHERE t_p97630513_yandex_cleaning_serv.rsya_campaign_locks.expires_at < NOW()
             RETURNING campaign_id
         """, (campaign_id, request_id))
         conn.commit()
@@ -298,7 +298,7 @@ def release_campaign_lock(campaign_id: str, cursor, conn) -> None:
     '''Снимает блокировку кампании'''
     try:
         cursor.execute("""
-            UPDATE rsya_campaign_locks 
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_locks 
             SET expires_at = NOW() 
             WHERE campaign_id = %s
         """, (campaign_id,))
@@ -337,7 +337,7 @@ def get_platforms_with_retry(
                 # Отчёт готовится → сохраняем в pending
                 report_name = response.get('report_name', f"report_{campaign_id}_{date_from}")
                 cursor.execute("""
-                    INSERT INTO rsya_pending_reports 
+                    INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
                     (project_id, campaign_ids, date_from, date_to, report_name, status)
                     VALUES (%s, %s, %s, %s, %s, 'pending')
                     ON CONFLICT DO NOTHING

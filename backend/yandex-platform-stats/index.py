@@ -29,9 +29,9 @@ def handle_admin_stats(stats_type: str) -> dict:
                     COUNT(DISTINCT CASE WHEN bq.status = 'blocked' THEN bq.id END) as blocked_placements,
                     COUNT(DISTINCT CASE WHEN bq.status = 'pending' THEN bq.id END) as pending_placements,
                     COALESCE(SUM(bq.cost), 0) as total_cost
-                FROM rsya_tasks t
-                JOIN rsya_projects p ON t.project_id = p.id
-                LEFT JOIN block_queue bq ON bq.task_id = t.id
+                FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
+                JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON t.project_id = p.id
+                LEFT JOIN t_p97630513_yandex_cleaning_serv.block_queue bq ON bq.task_id = t.id
                 GROUP BY t.id, t.description, t.enabled, p.name
                 ORDER BY t.id DESC
             ''')
@@ -54,14 +54,14 @@ def handle_admin_stats(stats_type: str) -> dict:
                 SELECT execution_type, COUNT(*) as executions,
                        SUM(placements_found) as total_found,
                        SUM(placements_blocked) as total_blocked
-                FROM rsya_cleaning_execution_logs
+                FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
                 GROUP BY execution_type
             ''')
             execution_stats = cursor.fetchall()
             
             cursor.execute('''
                 SELECT status, COUNT(*) as count
-                FROM block_queue
+                FROM t_p97630513_yandex_cleaning_serv.block_queue
                 GROUP BY status
             ''')
             queue_stats = cursor.fetchall()
@@ -72,9 +72,9 @@ def handle_admin_stats(stats_type: str) -> dict:
                     el.placements_found, el.placements_matched,
                     el.placements_sent_to_queue, el.placements_blocked,
                     p.name as project_name, t.description as task_description
-                FROM rsya_cleaning_execution_logs el
-                LEFT JOIN rsya_projects p ON el.project_id = p.id
-                LEFT JOIN rsya_tasks t ON el.task_id = t.id
+                FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs el
+                LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON el.project_id = p.id
+                LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON el.task_id = t.id
                 ORDER BY el.started_at DESC
                 LIMIT 10
             ''')
@@ -217,7 +217,7 @@ def check_cache_exists(conn, project_id: int, campaign_ids: list, date_from: str
     
     query = f"""
         SELECT COUNT(*) as count
-        FROM rsya_platform_stats
+        FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
         WHERE project_id = {project_id}
           AND campaign_id IN ({campaign_ids_str})
           AND date_from = '{date_from}'
@@ -240,7 +240,7 @@ def get_cached_stats(conn, project_id: int, campaign_ids: list, date_from: str, 
         SELECT campaign_id, campaign_name, url, impressions, clicks, cost, 
                conversions, ctr, cpc, cpa, is_blocked, 
                COALESCE(status, CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END) as status
-        FROM rsya_platform_stats
+        FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
         WHERE project_id = {project_id}
           AND campaign_id IN ({campaign_ids_str})
           AND date_from = '{date_from}'
@@ -273,7 +273,7 @@ def save_stats_to_cache(conn, project_id: int, stats: list, date_from: str, date
     
     # Сначала удаляем старые записи для этого проекта и периода
     delete_query = f"""
-        DELETE FROM rsya_platform_stats
+        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
         WHERE project_id = {project_id}
           AND date_from = '{date_from}'
           AND date_to = '{date_to}'
@@ -312,7 +312,7 @@ def save_stats_to_cache(conn, project_id: int, stats: list, date_from: str, date
             )""")
         
         insert_query = f"""
-            INSERT INTO rsya_platform_stats
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_platform_stats
             (project_id, campaign_id, campaign_name, url, date_from, date_to, goal_id,
              impressions, clicks, cost, conversions, ctr, cpc, cpa, is_blocked, cached_at)
             VALUES {','.join(values_parts)}

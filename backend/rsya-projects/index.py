@@ -75,7 +75,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -91,8 +91,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             cursor.execute("""
                 SELECT th.id, th.task_id, t.description, th.executed_at, 
                        th.placements_checked, th.placements_blocked, th.status, th.error_message
-                FROM task_history th
-                JOIN rsya_tasks t ON t.id = th.task_id
+                FROM t_p97630513_yandex_cleaning_serv.task_history th
+                JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = th.task_id
                 WHERE t.project_id = %s
                 ORDER BY th.executed_at DESC
                 LIMIT 100
@@ -123,7 +123,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # GET /projects - список проектов пользователя
         if method == 'GET' and not query_params.get('project_id'):
             cursor.execute(
-                "SELECT id, name, created_at, updated_at, (yandex_token IS NOT NULL) as has_token FROM rsya_projects WHERE user_id = %s ORDER BY created_at DESC",
+                "SELECT id, name, created_at, updated_at, (yandex_token IS NOT NULL) as has_token FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE user_id = %s ORDER BY created_at DESC",
                 (user_id_int,)
             )
             rows = cursor.fetchall()
@@ -154,7 +154,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             print(f'[DEBUG] GET project {project_id} for user {user_id_int}')
             
             cursor.execute(
-                "SELECT id, name, yandex_token, created_at, updated_at, is_configured, client_login, campaign_ids, counter_ids, auto_add_campaigns FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id, name, yandex_token, created_at, updated_at, is_configured, client_login, campaign_ids, counter_ids, auto_add_campaigns FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             row = cursor.fetchone()
@@ -186,7 +186,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем цели из rsya_goals
             cursor.execute(
-                "SELECT goal_id, goal_name, counter_id, counter_name FROM rsya_goals WHERE project_id = %s AND is_enabled = true",
+                "SELECT goal_id, goal_name, counter_id, counter_name FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s AND is_enabled = true",
                 (project_id,)
             )
             goals_rows = cursor.fetchall()
@@ -203,7 +203,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем задачи из rsya_tasks
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks_rows = cursor.fetchall()
@@ -270,7 +270,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -282,7 +282,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Project not found'})
                 }
             
-            cursor.execute("DELETE FROM rsya_platform_stats WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats WHERE project_id = %s", (project_id,))
             
             values = []
             for platform in platforms:
@@ -308,7 +308,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if values:
                 psycopg2.extras.execute_batch(
                     cursor,
-                    "INSERT INTO rsya_platform_stats (project_id, campaign_id, campaign_name, url, impressions, clicks, cost, conversions, ctr, cpc, cpa, is_blocked, status, date_from, date_to) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE - 30, CURRENT_DATE)",
+                    "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_platform_stats (project_id, campaign_id, campaign_name, url, impressions, clicks, cost, conversions, ctr, cpc, cpa, is_blocked, status, date_from, date_to) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE - 30, CURRENT_DATE)",
                     values,
                     page_size=1000
                 )
@@ -342,7 +342,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -361,7 +361,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 SELECT campaign_id, campaign_name, url, impressions, clicks, cost, 
                        conversions, ctr, cpc, cpa, is_blocked, 
                        COALESCE(status, CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END) as status
-                FROM rsya_platform_stats
+                FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
                 WHERE project_id = {project_id}
                   AND is_blocked = false
             """
@@ -428,7 +428,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -441,12 +441,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             # Удаляем старые цели
-            cursor.execute("DELETE FROM rsya_goals WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s", (project_id,))
             
             # Добавляем новые цели
             for goal in goals:
                 cursor.execute(
-                    "INSERT INTO rsya_goals (project_id, goal_id, goal_name, counter_id, counter_name, is_enabled) VALUES (%s, %s, %s, %s, %s, true)",
+                    "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_goals (project_id, goal_id, goal_name, counter_id, counter_name, is_enabled) VALUES (%s, %s, %s, %s, %s, true)",
                     (project_id, goal['id'], goal['name'], goal.get('counter_id'), goal.get('counter_name'))
                 )
             
@@ -477,7 +477,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -491,7 +491,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Создаём задачу с config
             cursor.execute(
-                "INSERT INTO rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
+                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
                 (project_id, description, config)
             )
             task_id = cursor.fetchone()[0]
@@ -499,7 +499,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -543,7 +543,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -557,14 +557,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Удаляем задачу
             cursor.execute(
-                "DELETE FROM rsya_tasks WHERE id = %s AND project_id = %s",
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s AND project_id = %s",
                 (task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -609,7 +609,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -623,14 +623,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Обновляем статус задачи
             cursor.execute(
-                "UPDATE rsya_tasks SET enabled = %s WHERE id = %s AND project_id = %s",
+                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks SET enabled = %s WHERE id = %s AND project_id = %s",
                 (enabled, task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -675,7 +675,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -689,14 +689,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Обновляем конфиг задачи
             cursor.execute(
-                "UPDATE rsya_tasks SET config = %s WHERE id = %s AND project_id = %s",
+                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks SET config = %s WHERE id = %s AND project_id = %s",
                 (json.dumps(config), task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -729,7 +729,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             project_name = body_data.get('name', 'Новый проект')
             
             cursor.execute(
-                "INSERT INTO rsya_projects (name, user_id) VALUES (%s, %s) RETURNING id, name, created_at",
+                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_projects (name, user_id) VALUES (%s, %s) RETURNING id, name, created_at",
                 (project_name, user_id_int)
             )
             row = cursor.fetchone()
@@ -803,7 +803,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             update_fields.append('updated_at = CURRENT_TIMESTAMP')
             update_values.extend([project_id, user_id_int])
             
-            query = f"UPDATE rsya_projects SET {', '.join(update_fields)} WHERE id = %s AND user_id = %s RETURNING id"
+            query = f"UPDATE t_p97630513_yandex_cleaning_serv.rsya_projects SET {', '.join(update_fields)} WHERE id = %s AND user_id = %s RETURNING id"
             
             cursor.execute(query, tuple(update_values))
             row = cursor.fetchone()
@@ -820,7 +820,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Если обновили токен - добавляем проект в расписание
             if 'yandex_token' in put_body_data and put_body_data['yandex_token']:
                 cursor.execute("""
-                    INSERT INTO rsya_project_schedule (project_id, interval_hours, next_run_at, is_active)
+                    INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_project_schedule (project_id, interval_hours, next_run_at, is_active)
                     VALUES (%s, 8, NOW(), TRUE)
                     ON CONFLICT (project_id) 
                     DO UPDATE SET is_active = TRUE, next_run_at = NOW(), updated_at = NOW()
@@ -854,7 +854,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -867,13 +867,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             # Удаляем старые кампании и цели
-            cursor.execute("DELETE FROM rsya_campaigns WHERE project_id = %s", (project_id,))
-            cursor.execute("DELETE FROM rsya_goals WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaigns WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s", (project_id,))
             
             # Сохраняем новые кампании
             for campaign in campaigns:
                 cursor.execute(
-                    """INSERT INTO rsya_campaigns (project_id, campaign_id, campaign_name, campaign_status, is_enabled)
+                    """INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaigns (project_id, campaign_id, campaign_name, campaign_status, is_enabled)
                        VALUES (%s, %s, %s, %s, %s)
                        ON CONFLICT (project_id, campaign_id) DO UPDATE
                        SET campaign_name = EXCLUDED.campaign_name, campaign_status = EXCLUDED.campaign_status, updated_at = CURRENT_TIMESTAMP""",
@@ -883,7 +883,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # Сохраняем новые цели
             for goal in goals:
                 cursor.execute(
-                    """INSERT INTO rsya_goals (project_id, goal_id, goal_name, is_enabled)
+                    """INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_goals (project_id, goal_id, goal_name, is_enabled)
                        VALUES (%s, %s, %s, %s)
                        ON CONFLICT (project_id, goal_id) DO UPDATE
                        SET goal_name = EXCLUDED.goal_name, updated_at = CURRENT_TIMESTAMP""",
@@ -892,7 +892,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Помечаем проект как настроенный
             cursor.execute(
-                "UPDATE rsya_projects SET is_configured = true, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_projects SET is_configured = true, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
                 (project_id,)
             )
             
@@ -928,7 +928,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -942,7 +942,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Получаем кампании
             cursor.execute(
-                "SELECT campaign_id, campaign_name, campaign_status, is_enabled FROM rsya_campaigns WHERE project_id = %s ORDER BY campaign_name",
+                "SELECT campaign_id, campaign_name, campaign_status, is_enabled FROM t_p97630513_yandex_cleaning_serv.rsya_campaigns WHERE project_id = %s ORDER BY campaign_name",
                 (project_id,)
             )
             campaigns = []
@@ -956,7 +956,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Получаем цели
             cursor.execute(
-                "SELECT goal_id, goal_name, is_enabled FROM rsya_goals WHERE project_id = %s ORDER BY goal_name",
+                "SELECT goal_id, goal_name, is_enabled FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s ORDER BY goal_name",
                 (project_id,)
             )
             goals = []
@@ -998,7 +998,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "SELECT id FROM rsya_projects WHERE id = %s AND user_id = %s",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
             if not cursor.fetchone():
@@ -1011,12 +1011,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             # Удаляем старые цели
-            cursor.execute("DELETE FROM rsya_goals WHERE project_id = %s", (project_id,))
+            cursor.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s", (project_id,))
             
             # Сохраняем новые цели
             for goal in goals:
                 cursor.execute(
-                    """INSERT INTO rsya_goals (project_id, goal_id, goal_name, is_enabled)
+                    """INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_goals (project_id, goal_id, goal_name, is_enabled)
                        VALUES (%s, %s, %s, %s)""",
                     (project_id, goal['id'], goal['name'], True)
                 )
@@ -1051,7 +1051,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             cursor.execute(
-                "DELETE FROM rsya_projects WHERE id = %s AND user_id = %s RETURNING id",
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s RETURNING id",
                 (project_id, user_id_int)
             )
             row = cursor.fetchone()

@@ -53,8 +53,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 s.interval_hours,
                 p.yandex_token,
                 p.campaign_ids
-            FROM rsya_project_schedule s
-            JOIN rsya_projects p ON p.id = s.project_id
+            FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
+            JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
             WHERE s.is_active = TRUE
               AND s.next_run_at <= NOW()
               AND p.yandex_token IS NOT NULL
@@ -86,7 +86,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 # Обновляем next_run_at
                 cursor.execute("""
-                    UPDATE rsya_project_schedule
+                    UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
                     SET next_run_at = NOW() + INTERVAL '%s hours',
                         last_run_at = NOW(),
                         updated_at = NOW()
@@ -162,7 +162,7 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
     # Сохраняем батчи в БД
     for batch_number, batch_campaign_ids in enumerate(batches, start=1):
         cursor.execute("""
-            INSERT INTO rsya_campaign_batches 
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaign_batches 
             (project_id, campaign_ids, batch_number, total_batches, status)
             VALUES (%s, %s, %s, %s, 'pending')
             RETURNING id

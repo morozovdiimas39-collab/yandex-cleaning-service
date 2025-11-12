@@ -21,7 +21,7 @@ def process_from_database_fallback(dsn: str) -> Dict[str, Any]:
         cursor.execute("""
             SELECT bq.id, bq.task_id, bq.campaign_id, bq.domain, bq.project_id,
                    bq.clicks, bq.cost, bq.conversions, bq.cpa
-            FROM block_queue bq
+            FROM t_p97630513_yandex_cleaning_serv.block_queue bq
             WHERE bq.status = 'pending'
             ORDER BY bq.cost DESC, bq.clicks DESC
             LIMIT 50
@@ -70,7 +70,7 @@ def process_from_database_fallback(dsn: str) -> Dict[str, Any]:
         for project_id, campaigns_map in projects_map.items():
             # Получаем токен проекта
             cursor.execute("""
-                SELECT yandex_token FROM rsya_projects WHERE id = %s
+                SELECT yandex_token FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s
             """, (project_id,))
             
             project = cursor.fetchone()
@@ -453,7 +453,7 @@ def block_placements_for_campaign(
         for item in items:
             if item['domain'] in domains_to_add:
                 cursor.execute("""
-                    DELETE FROM block_queue WHERE id = %s
+                    DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE id = %s
                 """, (item['id'],))
                 blocked_count += 1
         
@@ -470,14 +470,14 @@ def block_placements_for_campaign(
         for item in items:
             if item['domain'] in domains_to_add:
                 cursor.execute("""
-                    UPDATE block_queue 
+                    UPDATE t_p97630513_yandex_cleaning_serv.block_queue 
                     SET attempts = attempts + 1,
                         error_message = 'Failed to update ExcludedSites'
                     WHERE id = %s AND attempts < 3
                 """, (item['id'],))
                 # Удаляем если >= 3 попытки
                 cursor.execute("""
-                    DELETE FROM block_queue WHERE id = %s AND attempts >= 3
+                    DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE id = %s AND attempts >= 3
                 """, (item['id'],))
         
         print(f'❌ Batch failed: Failed to update ExcludedSites')

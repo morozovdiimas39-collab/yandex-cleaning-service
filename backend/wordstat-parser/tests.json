@@ -1,0 +1,12 @@
+{
+  "tests": [{
+    "name": "Test wordstat parser",
+    "method": "POST",
+    "path": "/",
+    "body": {
+      "keywords": ["тест"],
+      "regions": [213]
+    },
+    "expectedStatus": 200
+  }]
+}

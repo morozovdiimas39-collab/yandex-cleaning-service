@@ -76,7 +76,11 @@ export default function RSYAProjects() {
         })
       });
 
-      if (!response.ok) throw new Error('Ошибка создания проекта');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Create project error: Status ${response.status}, Body: ${errorText}`);
+        throw new Error(`Ошибка создания проекта: ${response.status}`);
+      }
 
       const data = await response.json();
       setProjects([data.project, ...projects]);

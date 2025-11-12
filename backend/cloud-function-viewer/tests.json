@@ -1,7 +1,7 @@
 {
   "tests": [{
-    "name": "Check MQ status",
-    "method": "GET",
+    "name": "Get rsya-scheduler function",
+    "method": "POST",
     "path": "/",
     "expectedStatus": 200
   }]

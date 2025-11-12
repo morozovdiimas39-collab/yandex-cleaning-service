@@ -1,7 +1,7 @@
 {
   "tests": [{
-    "name": "Check YC triggers",
-    "method": "GET",
+    "name": "Update yc-debug env",
+    "method": "POST",
     "path": "/",
     "expectedStatus": 200
   }]

@@ -203,7 +203,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем задачи из rsya_tasks
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks_rows = cursor.fetchall()
@@ -361,7 +361,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 SELECT campaign_id, campaign_name, url, impressions, clicks, cost, 
                        conversions, ctr, cpc, cpa, is_blocked, 
                        COALESCE(status, CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END) as status
-                FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+                FROM rsya_platform_stats
                 WHERE project_id = {project_id}
                   AND is_blocked = false
             """
@@ -491,7 +491,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Создаём задачу с config
             cursor.execute(
-                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
+                "INSERT INTO rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
                 (project_id, description, config)
             )
             task_id = cursor.fetchone()[0]
@@ -499,7 +499,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -557,14 +557,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Удаляем задачу
             cursor.execute(
-                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s AND project_id = %s",
+                "DELETE FROM rsya_tasks WHERE id = %s AND project_id = %s",
                 (task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -623,14 +623,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Обновляем статус задачи
             cursor.execute(
-                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks SET enabled = %s WHERE id = %s AND project_id = %s",
+                "UPDATE rsya_tasks SET enabled = %s WHERE id = %s AND project_id = %s",
                 (enabled, task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -689,14 +689,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Обновляем конфиг задачи
             cursor.execute(
-                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks SET config = %s WHERE id = %s AND project_id = %s",
+                "UPDATE rsya_tasks SET config = %s WHERE id = %s AND project_id = %s",
                 (json.dumps(config), task_id, project_id)
             )
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at FROM rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []

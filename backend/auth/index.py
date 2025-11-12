@@ -68,19 +68,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     cur = conn.cursor()
     
     cur.execute(
-        f"SELECT id, phone, created_at FROM t_p97630513_yandex_cleaning_serv.users WHERE phone = '{phone}'"
+        f"SELECT id, phone, created_at FROM users WHERE phone = '{phone}'"
     )
     user_row = cur.fetchone()
     
     if user_row:
         user_id, user_phone, created_at = user_row
         cur.execute(
-            f"UPDATE t_p97630513_yandex_cleaning_serv.users SET last_login_at = CURRENT_TIMESTAMP WHERE id = {user_id}"
+            f"UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = {user_id}"
         )
         conn.commit()
     else:
         cur.execute(
-            f"INSERT INTO t_p97630513_yandex_cleaning_serv.users (phone, is_verified) VALUES ('{phone}', true) RETURNING id, phone, created_at"
+            f"INSERT INTO users (phone, is_verified) VALUES ('{phone}', true) RETURNING id, phone, created_at"
         )
         user_row = cur.fetchone()
         user_id, user_phone, created_at = user_row

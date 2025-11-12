@@ -217,7 +217,7 @@ def check_cache_exists(conn, project_id: int, campaign_ids: list, date_from: str
     
     query = f"""
         SELECT COUNT(*) as count
-        FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+        FROM rsya_platform_stats
         WHERE project_id = {project_id}
           AND campaign_id IN ({campaign_ids_str})
           AND date_from = '{date_from}'
@@ -240,7 +240,7 @@ def get_cached_stats(conn, project_id: int, campaign_ids: list, date_from: str, 
         SELECT campaign_id, campaign_name, url, impressions, clicks, cost, 
                conversions, ctr, cpc, cpa, is_blocked, 
                COALESCE(status, CASE WHEN is_blocked THEN 'blocked' ELSE 'active' END) as status
-        FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+        FROM rsya_platform_stats
         WHERE project_id = {project_id}
           AND campaign_id IN ({campaign_ids_str})
           AND date_from = '{date_from}'
@@ -273,7 +273,7 @@ def save_stats_to_cache(conn, project_id: int, stats: list, date_from: str, date
     
     # Сначала удаляем старые записи для этого проекта и периода
     delete_query = f"""
-        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+        DELETE FROM rsya_platform_stats
         WHERE project_id = {project_id}
           AND date_from = '{date_from}'
           AND date_to = '{date_to}'
@@ -312,7 +312,7 @@ def save_stats_to_cache(conn, project_id: int, stats: list, date_from: str, date
             )""")
         
         insert_query = f"""
-            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+            INSERT INTO rsya_platform_stats
             (project_id, campaign_id, campaign_name, url, date_from, date_to, goal_id,
              impressions, clicks, cost, conversions, ctr, cpc, cpa, is_blocked, cached_at)
             VALUES {','.join(values_parts)}

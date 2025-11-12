@@ -104,6 +104,12 @@ export default function RSYAProject() {
   const [taskMinCpa, setTaskMinCpa] = useState('');
   const [taskMaxCpa, setTaskMaxCpa] = useState('');
   const [taskScheduleInterval, setTaskScheduleInterval] = useState('2');
+  const [showKeywordsInput, setShowKeywordsInput] = useState(false);
+  const [showExceptionsInput, setShowExceptionsInput] = useState(false);
+  const [showMetricsFilters, setShowMetricsFilters] = useState(false);
+  const [selectedKeywordPresets, setSelectedKeywordPresets] = useState<Set<string>>(new Set());
+  const [selectedExceptionPresets, setSelectedExceptionPresets] = useState<Set<string>>(new Set());
+  const [protectConversions, setProtectConversions] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlacements, setSelectedPlacements] = useState<Set<string>>(new Set());
@@ -131,6 +137,27 @@ export default function RSYAProject() {
   
   const AUTOMATION_URL = func2url['rsya-automation'] || '';
 
+  const KEYWORD_PRESETS = [
+    { value: 'com.', label: 'com.' },
+    { value: 'dsp.', label: 'dsp.' },
+    { value: 'vpn', label: 'vpn' },
+    { value: 'free', label: 'free' },
+    { value: 'proxy', label: 'proxy' },
+    { value: 'torrent', label: 'torrent' },
+    { value: 'download', label: 'download' },
+    { value: 'игр', label: 'игр' },
+    { value: 'казин', label: 'казин' },
+    { value: 'ставк', label: 'ставк' }
+  ];
+
+  const EXCEPTION_PRESETS = [
+    { value: 'com.avito.android', label: 'Авито' },
+    { value: 'com.vkontakte.android', label: 'ВКонтакте' },
+    { value: 'com.opera.browser', label: 'Opera' },
+    { value: 'com.yandex.shedevrus', label: 'Шедеврум' },
+    { value: 'free.vpn.proxy.secure', label: 'VPN Secure' }
+  ];
+
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     const uid = userStr ? JSON.parse(userStr).id.toString() : '1';
@@ -147,7 +174,35 @@ export default function RSYAProject() {
     }
   }, [selectedGoalId]);
 
+  const toggleKeywordPreset = (preset: string) => {
+    const newPresets = new Set(selectedKeywordPresets);
+    if (newPresets.has(preset)) {
+      newPresets.delete(preset);
+    } else {
+      newPresets.add(preset);
+    }
+    setSelectedKeywordPresets(newPresets);
+    
+    const currentKeywords = taskKeywords.split('\n').filter(k => k.trim());
+    const presetKeywords = Array.from(newPresets);
+    const combined = [...new Set([...currentKeywords, ...presetKeywords])];
+    setTaskKeywords(combined.join('\n'));
+  };
 
+  const toggleExceptionPreset = (preset: string) => {
+    const newPresets = new Set(selectedExceptionPresets);
+    if (newPresets.has(preset)) {
+      newPresets.delete(preset);
+    } else {
+      newPresets.add(preset);
+    }
+    setSelectedExceptionPresets(newPresets);
+    
+    const currentExceptions = taskExceptions.split('\n').filter(e => e.trim());
+    const presetExceptions = Array.from(newPresets);
+    const combined = [...new Set([...currentExceptions, ...presetExceptions])];
+    setTaskExceptions(combined.join('\n'));
+  };
 
   const loadProject = async (uid: string) => {
     try {
@@ -417,7 +472,8 @@ export default function RSYAProject() {
         min_conversions: taskMinConversions ? parseInt(taskMinConversions) : undefined,
         min_cpa: taskMinCpa ? parseFloat(taskMinCpa) : undefined,
         max_cpa: taskMaxCpa ? parseFloat(taskMaxCpa) : undefined,
-        schedule_interval: taskScheduleInterval ? parseInt(taskScheduleInterval) : undefined
+        schedule_interval: taskScheduleInterval ? parseInt(taskScheduleInterval) : undefined,
+        protect_conversions: protectConversions
       };
 
       const response = await fetch(RSYA_PROJECTS_URL, {
@@ -454,6 +510,12 @@ export default function RSYAProject() {
       setTaskKeywords('');
       setTaskExceptions('');
       setTaskGoalId('all');
+      setSelectedKeywordPresets(new Set());
+      setSelectedExceptionPresets(new Set());
+      setProtectConversions(false);
+      setShowKeywordsInput(false);
+      setShowExceptionsInput(false);
+      setShowMetricsFilters(false);
       setTaskMinImpressions('');
       setTaskMaxImpressions('');
       setTaskMinClicks('');
@@ -635,6 +697,8 @@ export default function RSYAProject() {
       if (matches && task.config?.min_conversions && placement.conversions < task.config.min_conversions) matches = false;
       if (matches && task.config?.min_cpa && placement.cpa < task.config.min_cpa) matches = false;
       if (matches && task.config?.max_cpa && placement.cpa > task.config.max_cpa) matches = false;
+      
+      if (matches && task.config?.protect_conversions && placement.conversions > 0) matches = false;
 
       if (matches) {
         matchedPlacements.push(placement);
@@ -1083,38 +1147,83 @@ export default function RSYAProject() {
             {/* Контент вкладки: Создать задачу */}
             {taskTab === 'create' && (
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Input
                   placeholder="Название задачи"
                   value={newTaskDescription}
                   onChange={(e) => setNewTaskDescription(e.target.value)}
                 />
-                <Textarea
-                  placeholder="Вхождения для минусации (например: com., dsp, vpn)&#10;Каждое с новой строки или через запятую"
-                  value={taskKeywords}
-                  onChange={(e) => setTaskKeywords(e.target.value)}
-                  className="min-h-[100px] resize-none"
-                />
                 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Исключения из минусации</label>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setTaskExceptions('com.avito.android\ncom.vkontakte.android\ncom.opera.browser\ncom.yandex.shedevrus\nfree.vpn.proxy.secure')}
-                      className="h-7 text-xs"
-                    >
-                      <Icon name="FileText" size={14} />
-                      Стандартный список
-                    </Button>
+                  <label className="text-sm font-medium">Вхождения для блокировки</label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {KEYWORD_PRESETS.map(preset => (
+                      <Button
+                        key={preset.value}
+                        variant={selectedKeywordPresets.has(preset.value) ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleKeywordPreset(preset.value)}
+                        className="h-7 text-xs"
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
                   </div>
-                  <Textarea
-                    placeholder="Площадки-исключения (например: com.vk.ru)&#10;Эти площадки НЕ будут блокироваться"
-                    value={taskExceptions}
-                    onChange={(e) => setTaskExceptions(e.target.value)}
-                    className="min-h-[100px] resize-none"
-                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowKeywordsInput(!showKeywordsInput)}
+                    className="w-full justify-between h-8"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      {showKeywordsInput ? 'Скрыть' : 'Добавить свои вхождения'}
+                    </span>
+                    <Icon name={showKeywordsInput ? 'ChevronUp' : 'ChevronDown'} size={14} />
+                  </Button>
+                  {showKeywordsInput && (
+                    <Textarea
+                      placeholder="Свои вхождения (каждое с новой строки)"
+                      value={taskKeywords}
+                      onChange={(e) => setTaskKeywords(e.target.value)}
+                      className="min-h-[80px] resize-none"
+                    />
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Исключения (не блокировать)</label>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {EXCEPTION_PRESETS.map(preset => (
+                      <Button
+                        key={preset.value}
+                        variant={selectedExceptionPresets.has(preset.value) ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleExceptionPreset(preset.value)}
+                        className="h-7 text-xs"
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowExceptionsInput(!showExceptionsInput)}
+                    className="w-full justify-between h-8"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      {showExceptionsInput ? 'Скрыть' : 'Добавить свои исключения'}
+                    </span>
+                    <Icon name={showExceptionsInput ? 'ChevronUp' : 'ChevronDown'} size={14} />
+                  </Button>
+                  {showExceptionsInput && (
+                    <Textarea
+                      placeholder="Свои исключения (каждое с новой строки)"
+                      value={taskExceptions}
+                      onChange={(e) => setTaskExceptions(e.target.value)}
+                      className="min-h-[80px] resize-none"
+                    />
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -1132,112 +1241,119 @@ export default function RSYAProject() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Показы</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      placeholder="От"
-                      value={taskMinImpressions}
-                      onChange={(e) => setTaskMinImpressions(e.target.value)}
+                  
+                  <div className="flex items-center gap-2 pt-1">
+                    <Checkbox
+                      id="protect-conversions"
+                      checked={protectConversions}
+                      onCheckedChange={(checked) => setProtectConversions(checked as boolean)}
                     />
-                    <Input
-                      type="number"
-                      placeholder="До"
-                      value={taskMaxImpressions}
-                      onChange={(e) => setTaskMaxImpressions(e.target.value)}
-                    />
+                    <label htmlFor="protect-conversions" className="text-sm text-muted-foreground cursor-pointer">
+                      Не блокировать площадки с конверсиями
+                    </label>
                   </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Клики</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      placeholder="От"
-                      value={taskMinClicks}
-                      onChange={(e) => setTaskMinClicks(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="До"
-                      value={taskMaxClicks}
-                      onChange={(e) => setTaskMaxClicks(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Цена клика (₽)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="От"
-                      value={taskMinCpc}
-                      onChange={(e) => setTaskMinCpc(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="До"
-                      value={taskMaxCpc}
-                      onChange={(e) => setTaskMaxCpc(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">CTR (%)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="От"
-                      value={taskMinCtr}
-                      onChange={(e) => setTaskMinCtr(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="До"
-                      value={taskMaxCtr}
-                      onChange={(e) => setTaskMaxCtr(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Конверсии (минимум)</label>
-                  <Input
-                    type="number"
-                    placeholder="Минимум конверсий"
-                    value={taskMinConversions}
-                    onChange={(e) => setTaskMinConversions(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Цена конверсии (₽)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="От"
-                      value={taskMinCpa}
-                      onChange={(e) => setTaskMinCpa(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="До"
-                      value={taskMaxCpa}
-                      onChange={(e) => setTaskMaxCpa(e.target.value)}
-                    />
-                  </div>
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowMetricsFilters(!showMetricsFilters)}
+                    className="w-full justify-between h-8"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      {showMetricsFilters ? 'Скрыть фильтры по метрикам' : 'Показать фильтры по метрикам'}
+                    </span>
+                    <Icon name={showMetricsFilters ? 'ChevronUp' : 'ChevronDown'} size={14} />
+                  </Button>
+                  
+                  {showMetricsFilters && (
+                    <div className="space-y-3 mt-3">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Показы</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            placeholder="От"
+                            value={taskMinImpressions}
+                            onChange={(e) => setTaskMinImpressions(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            type="number"
+                            placeholder="До"
+                            value={taskMaxImpressions}
+                            onChange={(e) => setTaskMaxImpressions(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Клики</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            placeholder="От"
+                            value={taskMinClicks}
+                            onChange={(e) => setTaskMinClicks(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            type="number"
+                            placeholder="До"
+                            value={taskMaxClicks}
+                            onChange={(e) => setTaskMaxClicks(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">CTR (%)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="От"
+                            value={taskMinCtr}
+                            onChange={(e) => setTaskMinCtr(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="До"
+                            value={taskMaxCtr}
+                            onChange={(e) => setTaskMaxCtr(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">CPA (₽)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="От"
+                            value={taskMinCpa}
+                            onChange={(e) => setTaskMinCpa(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="До"
+                            value={taskMaxCpa}
+                            onChange={(e) => setTaskMaxCpa(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">

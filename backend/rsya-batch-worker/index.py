@@ -72,9 +72,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     start_time = time.time()
     
-    conn = None
-    cursor = None
-    
     try:
         conn = psycopg2.connect(dsn)
         conn.autocommit = False

@@ -72,6 +72,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     start_time = time.time()
     
+    conn = None
+    cursor = None
+    
     try:
         conn = psycopg2.connect(dsn)
         conn.autocommit = False
@@ -146,18 +149,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception as e:
         print(f"❌ Batch worker error: {str(e)}")
         
+        # Откатываем транзакцию если она открыта
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        
         # Пытаемся обновить статус батча в БД
-        try:
-            cursor.execute("""
-                UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
-                SET status = 'failed',
-                    error_message = %s,
-                    retry_count = retry_count + 1
-                WHERE id = %s
-            """, (str(e), batch_id))
-            conn.commit()
-        except:
-            pass
+        if conn and cursor:
+            try:
+                cursor.execute("""
+                    UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+                    SET status = 'failed',
+                        error_message = %s,
+                        retry_count = retry_count + 1
+                    WHERE id = %s
+                """, (str(e), batch_id))
+                conn.commit()
+            except Exception as db_error:
+                print(f"❌ Failed to update batch status: {str(db_error)}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
         
         return {
             'statusCode': 500,

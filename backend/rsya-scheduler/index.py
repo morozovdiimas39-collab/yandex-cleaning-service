@@ -46,6 +46,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Получаем проекты, которые нужно запустить
+        print(f"🔍 Checking for projects to schedule at {datetime.now()}")
         cursor.execute("""
             SELECT 
                 s.id as schedule_id,
@@ -63,6 +64,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         """)
         
         projects = cursor.fetchall()
+        print(f"📊 Found {len(projects)} projects to schedule")
         
         if not projects:
             conn.close()

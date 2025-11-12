@@ -1,5 +1,5 @@
 {
-  "wordstat-parser": "https://functions.poehali.dev/b7ad3b4d-d79c-422c-824b-b5b1f139a8bb",
+  "yc-debug": "https://functions.poehali.dev/bef5f076-1ec4-4b36-8670-020606cd07b3",
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",
   "rsya-batch-worker": "https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81",
   "rsya-dlq-processor": "https://functions.poehali.dev/e8f018ef-b008-48e9-90d4-142e067f5130",

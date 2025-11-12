@@ -1,0 +1,8 @@
+{
+  "tests": [{
+    "name": "Check YC triggers",
+    "method": "GET",
+    "path": "/",
+    "expectedStatus": 200
+  }]
+}

@@ -1,0 +1,25 @@
+{
+  "tests": [
+    {
+      "name": "Test unauthorized access",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "name": "Test non-admin access",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "999"
+      },
+      "expectedStatus": 403,
+      "expectedBody": {
+        "error": "Access denied: admin only"
+      }
+    }
+  ]
+}

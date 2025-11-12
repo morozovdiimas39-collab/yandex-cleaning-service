@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "Save Git File",
+      "request": {
+        "method": "GET"
+      },
+      "expected": {
+        "status": 200
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "tests": [
+    {
+      "name": "Get subscription status - creates trial for new user",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "test-user-new"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "hasAccess": true,
+        "planType": "trial",
+        "status": "active"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Activate monthly subscription",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "test-user-activate"
+      },
+      "body": {
+        "action": "activate"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "subscription": {
+          "planType": "monthly",
+          "status": "active"
+        }
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

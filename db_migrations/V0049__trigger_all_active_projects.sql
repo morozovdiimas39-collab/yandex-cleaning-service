@@ -1,0 +1,1 @@
+UPDATE rsya_project_schedule SET next_run_at = NOW() WHERE project_id IN (79, 80, 85, 86, 88, 99, 112, 131, 133, 134, 138, 139, 140, 142, 143) AND is_active = TRUE;

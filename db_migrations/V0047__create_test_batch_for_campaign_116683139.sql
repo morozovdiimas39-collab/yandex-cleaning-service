@@ -1,0 +1,1 @@
+INSERT INTO rsya_campaign_batches (project_id, campaign_ids, batch_number, total_batches, status) VALUES (142, '["116683139"]', 3, 3, 'pending');

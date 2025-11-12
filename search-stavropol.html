@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Stavropol Regions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            background-color: white;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .found {
+            color: green;
+            font-weight: bold;
+        }
+        .not-found {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Yandex Wordstat Regions for Stavropol</h1>
+    <button onclick="searchRegions()">Search Regions</button>
+    <div id="result"></div>
+    
+    <script>
+        async function searchRegions() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const response = await fetch('https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b', {
+                    method: 'GET'
+                });
+                const data = await response.json();
+                
+                // Results object
+                const results = {
+                    stavropol_krai: null,
+                    stavropol_city: null,
+                    stavropol_city_parent: null,
+                    north_caucasus_district: null
+                };
+                
+                // Function to recursively search regions
+                function searchTree(items, parent = null) {
+                    if (!items) return;
+                    
+                    for (const item of items) {
+                        const label = item.label || item.name || '';
+                        const value = item.value || item.id || '';
+                        
+                        // Check for Stavropol Krai
+                        if (label === 'Ставропольский край') {
+                            results.stavropol_krai = {
+                                id: value,
+                                label: label
+                            };
+                        }
+                        
+                        // Check for Stavropol City
+                        if (label === 'Ставрополь') {
+                            // Store all Stavropol entries, we'll filter later
+                            if (!results.stavropol_city) {
+                                results.stavropol_city = {
+                                    id: value,
+                                    label: label,
+                                    parent_label: parent?.label || parent?.name || 'Unknown'
+                                };
+                                
+                                if (parent) {
+                                    results.stavropol_city_parent = parent.value || parent.id;
+                                }
+                            }
+                        }
+                        
+                        // Check for North Caucasus Federal District
+                        if (label === 'Северо-Кавказский федеральный округ') {
+                            results.north_caucasus_district = {
+                                id: value,
+                                label: label
+                            };
+                        }
+                        
+                        // Recursively search in children
+                        if (item.children && item.children.length > 0) {
+                            searchTree(item.children, item);
+                        }
+                    }
+                }
+                
+                // Start search
+                const regions = data.regions || data.data || data;
+                searchTree(regions);
+                
+                // Display results
+                let html = '<h2>Search Results:</h2><br>';
+                
+                html += '<h3>1. Ставропольский край ID:</h3>';
+                if (results.stavropol_krai) {
+                    html += `<p class="found">ID: ${results.stavropol_krai.id}</p>`;
+                } else {
+                    html += '<p class="not-found">NOT FOUND</p>';
+                }
+                
+                html += '<h3>2. Ставрополь city ID:</h3>';
+                if (results.stavropol_city) {
+                    html += `<p class="found">ID: ${results.stavropol_city.id}</p>`;
+                    html += `<p>Parent: ${results.stavropol_city.parent_label}</p>`;
+                } else {
+                    html += '<p class="not-found">NOT FOUND</p>';
+                }
+                
+                html += '<h3>3. Parent region for Ставрополь city:</h3>';
+                if (results.stavropol_city_parent) {
+                    html += `<p class="found">Parent ID: ${results.stavropol_city_parent}</p>`;
+                } else {
+                    html += '<p class="not-found">NOT FOUND</p>';
+                }
+                
+                html += '<h3>4. Северо-Кавказский федеральный округ ID:</h3>';
+                if (results.north_caucasus_district) {
+                    html += `<p class="found">ID: ${results.north_caucasus_district.id}</p>`;
+                } else {
+                    html += '<p class="not-found">NOT FOUND</p>';
+                }
+                
+                html += '<br><h3>Full Results JSON:</h3>';
+                html += '<pre>' + JSON.stringify(results, null, 2) + '</pre>';
+                
+                resultDiv.innerHTML = html;
+                console.log('Search Results:', results);
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="not-found">Error: ' + error.message + '</p>';
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+UPDATE rsya_project_schedule SET next_run_at = NOW() WHERE project_id = 142;

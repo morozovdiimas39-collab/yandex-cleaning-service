@@ -1,0 +1,41 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": "",
+      "bodyMatcher": "exact"
+    },
+    {
+      "name": "POST without keywords returns 400",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "regions": [213]
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST with valid data returns results",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "keywords": ["купить квартиру"],
+        "regions": [213]
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "results": [],
+        "total_requests": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

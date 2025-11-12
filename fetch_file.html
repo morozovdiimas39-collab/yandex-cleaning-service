@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fetch File</title>
+</head>
+<body>
+    <pre id="output"></pre>
+    <script>
+        // Fetch the file from GitHub raw
+        fetch('https://raw.githubusercontent.com/morozovdiimas39-collab/yandex-cleaning-service/1e84b6dda36b6a91cd57e0746415da909c42527c/src/components/clustering/ResultsStep.tsx')
+            .then(response => response.text())
+            .then(text => {
+                document.getElementById('output').textContent = text;
+                console.log('File length:', text.length);
+                console.log(text);
+            })
+            .catch(err => {
+                document.getElementById('output').textContent = 'Error: ' + err.message;
+                console.error(err);
+            });
+    </script>
+</body>
+</html>

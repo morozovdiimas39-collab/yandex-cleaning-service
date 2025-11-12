@@ -1,0 +1,23 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS request для CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "POST проверка статуса подключения",
+      "method": "POST",
+      "headers": {
+        "X-User-Id": "test_user_123"
+      },
+      "body": {},
+      "expectedStatus": 404,
+      "expectedBody": {
+        "error": "Token not found",
+        "connected": false
+      }
+    }
+  ]
+}

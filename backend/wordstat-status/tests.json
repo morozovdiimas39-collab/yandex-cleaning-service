@@ -1,0 +1,23 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS request",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Missing task_id parameter",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "test-user"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "task_id required"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

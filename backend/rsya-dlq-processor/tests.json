@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Test DLQ processor endpoint",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "tests": [
+    {
+      "name": "Get flat regions list with parent_id",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "regions": "array",
+        "total": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+ALTER TABLE wordstat_tasks ADD COLUMN IF NOT EXISTS processed_keywords TEXT DEFAULT '[]';

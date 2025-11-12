@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Test rotation endpoint",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": "boolean"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

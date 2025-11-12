@@ -1,0 +1,4 @@
+ALTER TABLE rsya_projects 
+ADD COLUMN IF NOT EXISTS campaign_ids TEXT,
+ADD COLUMN IF NOT EXISTS counter_ids TEXT,
+ADD COLUMN IF NOT EXISTS auto_add_campaigns BOOLEAN DEFAULT TRUE;

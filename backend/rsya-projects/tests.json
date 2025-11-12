@@ -1,0 +1,46 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS - CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET projects - без user_id",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 401
+    },
+    {
+      "name": "GET projects - с user_id",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "projects": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST - создать проект",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "name": "Тестовый проект"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "project": "object"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

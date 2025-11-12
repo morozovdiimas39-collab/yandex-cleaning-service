@@ -1,0 +1,43 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS - CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": ""
+    },
+    {
+      "name": "GET campaigns - без токена",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "GET campaigns - с токеном",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "X-Auth-Token": "test_token"
+      },
+      "expectedStatus": 200
+    },
+    {
+      "name": "POST clean - успешная чистка",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Auth-Token": "test_token"
+      },
+      "body": {
+        "campaignIds": ["12345"],
+        "filters": ["com.", "dsp"]
+      },
+      "expectedStatus": 200
+    }
+  ]
+}

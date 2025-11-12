@@ -1,0 +1,37 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS - CORS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "POST blocked platforms - без токена",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "campaign_ids": ["123"]
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST blocked platforms - без campaign_ids",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Auth-Token": "fake-token"
+      },
+      "body": {},
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

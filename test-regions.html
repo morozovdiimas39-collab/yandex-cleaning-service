@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Get Wordstat Regions</title>
+</head>
+<body>
+    <h1>Wordstat Regions</h1>
+    <button onclick="getRegions()">Get Regions</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function getRegions() {
+            try {
+                const response = await fetch('https://functions.poehali.dev/8b141446-430c-4c0b-b347-a0a2057c0ee8', {
+                    method: 'GET'
+                });
+                const data = await response.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+                console.log('Regions:', data);
+            } catch (error) {
+                document.getElementById('result').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

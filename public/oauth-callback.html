@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Авторизация...</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .loader {
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader">
+        <div class="spinner"></div>
+        <p>Получаем токен...</p>
+    </div>
+
+    <script>
+        (function() {
+            try {
+                // Парсим токен из hash
+                const hash = window.location.hash.substring(1);
+                const params = new URLSearchParams(hash);
+                const token = params.get('access_token');
+                
+                if (token && window.opener) {
+                    // Отправляем токен родительскому окну
+                    window.opener.postMessage({
+                        type: 'yandex_oauth_token',
+                        token: token
+                    }, '*');
+                    
+                    // Показываем успех и закрываем через секунду
+                    document.querySelector('.loader').innerHTML = 
+                        '<div style="font-size: 48px; margin-bottom: 20px;">✅</div>' +
+                        '<p>Токен получен!</p>' +
+                        '<p style="opacity: 0.8; font-size: 14px;">Окно закроется автоматически...</p>';
+                    
+                    setTimeout(() => {
+                        window.close();
+                    }, 1000);
+                } else {
+                    throw new Error('Токен не найден или окно открыто напрямую');
+                }
+            } catch (error) {
+                console.error('OAuth callback error:', error);
+                document.querySelector('.loader').innerHTML = 
+                    '<div style="font-size: 48px; margin-bottom: 20px;">❌</div>' +
+                    '<p>Ошибка получения токена</p>' +
+                    '<p style="opacity: 0.8; font-size: 14px;">' + error.message + '</p>';
+            }
+        })();
+    </script>
+</body>
+</html>

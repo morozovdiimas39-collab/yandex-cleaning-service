@@ -438,6 +438,48 @@ def parse_tsv_report(tsv_text: str, goal_id: str):
     
     header = lines[0].split('\t')
     print(f'📋 TSV Header: {header}')
+    print(f'🎯 Goal ID: {goal_id}')
+    
+    # Создаём маппинг column_name -> index
+    header_map = {col: idx for idx, col in enumerate(header)}
+    print(f'📋 Header map: {header_map}')
+    
+    # Определяем индексы для обязательных полей
+    campaign_id_idx = header_map.get('CampaignId', 0)
+    campaign_name_idx = header_map.get('CampaignName', 1)
+    placement_idx = header_map.get('Placement', 2)
+    impressions_idx = header_map.get('Impressions', 3)
+    clicks_idx = header_map.get('Clicks', 4)
+    cost_idx = header_map.get('Cost', 5)
+    ctr_idx = header_map.get('Ctr', 6)
+    cpc_idx = header_map.get('AvgCpc', 7)
+    
+    # Ищем поля конверсий и CPA
+    conversions_idx = None
+    cpa_idx = None
+    
+    if goal_id and goal_id != '':
+        # Если указана цель, ищем поле Conversions_<goal_id>_*
+        for col_name, idx in header_map.items():
+            if col_name.startswith('Conversions_') and goal_id in col_name:
+                conversions_idx = idx
+                print(f'✅ Found goal-specific conversions field: {col_name} at index {idx}')
+                break
+            
+        for col_name, idx in header_map.items():
+            if col_name.startswith('CostPerConversion_') and goal_id in col_name:
+                cpa_idx = idx
+                print(f'✅ Found goal-specific CPA field: {col_name} at index {idx}')
+                break
+    else:
+        # Если цель не указана, ищем общие поля Conversions и CostPerConversion
+        conversions_idx = header_map.get('Conversions')
+        cpa_idx = header_map.get('CostPerConversion')
+        if conversions_idx:
+            print(f'✅ Using general Conversions field at index {conversions_idx}')
+        if cpa_idx:
+            print(f'✅ Using general CostPerConversion field at index {cpa_idx}')
+    
     print(f'📋 First 3 data lines:')
     for i, line in enumerate(lines[1:4]):
         print(f'  Line {i+1}: {line}')
@@ -450,14 +492,14 @@ def parse_tsv_report(tsv_text: str, goal_id: str):
         if len(fields) < 8:
             continue
         
-        campaign_id = fields[0]
-        campaign_name = fields[1]
-        url = fields[2]
-        impressions = int(fields[3]) if fields[3] else 0
-        clicks = int(fields[4]) if fields[4] else 0
-        cost_micro = float(fields[5]) if fields[5] else 0.0
-        ctr = float(fields[6]) if fields[6] and fields[6] != '--' else 0.0
-        cpc_micro = float(fields[7]) if fields[7] and fields[7] != '--' else 0.0
+        campaign_id = fields[campaign_id_idx] if campaign_id_idx < len(fields) else ''
+        campaign_name = fields[campaign_name_idx] if campaign_name_idx < len(fields) else ''
+        url = fields[placement_idx] if placement_idx < len(fields) else ''
+        impressions = int(fields[impressions_idx]) if impressions_idx < len(fields) and fields[impressions_idx] else 0
+        clicks = int(fields[clicks_idx]) if clicks_idx < len(fields) and fields[clicks_idx] else 0
+        cost_micro = float(fields[cost_idx]) if cost_idx < len(fields) and fields[cost_idx] else 0.0
+        ctr = float(fields[ctr_idx]) if ctr_idx < len(fields) and fields[ctr_idx] and fields[ctr_idx] != '--' else 0.0
+        cpc_micro = float(fields[cpc_idx]) if cpc_idx < len(fields) and fields[cpc_idx] and fields[cpc_idx] != '--' else 0.0
         
         # Яндекс возвращает cost и cpc в микро-единицах (1 рубль = 1 000 000)
         cost = cost_micro / 1_000_000
@@ -466,13 +508,15 @@ def parse_tsv_report(tsv_text: str, goal_id: str):
         conversions = 0
         cpa_value = 0.0
         
-        # Парсим конверсии (всегда в 9-м поле, индекс 8)
-        if len(fields) > 8:
-            conversions = int(fields[8]) if fields[8] and fields[8] != '--' else 0
+        # Парсим конверсии из правильного поля
+        if conversions_idx is not None and conversions_idx < len(fields):
+            conv_str = fields[conversions_idx]
+            conversions = int(conv_str) if conv_str and conv_str != '--' else 0
         
-        # Парсим CPA (всегда в 10-м поле, индекс 9)
-        if len(fields) > 9:
-            cpa_micro = float(fields[9]) if fields[9] and fields[9] != '--' else 0.0
+        # Парсим CPA из правильного поля
+        if cpa_idx is not None and cpa_idx < len(fields):
+            cpa_str = fields[cpa_idx]
+            cpa_micro = float(cpa_str) if cpa_str and cpa_str != '--' else 0.0
             cpa_value = cpa_micro / 1_000_000
         elif conversions > 0:
             # Если CPA не пришел, считаем вручную

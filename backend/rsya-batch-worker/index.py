@@ -187,7 +187,7 @@ def process_campaign(
     context: Any
 ) -> Dict[str, Any]:
     '''
-    Обработка одной кампании: получение площадок, фильтрация, блокировка
+    Обработка одной кампании: получение площадок, фильтрация по задачам, блокировка
     '''
     
     # 1. Блокировка кампании (избегаем race condition)
@@ -201,7 +201,25 @@ def process_campaign(
         }
     
     try:
-        # 2. Получаем площадки за 3 периода (сегодня, вчера, 7 дней)
+        # 2. Получаем активные задачи проекта
+        cursor.execute("""
+            SELECT id, description, config
+            FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
+            WHERE project_id = %s AND is_enabled = TRUE
+        """, (project_id,))
+        tasks = cursor.fetchall()
+        
+        if not tasks:
+            print(f"⚠️ No active tasks for project {project_id}")
+            return {
+                'campaign_id': campaign_id,
+                'status': 'skipped',
+                'reason': 'no_active_tasks'
+            }
+        
+        print(f"📋 Found {len(tasks)} active tasks for project {project_id}")
+        
+        # 3. Получаем площадки за 3 периода (сегодня, вчера, 7 дней)
         platforms_today = get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id)
         platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id)
         platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id)
@@ -214,7 +232,7 @@ def process_campaign(
                 'reason': 'async_reports'
             }
         
-        # 3. Объединяем площадки, убираем дубли
+        # 4. Объединяем площадки, убираем дубли
         all_platforms = {}
         for platforms in [platforms_today, platforms_yesterday, platforms_7d]:
             if platforms:
@@ -227,6 +245,11 @@ def process_campaign(
                         all_platforms[domain]['clicks'] += p.get('clicks', 0)
                         all_platforms[domain]['cost'] += p.get('cost', 0)
                         all_platforms[domain]['conversions'] += p.get('conversions', 0)
+                        # Пересчитываем CPC и CPA
+                        if all_platforms[domain]['clicks'] > 0:
+                            all_platforms[domain]['cpc'] = all_platforms[domain]['cost'] / all_platforms[domain]['clicks']
+                        if all_platforms[domain]['conversions'] > 0:
+                            all_platforms[domain]['cpa'] = all_platforms[domain]['cost'] / all_platforms[domain]['conversions']
         
         candidates = list(all_platforms.values())
         
@@ -238,22 +261,40 @@ def process_campaign(
                 'reason': 'no_candidates'
             }
         
-        # 4. Получаем уже заблокированные площадки
+        print(f"📊 Campaign {campaign_id}: {len(candidates)} candidates to check")
+        
+        # 5. Получаем уже заблокированные площадки
         blocked_sites = get_blocked_sites(campaign_id, yandex_token)
         blocked_domains = set(s['domain'] for s in blocked_sites)
         
-        # 5. Убираем уже заблокированные
-        to_block = [p for p in candidates if p['domain'] not in blocked_domains]
+        # 6. Фильтруем площадки по задачам
+        matched_platforms = []
+        for task in tasks:
+            config = json.loads(task['config']) if isinstance(task['config'], str) else task['config']
+            
+            for platform in candidates:
+                if platform['domain'] in blocked_domains:
+                    continue
+                
+                if matches_task_filters(platform, config):
+                    matched_platforms.append(platform)
+                    print(f"✅ Platform {platform['domain']} matched task '{task['description']}'")
+        
+        # Убираем дубли
+        to_block = list({p['domain']: p for p in matched_platforms}.values())
         
         if not to_block:
+            print(f"ℹ️ Campaign {campaign_id}: no platforms matched task filters")
             return {
                 'campaign_id': campaign_id,
                 'status': 'success',
                 'blocked': 0,
-                'reason': 'already_blocked'
+                'reason': 'no_matches'
             }
         
-        # 6. Ротация: если лимит 1000 превышен
+        print(f"🎯 Campaign {campaign_id}: {len(to_block)} platforms matched filters")
+        
+        # 7. Ротация: если лимит 1000 превышен
         if len(blocked_sites) + len(to_block) > 1000:
             # Сортируем по вредоносности (расход DESC)
             all_sites = blocked_sites + to_block
@@ -269,7 +310,7 @@ def process_campaign(
                 unblock_sites(campaign_id, yandex_token, [s['domain'] for s in to_unblock])
                 print(f"🔄 Campaign {campaign_id}: rotated {len(to_unblock)} platforms")
         
-        # 7. Добавляем новые блокировки
+        # 8. Добавляем новые блокировки
         if to_block:
             block_sites(campaign_id, yandex_token, [p['domain'] for p in to_block])
             print(f"🚫 Campaign {campaign_id}: blocked {len(to_block)} platforms")
@@ -284,6 +325,62 @@ def process_campaign(
     finally:
         # Снимаем блокировку кампании
         release_campaign_lock(campaign_id, cursor, conn, project_id)
+
+
+def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    '''
+    Проверяет соответствие площадки фильтрам задачи
+    '''
+    domain = platform['domain'].lower()
+    
+    # 1. Проверка ключевых слов (обязательна если указаны)
+    keywords = config.get('keywords', [])
+    if keywords:
+        has_keyword = any(kw.lower() in domain for kw in keywords)
+        if not has_keyword:
+            return False
+    
+    # 2. Проверка исключений (самое сильное правило)
+    exceptions = config.get('exceptions', [])
+    if exceptions:
+        has_exception = any(exc.lower() in domain for exc in exceptions)
+        if has_exception:
+            return False
+    
+    # 3. Защита конверсий
+    if config.get('protect_conversions') and platform.get('conversions', 0) > 0:
+        return False
+    
+    # 4. Фильтры по метрикам
+    if config.get('min_impressions') and platform.get('impressions', 0) < config['min_impressions']:
+        return False
+    if config.get('max_impressions') and platform.get('impressions', 0) > config['max_impressions']:
+        return False
+    
+    if config.get('min_clicks') and platform.get('clicks', 0) < config['min_clicks']:
+        return False
+    if config.get('max_clicks') and platform.get('clicks', 0) > config['max_clicks']:
+        return False
+    
+    if config.get('min_cpc') and platform.get('cpc', 0) < config['min_cpc']:
+        return False
+    if config.get('max_cpc') and platform.get('cpc', 0) > config['max_cpc']:
+        return False
+    
+    if config.get('min_ctr') and platform.get('ctr', 0) < config['min_ctr']:
+        return False
+    if config.get('max_ctr') and platform.get('ctr', 0) > config['max_ctr']:
+        return False
+    
+    if config.get('min_conversions') and platform.get('conversions', 0) < config['min_conversions']:
+        return False
+    
+    if config.get('min_cpa') and platform.get('cpa', 0) < config['min_cpa']:
+        return False
+    if config.get('max_cpa') and platform.get('cpa', 0) > config['max_cpa']:
+        return False
+    
+    return True
 
 
 def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn, project_id: int) -> bool:

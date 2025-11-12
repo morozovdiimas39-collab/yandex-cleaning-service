@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RSYA Scheduler Diagnostics</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 {
+            color: #4ec9b0;
+        }
+        pre {
+            background: #252526;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #3e3e42;
+        }
+        .loading {
+            color: #dcdcaa;
+            font-size: 18px;
+        }
+        .error {
+            color: #f48771;
+        }
+        .success {
+            color: #4ec9b0;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #252526;
+            border-radius: 5px;
+            border-left: 4px solid #4ec9b0;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #569cd6;
+        }
+        .key {
+            color: #9cdcfe;
+        }
+        .value {
+            color: #ce9178;
+        }
+        .warning {
+            color: #dcdcaa;
+            background: #3c3c0a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 RSYA Scheduler Diagnostics</h1>
+    <div class="loading" id="loading">Loading diagnostic information...</div>
+    <pre id="output"></pre>
+    
+    <script>
+        async function diagnose() {
+            const output = document.getElementById('output');
+            const loading = document.getElementById('loading');
+            
+            try {
+                const response = await fetch('https://functions.poehali.dev/56553e1a-0378-4b18-bea1-de65b7498d5d');
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                // Format and display the JSON
+                output.textContent = JSON.stringify(data, null, 2);
+                
+                // Analyze the response
+                analyzeResponse(data);
+                
+            } catch (error) {
+                loading.className = 'error';
+                loading.textContent = 'Error: ' + error.message;
+                output.textContent = error.stack;
+            }
+        }
+        
+        function analyzeResponse(data) {
+            const analysis = document.createElement('div');
+            analysis.className = 'section';
+            analysis.innerHTML = '<h2>📊 Analysis</h2>';
+            
+            // Check service account
+            if (data.service_account) {
+                const sa = data.service_account;
+                analysis.innerHTML += `
+                    <div>
+                        <strong class="key">Service Account:</strong> ${sa.name || 'N/A'}<br>
+                        <strong class="key">ID:</strong> ${sa.id}<br>
+                        <strong class="key">Roles:</strong> ${sa.roles ? sa.roles.join(', ') : 'No roles assigned!'}
+                    </div>
+                `;
+                
+                if (!sa.roles || sa.roles.length === 0) {
+                    analysis.innerHTML += `
+                        <div class="warning">
+                            ⚠️ WARNING: Service account has no roles assigned! This will cause AccessDeniedException.
+                        </div>
+                    `;
+                }
+                
+                if (sa.roles && !sa.roles.includes('ymq.writer')) {
+                    analysis.innerHTML += `
+                        <div class="warning">
+                            ⚠️ WARNING: Service account is missing 'ymq.writer' role for Message Queue!
+                        </div>
+                    `;
+                }
+            }
+            
+            // Check Message Queue
+            if (data.message_queue_error) {
+                analysis.innerHTML += `
+                    <div class="warning">
+                        ⚠️ Message Queue Error: ${data.message_queue_error}
+                    </div>
+                `;
+            }
+            
+            // Check function status
+            if (data.functions) {
+                analysis.innerHTML += `
+                    <div style="margin-top: 15px;">
+                        <strong class="key">Scheduler Status:</strong> ${data.functions.scheduler.status}<br>
+                        <strong class="key">Function ID:</strong> ${data.functions.scheduler.id}
+                    </div>
+                `;
+            }
+            
+            document.body.insertBefore(analysis, document.getElementById('output'));
+        }
+        
+        // Start diagnosis
+        diagnose();
+    </script>
+</body>
+</html>

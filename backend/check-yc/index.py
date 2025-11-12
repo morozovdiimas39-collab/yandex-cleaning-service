@@ -63,12 +63,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 elif func['name'] == 'rsya-batch-worker':
                     worker_func = func
             
+            # Получаем детали версии функции rsya-scheduler
+            scheduler_details = None
+            if scheduler_func:
+                try:
+                    version_resp = requests.get(
+                        f"https://serverless-functions.api.cloud.yandex.net/functions/v1/versions:byTag",
+                        headers={'Authorization': f'Bearer {iam_token}'},
+                        params={
+                            'functionId': scheduler_func['id'],
+                            'tag': '$latest'
+                        },
+                        timeout=10
+                    )
+                    if version_resp.status_code == 200:
+                        version_data = version_resp.json()
+                        scheduler_details = {
+                            'service_account_id': version_data.get('serviceAccountId'),
+                            'version_id': version_data.get('id'),
+                            'runtime': version_data.get('runtime'),
+                            'entrypoint': version_data.get('entrypoint'),
+                            'environment': version_data.get('environment', {})
+                        }
+                except Exception as e:
+                    report['scheduler_version_error'] = str(e)
+            
             report['functions'] = {
                 'total': len(functions),
                 'scheduler': {
                     'exists': scheduler_func is not None,
                     'id': scheduler_func['id'] if scheduler_func else None,
-                    'status': scheduler_func.get('status') if scheduler_func else None
+                    'status': scheduler_func.get('status') if scheduler_func else None,
+                    'details': scheduler_details
                 },
                 'worker': {
                     'exists': worker_func is not None,
@@ -124,7 +150,50 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'mq_for_worker': mq_trigger
             }
         
-        # 3. Проверяем Message Queue
+        # 3. Получаем информацию о Service Account
+        if scheduler_details and scheduler_details.get('service_account_id'):
+            sa_id = scheduler_details['service_account_id']
+            try:
+                # Получаем список сервисных аккаунтов
+                sa_resp = requests.get(
+                    f'https://iam.api.cloud.yandex.net/iam/v1/serviceAccounts/{sa_id}',
+                    headers={'Authorization': f'Bearer {iam_token}'},
+                    timeout=10
+                )
+                
+                if sa_resp.status_code == 200:
+                    sa_data = sa_resp.json()
+                    report['service_account'] = {
+                        'id': sa_data.get('id'),
+                        'name': sa_data.get('name'),
+                        'folder_id': sa_data.get('folderId'),
+                        'created_at': sa_data.get('createdAt')
+                    }
+                else:
+                    report['service_account_error'] = f"Failed to get SA: {sa_resp.text}"
+                
+                # Получаем роли на уровне folder
+                access_bindings_resp = requests.get(
+                    f'https://resource-manager.api.cloud.yandex.net/resource-manager/v1/folders/{folder_id}:listAccessBindings',
+                    headers={'Authorization': f'Bearer {iam_token}'},
+                    timeout=10
+                )
+                
+                if access_bindings_resp.status_code == 200:
+                    bindings = access_bindings_resp.json().get('accessBindings', [])
+                    sa_roles = []
+                    for binding in bindings:
+                        if binding.get('subject', {}).get('id') == sa_id:
+                            sa_roles.append(binding.get('roleId'))
+                    
+                    report['service_account']['roles'] = sa_roles
+                else:
+                    report['access_bindings_error'] = f"Failed to list bindings: {access_bindings_resp.text}"
+                    
+            except Exception as e:
+                report['service_account_error'] = str(e)
+        
+        # 4. Проверяем Message Queue
         mq_access_key = os.environ.get('YANDEX_MQ_ACCESS_KEY_ID')
         mq_secret_key = os.environ.get('YANDEX_MQ_SECRET_KEY')
         
@@ -149,7 +218,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 report['message_queue'] = {
                     'queue_url': queue_url,
                     'messages_available': attrs['Attributes'].get('ApproximateNumberOfMessages'),
-                    'messages_in_flight': attrs['Attributes'].get('ApproximateNumberOfMessagesNotVisible')
+                    'messages_in_flight': attrs['Attributes'].get('ApproximateNumberOfMessagesNotVisible'),
+                    'access_key_id': mq_access_key[:8] + '...'  # Show partial for verification
                 }
             except Exception as e:
                 report['message_queue_error'] = str(e)

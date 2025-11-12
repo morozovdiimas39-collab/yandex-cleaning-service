@@ -38,7 +38,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         key_data = json.loads(sa_key_json)
         iam_token = get_iam_token(key_data)
         
-        folder_id = 'b1gtcrip05he61994ldo'
+        folder_id = 'b1gfge7vvmv0dmokngu5'
         
         report = {}
         
@@ -139,7 +139,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     aws_secret_access_key=mq_secret_key
                 )
                 
-                queue_url = 'https://message-queue.api.cloud.yandex.net/b1gtcrip05he61994ldo/dj600000007lh09q06il/rsyacleaner'
+                queue_url = 'https://message-queue.api.cloud.yandex.net/b1gfge7vvmv0dmokngu5/dj600000007lh09q06il/rsyacleaner'
                 
                 attrs = sqs.get_queue_attributes(
                     QueueUrl=queue_url,

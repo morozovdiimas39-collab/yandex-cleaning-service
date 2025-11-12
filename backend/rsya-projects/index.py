@@ -555,11 +555,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Project not found'})
                 }
             
-            # Удаляем задачу
+            # 1. Удаляем pending батчи для этого проекта из БД
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE project_id = %s AND status IN ('pending', 'processing')",
+                (project_id,)
+            )
+            print(f'🗑️  Deleted pending batches for project {project_id}')
+            
+            # 2. Удаляем блокировки кампаний
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s",
+                (project_id,)
+            )
+            print(f'🔓 Deleted campaign locks for project {project_id}')
+            
+            # 3. Удаляем саму задачу
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s AND project_id = %s",
                 (task_id, project_id)
             )
+            print(f'✅ Deleted task {task_id}')
+            
             conn.commit()
             
             # Загружаем все задачи проекта

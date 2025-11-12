@@ -57,7 +57,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
             JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
             WHERE s.is_active = TRUE
-              AND s.next_run_at <= NOW()
+              AND s.next_run_at <= CURRENT_TIMESTAMP
               AND p.yandex_token IS NOT NULL
             ORDER BY s.next_run_at
             LIMIT 100

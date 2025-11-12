@@ -1,7 +1,7 @@
 {
   "tests": [{
-    "name": "Get rsya-scheduler function",
-    "method": "POST",
+    "name": "Check YC triggers",
+    "method": "GET",
     "path": "/",
     "expectedStatus": 200
   }]

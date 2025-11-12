@@ -1284,25 +1284,6 @@ export default function RSYAProject() {
                   )}
                 </div>
                 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Расписание запуска</label>
-                  <Select value={taskScheduleInterval} onValueChange={setTaskScheduleInterval}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Интервал запуска" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2">Каждые 2 часа</SelectItem>
-                      <SelectItem value="4">Каждые 4 часа</SelectItem>
-                      <SelectItem value="6">Каждые 6 часов</SelectItem>
-                      <SelectItem value="12">Каждые 12 часов</SelectItem>
-                      <SelectItem value="24">Каждые 24 часа</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Задача будет автоматически запускаться с выбранным интервалом
-                  </p>
-                </div>
-                
                 <Button onClick={addTask} className="w-full" size="sm">
                   <Icon name="Plus" size={16} />
                   Добавить задачу
@@ -1363,12 +1344,6 @@ export default function RSYAProject() {
                                   )}
                                   {(task.config.min_cpa || task.config.max_cpa) && (
                                     <div>CPA: {task.config.min_cpa || '−'}₽ — {task.config.max_cpa || '∞'}₽</div>
-                                  )}
-                                  {task.config.schedule_interval && (
-                                    <div className="flex items-center gap-1">
-                                      <Icon name="Clock" size={10} />
-                                      Каждые {task.config.schedule_interval}ч
-                                    </div>
                                   )}
                                 </div>
                               )}

@@ -143,18 +143,14 @@ export default function RSYAProject() {
     { value: 'vpn', label: 'vpn' },
     { value: 'free', label: 'free' },
     { value: 'proxy', label: 'proxy' },
-    { value: 'torrent', label: 'torrent' },
-    { value: 'download', label: 'download' },
-    { value: 'игр', label: 'игр' },
-    { value: 'казин', label: 'казин' },
-    { value: 'ставк', label: 'ставк' }
+    { value: 'download', label: 'download' }
   ];
 
   const EXCEPTION_PRESETS = [
     { value: 'com.avito.android', label: 'Авито' },
     { value: 'com.vkontakte.android', label: 'ВКонтакте' },
     { value: 'com.opera.browser', label: 'Opera' },
-    { value: 'com.yandex.shedevrus', label: 'Шедеврум' },
+    { value: 'ru.yandex.zen', label: 'Дзен' },
     { value: 'free.vpn.proxy.secure', label: 'VPN Secure' }
   ];
 
@@ -178,30 +174,32 @@ export default function RSYAProject() {
     const newPresets = new Set(selectedKeywordPresets);
     if (newPresets.has(preset)) {
       newPresets.delete(preset);
+      const currentKeywords = taskKeywords.split('\n').filter(k => k.trim() && k.trim() !== preset);
+      setTaskKeywords(currentKeywords.join('\n'));
     } else {
       newPresets.add(preset);
+      const currentKeywords = taskKeywords.split('\n').filter(k => k.trim());
+      const presetKeywords = Array.from(newPresets);
+      const combined = [...new Set([...currentKeywords, ...presetKeywords])];
+      setTaskKeywords(combined.join('\n'));
     }
     setSelectedKeywordPresets(newPresets);
-    
-    const currentKeywords = taskKeywords.split('\n').filter(k => k.trim());
-    const presetKeywords = Array.from(newPresets);
-    const combined = [...new Set([...currentKeywords, ...presetKeywords])];
-    setTaskKeywords(combined.join('\n'));
   };
 
   const toggleExceptionPreset = (preset: string) => {
     const newPresets = new Set(selectedExceptionPresets);
     if (newPresets.has(preset)) {
       newPresets.delete(preset);
+      const currentExceptions = taskExceptions.split('\n').filter(e => e.trim() && e.trim() !== preset);
+      setTaskExceptions(currentExceptions.join('\n'));
     } else {
       newPresets.add(preset);
+      const currentExceptions = taskExceptions.split('\n').filter(e => e.trim());
+      const presetExceptions = Array.from(newPresets);
+      const combined = [...new Set([...currentExceptions, ...presetExceptions])];
+      setTaskExceptions(combined.join('\n'));
     }
     setSelectedExceptionPresets(newPresets);
-    
-    const currentExceptions = taskExceptions.split('\n').filter(e => e.trim());
-    const presetExceptions = Array.from(newPresets);
-    const combined = [...new Set([...currentExceptions, ...presetExceptions])];
-    setTaskExceptions(combined.join('\n'));
   };
 
   const loadProject = async (uid: string) => {
@@ -1044,77 +1042,7 @@ export default function RSYAProject() {
           </div>
         </div>
 
-        <div className="border-b bg-muted/20 p-4">
-          <div className="grid grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Площадок</p>
-                    <p className="text-2xl font-bold">{placements.length}</p>
-                  </div>
-                  <Icon name="LayoutGrid" size={24} className="text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Показов</p>
-                    <p className="text-2xl font-bold">
-                      {placements.reduce((sum, p) => sum + p.impressions, 0).toLocaleString()}
-                    </p>
-                  </div>
-                  <Icon name="Eye" size={24} className="text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Кликов</p>
-                    <p className="text-2xl font-bold">
-                      {placements.reduce((sum, p) => sum + p.clicks, 0).toLocaleString()}
-                    </p>
-                  </div>
-                  <Icon name="MousePointer" size={24} className="text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Конверсий</p>
-                    <p className="text-2xl font-bold">
-                      {placements.reduce((sum, p) => sum + p.conversions, 0).toLocaleString()}
-                    </p>
-                  </div>
-                  <Icon name="Target" size={24} className="text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Расход</p>
-                    <p className="text-2xl font-bold">
-                      {placements.reduce((sum, p) => sum + p.cost, 0).toFixed(0)}₽
-                    </p>
-                  </div>
-                  <Icon name="DollarSign" size={24} className="text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+
 
         <div className="flex-1 flex overflow-hidden">
           {/* Левая колонка: Задачи */}

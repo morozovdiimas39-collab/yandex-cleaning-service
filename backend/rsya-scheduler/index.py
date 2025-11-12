@@ -87,7 +87,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Обновляем next_run_at
                 cursor.execute("""
                     UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
-                    SET next_run_at = NOW() + INTERVAL '%s hours',
+                    SET next_run_at = NOW() + make_interval(hours => %s),
                         last_run_at = NOW(),
                         updated_at = NOW()
                     WHERE id = %s

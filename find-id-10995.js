@@ -1,6 +1,6 @@
 const https = require('https');
 
-https.get('https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b', (resp) => {
+https.get('https://functions.yandexcloud.net/d4e5st970vb8j7josnff', (resp) => {
   let data = '';
   resp.on('data', (chunk) => { data += chunk; });
   resp.on('end', () => {

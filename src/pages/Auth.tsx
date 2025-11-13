@@ -10,7 +10,7 @@ import Icon from '@/components/ui/icon';
 
 type AuthStep = 'phone' | 'code';
 
-const API_URL = 'https://functions.poehali.dev/06df3397-13af-46f0-946a-f5d38aa6f60f';
+const API_URL = 'https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5';
 
 export default function Auth() {
   const [step, setStep] = useState<AuthStep>('phone');

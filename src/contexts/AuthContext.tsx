@@ -51,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsedUser = JSON.parse(storedUser);
         
         console.log('🌐 AuthContext: Verifying token with backend...');
-        const response = await fetch('https://functions.poehali.dev/06df3397-13af-46f0-946a-f5d38aa6f60f?endpoint=verify', {
+        const response = await fetch('https://functions.yandexcloud.net/d4elfvr9rrpdrk58cm74?endpoint=verify', {
           method: 'GET',
           headers: {
             'X-Session-Token': storedToken

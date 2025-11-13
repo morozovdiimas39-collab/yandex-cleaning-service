@@ -24,12 +24,7 @@ export default defineConfig(({mode}) => ({
         }
     },
     build: {
-        rollupOptions: {
-            external: [
-                /cloud/,
-                /yandex/,
-                /api.*cloud/,
-            ],
-        },
+        minify: 'terser',
+        sourcemap: false,
     },
 }));

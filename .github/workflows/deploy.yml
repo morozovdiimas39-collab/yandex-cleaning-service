@@ -1,23 +1,169 @@
-- name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: '20'
+name: Deploy to Yandex Cloud
+
+on:
+  workflow_dispatch:  # Запуск только вручную через кнопку в GitHub Actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function:
+          - admin
+          - api
+          - auth
+          - fetch-git-file
+          - rsya-automation
+          - rsya-batch-worker
+          - rsya-block-worker
+          - rsya-dlq-processor
+          - rsya-health
+          - rsya-report-poller
+          - rsya-rotation
+          - rsya-scheduler
+          - save-git-file
+          - subscription
+          - wordstat-status
+          - yandex-blocked-platforms
+          - yandex-blocked-stats
+          - yandex-direct
+          - yandex-metrika-goals
+          - yandex-oauth
+          - yandex-platform-stats
+          - yandex-platforms
+          - yandex-regions
+          - rsya-projects
+      fail-fast: false  # Продолжать деплой даже если одна функция упала
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Yandex Cloud CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+      
+      - name: Authenticate with Yandex Cloud
+        run: |
+          echo '${{ secrets.YC_SERVICE_ACCOUNT_KEY }}' > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          rm key.json
+      
+      - name: Detect runtime and prepare deployment
+        id: detect
+        run: |
+          FUNCTION_PATH="backend/${{ matrix.function }}"
+          
+          if [ -f "$FUNCTION_PATH/index.ts" ]; then
+            echo "runtime=nodejs22" >> $GITHUB_OUTPUT
+            echo "entrypoint=index.handler" >> $GITHUB_OUTPUT
+          elif [ -f "$FUNCTION_PATH/index.py" ]; then
+            echo "runtime=python311" >> $GITHUB_OUTPUT
+            echo "entrypoint=index.handler" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No index.ts or index.py found in $FUNCTION_PATH"
+            exit 1
+          fi
+      
+      - name: Deploy function
+        run: |
+          FUNCTION_PATH="backend/${{ matrix.function }}"
+          
+          # Создаём архив с кодом функции
+          cd "$FUNCTION_PATH"
+          zip -r ../../function.zip .
+          cd ../..
+          
+          # Проверяем существует ли функция
+          FUNCTION_EXISTS=$(yc serverless function list --format json | jq -r '.[] | select(.name=="${{ matrix.function }}") | .id')
+          
+          if [ -z "$FUNCTION_EXISTS" ]; then
+            echo "Creating new function: ${{ matrix.function }}"
+            yc serverless function create --name="${{ matrix.function }}"
+          else
+            echo "Function exists: ${{ matrix.function }}"
+          fi
+          
+          # Деплоим версию функции
+          yc serverless function version create \
+            --function-name="${{ matrix.function }}" \
+            --runtime="${{ steps.detect.outputs.runtime }}" \
+            --entrypoint="${{ steps.detect.outputs.entrypoint }}" \
+            --memory=256m \
+            --execution-timeout=300s \
+            --source-path=function.zip \
+            --environment DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            --environment YANDEX_MQ_ACCESS_KEY_ID="${{ secrets.YANDEX_MQ_ACCESS_KEY_ID }}" \
+            --environment YANDEX_MQ_SECRET_KEY="${{ secrets.YANDEX_MQ_SECRET_KEY }}" \
+            --environment YANDEX_WORDSTAT_TOKEN="${{ secrets.YANDEX_WORDSTAT_TOKEN }}" \
+          
+          # Делаем функцию публичной
+          
+          
+          # Получаем URL функции
+          FUNCTION_ID=$(yc serverless function get ${{ matrix.function }} --format json | jq -r '.id')
+          FUNCTION_URL="https://functions.yandexcloud.net/${FUNCTION_ID}"
+          
+          echo "✅ ${{ matrix.function }}: ${FUNCTION_URL}"
+          echo "${FUNCTION_URL}" > "function-url-${{ matrix.function }}.txt"
+      
+      - name: Upload function URL
+        uses: actions/upload-artifact@v4
+        with:
+          name: function-url-${{ matrix.function }}
+          path: function-url-${{ matrix.function }}.txt
   
-  - name: Install dependencies
-    run: npm install
-  
-  - name: Build frontend
-    run: npm run build
-    env:
-      VITE_API_DISABLED: 'true'
-      VITE_USE_MOCK_DATA: 'true'
-  
-  - name: Deploy to server via SSH
-    uses: appleboy/scp-action@master
-    with:
-      host: ${{ secrets.SSH_HOST }}
-      username: ${{ secrets.SSH_USER }}
-      key: ${{ secrets.SSH_KEY }}
-      source: "dist/*"
-      target: ${{ secrets.SSH_PATH }}
-      strip_components: 1
+  collect-urls:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all URLs
+        uses: actions/download-artifact@v4
+        with:
+          path: urls/
+      
+      - name: Display all function URLs
+        run: |
+          echo "🎉 Все функции задеплоены!"
+          echo ""
+          echo "Скопируй эти URL и дай Юре для обновления func2url.json:"
+          echo ""
+          for file in urls/*/function-url-*.txt; do
+            FUNCTION_NAME=$(basename "$file" | sed 's/function-url-//' | sed 's/.txt//')
+            URL=$(cat "$file")
+            echo "\"${FUNCTION_NAME}\": \"${URL}\","
+          done
+
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_DISABLED: 'true'
+          VITE_USE_MOCK_DATA: 'true'
+      
+      - name: Deploy to server via SSH
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "dist/*"
+          target: ${{ secrets.SSH_PATH }}
+          strip_components: 1

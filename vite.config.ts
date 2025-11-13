@@ -20,7 +20,16 @@ export default defineConfig(({mode}) => ({
         port: 5173,
         allowedHosts: true,
         hmr: {
-            overlay: false // Disables the error overlay if you only want console errors
+            overlay: false
         }
+    },
+    build: {
+        rollupOptions: {
+            external: [
+                /cloud/,
+                /yandex/,
+                /api.*cloud/,
+            ],
+        },
     },
 }));

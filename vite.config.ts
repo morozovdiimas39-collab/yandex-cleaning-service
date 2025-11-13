@@ -23,8 +23,4 @@ export default defineConfig(({mode}) => ({
             overlay: false
         }
     },
-    build: {
-        minify: 'terser',
-        sourcemap: false,
-    },
 }));

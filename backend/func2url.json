@@ -14,7 +14,6 @@
   "rsya-scheduler": "https://functions.yandexcloud.net/d4et4pke4rosupb0kahm",
   "save-git-file": "https://functions.yandexcloud.net/d4e4t40b78fi7pn8p0f4",
   "subscription": "https://functions.yandexcloud.net/d4eqfcc5girmtmji7mjk",
-  "wordstat-parser": "https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv",
   "wordstat-status": "https://functions.yandexcloud.net/d4eqd0dcpik3vk39ccfp",
   "yandex-blocked-platforms": "https://functions.yandexcloud.net/d4eabaq634f3gut2pm00",
   "yandex-blocked-stats": "https://functions.yandexcloud.net/d4ep25vvv2s95qhik1h2",
@@ -24,5 +23,3 @@
   "yandex-platform-stats": "https://functions.yandexcloud.net/d4efpaup2ffe4fnsapmd",
   "yandex-platforms": "https://functions.yandexcloud.net/d4e53slti2ke9hq85ejh",
   "yandex-regions": "https://functions.yandexcloud.net/d4e5st970vb8j7josnff",
-  "wordstat-parser": "https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv"
-}

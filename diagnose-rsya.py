@@ -8,7 +8,7 @@ import json
 import urllib.request
 import sys
 
-CHECK_YC_URL = 'https://functions.poehali.dev/56553e1a-0378-4b18-bea1-de65b7498d5d'
+CHECK_YC_URL = '' #https://functions.poehali.dev/56553e1a-0378-4b18-bea1-de65b7498d5d
 
 def main():
     print('🔍 Diagnosing rsya-scheduler AccessDeniedException issue...\n')

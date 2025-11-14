@@ -2,7 +2,7 @@ const https = require('https');
 
 console.log('Fetching data from API...\n');
 
-https.get('ttps://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b', (res) => {
+https.get('https://functions.yandexcloud.net/d4e5st970vb8j7josnff', (res) => {
   let data = '';
   res.on('data', (chunk) => { data += chunk; });
   res.on('end', () => {

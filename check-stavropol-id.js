@@ -1,7 +1,7 @@
 // Скрипт для проверки ID Ставрополя из Яндекс API
 const https = require('https');
 
-https.get('https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b', (resp) => {
+https.get('', (resp) => { //https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b
   let data = '';
   resp.on('data', (chunk) => { data += chunk; });
   resp.on('end', () => {

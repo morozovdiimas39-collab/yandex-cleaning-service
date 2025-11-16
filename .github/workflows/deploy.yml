@@ -23,6 +23,7 @@ jobs:
           - rsya-scheduler
           - save-git-file
           - subscription
+          - wordstat-parser
           - wordstat-status
           - yandex-blocked-platforms
           - yandex-blocked-stats
@@ -138,6 +139,7 @@ jobs:
           done
 
 
+            
   deploy-frontend:
     runs-on: ubuntu-latest
     steps:
@@ -154,9 +156,6 @@ jobs:
       
       - name: Build frontend
         run: npm run build
-        env:
-          VITE_API_DISABLED: 'true'
-          VITE_USE_MOCK_DATA: 'true'
       
       - name: Deploy to server via SSH
         uses: appleboy/scp-action@master

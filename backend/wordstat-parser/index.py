@@ -49,7 +49,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     try:
-        body_data = json.loads(event.get('body', '{}'))
+        body_str = event.get('body', '{}')
+        if not body_str or body_str.strip() == '':
+            body_str = '{}'
+        
+        body_data = json.loads(body_str)
         keywords: List[str] = body_data.get('keywords', [])
         regions: List[int] = body_data.get('regions', [213])
         num_phrases: int = body_data.get('numPhrases', 2000)

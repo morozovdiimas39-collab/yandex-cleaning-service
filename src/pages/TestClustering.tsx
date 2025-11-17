@@ -14,12 +14,12 @@ import WordstatDialog from '@/components/clustering/WordstatDialog';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getMinusWordsFromFilters } from '@/utils/minusFilters';
+import func2url from '../../backend/func2url.json';
 
-
-const API_URL = 'https://functions.poehali.dev/06df3397-13af-46f0-946a-f5d38aa6f60f';
-const WORDSTAT_API_URL = 'https://functions.poehali.dev/b7ad3b4d-d79c-422c-824b-b5b1f139a8bb';
-const WORDSTAT_STATUS_URL = 'https://functions.poehali.dev/09b493ba-d477-479a-9dd0-66152410b98b';
-const SUBSCRIPTION_URL = 'https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c';
+const API_URL = func2url.api;
+const WORDSTAT_API_URL = func2url['wordstat-parser'];
+const WORDSTAT_STATUS_URL = func2url['wordstat-status'];
+const SUBSCRIPTION_URL = func2url.subscription;
 
 // Версия для отладки кэширования
 const APP_VERSION = '2025-01-03-v2';

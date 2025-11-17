@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_ENDPOINTS } from '@/config/api';
 
 export interface User {
   id: number;
@@ -51,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsedUser = JSON.parse(storedUser);
         
         console.log('🌐 AuthContext: Verifying token with backend...');
-        const response = await fetch('https://functions.yandexcloud.net/d4elfvr9rrpdrk58cm74?endpoint=verify', {
+        const response = await fetch(`${API_ENDPOINTS.auth}?endpoint=verify`, {
           method: 'GET',
           headers: {
             'X-Session-Token': storedToken
@@ -95,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (phone: string) => {
-    const response = await fetch('https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5', {
+    const response = await fetch(API_ENDPOINTS.auth, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone })

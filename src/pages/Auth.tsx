@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/icon';
+import { API_ENDPOINTS } from '@/config/api';
 
 type AuthStep = 'phone' | 'code';
 
-const API_URL = 'https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5';
+const API_URL = API_ENDPOINTS.auth;
 
 export default function Auth() {
   const [step, setStep] = useState<AuthStep>('phone');

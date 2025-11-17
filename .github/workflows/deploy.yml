@@ -27,7 +27,6 @@ jobs:
           - wordstat-status
           - yandex-blocked-platforms
           - yandex-blocked-stats
-          - yandex-direct
           - yandex-metrika-goals
           - yandex-oauth
           - yandex-platform-stats

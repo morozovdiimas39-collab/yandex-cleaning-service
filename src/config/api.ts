@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   yandexOauth: 'https://functions.poehali.dev/3ae5da78-e8b6-4c5d-8764-9c67acd6eaff',
   rsyaProjects: 'https://functions.poehali.dev/08f68ba6-cbbb-4ca1-841f-185671e0757d',
   wordstatStatus: 'https://functions.poehali.dev/b4d2f6c2-dd46-4c98-8ab1-0f9ae1a23a34',
+  wordstatParser: 'https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv',
   subscription: 'https://functions.poehali.dev/f5876e2d-2fbc-42b5-b3d2-1799b4e78ac1',
   admin: 'https://functions.poehali.dev/20f60baa-eb8b-4e15-bd86-f99c5ffc39dc'
 } as const;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +8,14 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/icon';
 
+type AuthStep = 'phone' | 'code';
+
 export default function Auth() {
+  const [step, setStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sentCode, setSentCode] = useState('1234');
   const { toast } = useToast();
   const { setAuthData } = useAuth();
   const navigate = useNavigate();
@@ -53,7 +58,35 @@ export default function Auth() {
 
     setLoading(true);
     
-    // Просто логиним пользователя без проверки
+    setTimeout(() => {
+      setSentCode('1234');
+      setStep('code');
+      setLoading(false);
+      toast({ 
+        title: '📱 Код отправлен', 
+        description: 'Введите код: 1234' 
+      });
+    }, 500);
+  };
+
+  const handleCodeSubmit = async () => {
+    if (code.length !== 4) {
+      toast({ title: 'Введите 4-значный код', variant: 'destructive' });
+      return;
+    }
+
+    if (code !== sentCode) {
+      toast({ 
+        title: 'Неверный код', 
+        description: 'Проверьте код и попробуйте снова', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    const digits = phone.replace(/\D/g, '');
     const mockUser = {
       id: digits,
       phone: phone,
@@ -71,6 +104,7 @@ export default function Auth() {
     
     setTimeout(() => {
       navigate('/home');
+      setLoading(false);
     }, 500);
   };
 
@@ -85,28 +119,67 @@ export default function Auth() {
             <CardTitle className="text-2xl font-bold">DirectKit</CardTitle>
           </div>
           <CardDescription>
-            Введите номер телефона для входа
+            {step === 'phone' ? 'Введите номер телефона для входа' : 'Введите код из SMS'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="phone">Номер телефона</Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="+7 (999) 123-45-67"
-              value={phone}
-              onChange={(e) => setPhone(formatPhone(e.target.value))}
-              maxLength={18}
-            />
-          </div>
-          <Button 
-            onClick={handlePhoneSubmit}
-            disabled={loading}
-            className="w-full"
-          >
-            {loading ? 'Вход...' : 'Войти'}
-          </Button>
+          {step === 'phone' ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Номер телефона</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+7 (999) 123-45-67"
+                  value={phone}
+                  onChange={(e) => setPhone(formatPhone(e.target.value))}
+                  maxLength={18}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()}
+                />
+              </div>
+              <Button 
+                onClick={handlePhoneSubmit}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? 'Отправка...' : 'Получить код'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="code">Код подтверждения</Label>
+                <Input
+                  id="code"
+                  type="text"
+                  placeholder="1234"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  maxLength={4}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCodeSubmit()}
+                  autoFocus
+                />
+                <p className="text-sm text-muted-foreground">
+                  Код отправлен на {phone}
+                </p>
+              </div>
+              <Button 
+                onClick={handleCodeSubmit}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? 'Проверка...' : 'Войти'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setStep('phone')}
+                className="w-full"
+                disabled={loading}
+              >
+                Изменить номер
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

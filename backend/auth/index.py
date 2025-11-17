@@ -25,6 +25,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': ''
         }
     
+    # Handle auth endpoint (Yandex OAuth callback)
+    if endpoint == 'auth':
+        # Просто перенаправляем на главную, OAuth обрабатывается на фронте
+        return {
+            'statusCode': 302,
+            'headers': {
+                'Location': '/',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': ''
+        }
+    
     # Handle token verification endpoint
     if method == 'GET' and endpoint == 'verify':
         headers = event.get('headers', {})
@@ -63,39 +75,52 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     dsn = os.environ.get('DATABASE_URL')
+    if not dsn:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Database not configured'})
+        }
     
-    conn = psycopg2.connect(dsn)
-    cur = conn.cursor()
-    
-    cur.execute(
-        f"SELECT id, phone, created_at FROM t_p97630513_yandex_cleaning_serv.users WHERE phone = '{phone}'"
-    )
-    user_row = cur.fetchone()
-    
-    if user_row:
-        user_id, user_phone, created_at = user_row
+    try:
+        conn = psycopg2.connect(dsn)
+        cur = conn.cursor()
+        
         cur.execute(
-            f"UPDATE t_p97630513_yandex_cleaning_serv.users SET last_login_at = CURRENT_TIMESTAMP WHERE id = {user_id}"
-        )
-        conn.commit()
-    else:
-        cur.execute(
-            f"INSERT INTO t_p97630513_yandex_cleaning_serv.users (phone, is_verified) VALUES ('{phone}', true) RETURNING id, phone, created_at"
+            f"SELECT id, phone, created_at FROM t_p97630513_yandex_cleaning_serv.users WHERE phone = '{phone}'"
         )
         user_row = cur.fetchone()
-        user_id, user_phone, created_at = user_row
-        conn.commit()
-    
-    cur.close()
-    conn.close()
-    
-    return {
-        'statusCode': 200,
-        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-        'isBase64Encoded': False,
-        'body': json.dumps({
-            'id': user_id,
-            'phone': user_phone,
-            'createdAt': created_at.isoformat() if created_at else None
-        })
-    }
+        
+        if user_row:
+            user_id, user_phone, created_at = user_row
+            cur.execute(
+                f"UPDATE t_p97630513_yandex_cleaning_serv.users SET last_login_at = CURRENT_TIMESTAMP WHERE id = {user_id}"
+            )
+            conn.commit()
+        else:
+            cur.execute(
+                f"INSERT INTO t_p97630513_yandex_cleaning_serv.users (phone, is_verified) VALUES ('{phone}', true) RETURNING id, phone, created_at"
+            )
+            user_row = cur.fetchone()
+            user_id, user_phone, created_at = user_row
+            conn.commit()
+        
+        cur.close()
+        conn.close()
+        
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'isBase64Encoded': False,
+            'body': json.dumps({
+                'id': user_id,
+                'phone': user_phone,
+                'createdAt': created_at.isoformat() if created_at else None
+            })
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f'Database error: {str(e)}'})
+        }

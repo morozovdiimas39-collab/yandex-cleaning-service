@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
-    Business: Единый API для авторизации и управления проектами кластеризации
+    Business: Единый API для авторизации и управления проектами кластеризации v2
     Args: event - dict с httpMethod, body, queryStringParameters
           context - object с request_id, function_name
     Returns: HTTP response dict

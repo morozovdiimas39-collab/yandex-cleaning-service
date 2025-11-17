@@ -1,5 +1,5 @@
 '''
-Business: Управление подписками пользователей - проверка доступа, активация триала и платной подписки
+Business: Управление подписками пользователей v2 - проверка доступа, активация триала и платной подписки
 Args: event - dict с httpMethod, body, headers (X-User-Id)
       context - object с request_id
 Returns: HTTP response с информацией о подписке

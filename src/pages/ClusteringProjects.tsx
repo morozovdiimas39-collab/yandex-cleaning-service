@@ -9,9 +9,10 @@ import Icon from '@/components/ui/icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
+import func2url from '../../backend/func2url.json';
 
-const API_URL = 'https://functions.poehali.dev/06df3397-13af-46f0-946a-f5d38aa6f60f';
-const SUBSCRIPTION_URL = 'https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c';
+const API_URL = func2url.api;
+const SUBSCRIPTION_URL = func2url.subscription;
 
 interface Project {
   id: number;

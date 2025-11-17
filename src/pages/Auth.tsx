@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/icon';
+import func2url from '../../backend/func2url.json';
+
+const API_URL = func2url.api;
 
 type AuthStep = 'phone' | 'code';
 
@@ -58,15 +61,42 @@ export default function Auth() {
 
     setLoading(true);
     
-    setTimeout(() => {
-      setSentCode('1234');
-      setStep('code');
-      setLoading(false);
-      toast({ 
-        title: '📱 Код отправлен', 
-        description: 'Введите код: 1234' 
+    try {
+      const response = await fetch(`${API_URL}?endpoint=auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'send_code',
+          phone: `+${digits}`
+        })
       });
-    }, 500);
+
+      if (response.ok) {
+        const data = await response.json();
+        setSentCode(data.code);
+        setStep('code');
+        toast({ 
+          title: '📱 Код отправлен', 
+          description: `Введите код: ${data.code}` 
+        });
+      } else {
+        toast({ 
+          title: 'Ошибка', 
+          description: 'Не удалось отправить код', 
+          variant: 'destructive' 
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: 'Ошибка соединения', 
+        description: 'Проверьте интернет-подключение', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCodeSubmit = async () => {
@@ -75,37 +105,58 @@ export default function Auth() {
       return;
     }
 
-    if (code !== sentCode) {
-      toast({ 
-        title: 'Неверный код', 
-        description: 'Проверьте код и попробуйте снова', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
     setLoading(true);
 
-    const digits = phone.replace(/\D/g, '');
-    const mockUser = {
-      id: digits,
-      phone: phone,
-      createdAt: new Date().toISOString()
-    };
-    
-    const mockToken = `token_${digits}_${Date.now()}`;
-    
-    setAuthData(mockUser, mockToken);
-    
-    toast({ 
-      title: '✅ Вход выполнен', 
-      description: 'Добро пожаловать!' 
-    });
-    
-    setTimeout(() => {
-      navigate('/home');
+    try {
+      const digits = phone.replace(/\D/g, '');
+      const response = await fetch(`${API_URL}?endpoint=auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'verify_code',
+          phone: `+${digits}`,
+          code: code
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        const user = {
+          id: data.userId,
+          phone: data.phone,
+          createdAt: new Date().toISOString()
+        };
+        
+        setAuthData(user, data.sessionToken);
+        
+        toast({ 
+          title: '✅ Вход выполнен', 
+          description: 'Добро пожаловать!' 
+        });
+        
+        setTimeout(() => {
+          navigate('/clustering');
+        }, 500);
+      } else {
+        const errorData = await response.json();
+        toast({ 
+          title: 'Ошибка', 
+          description: errorData.error || 'Неверный код', 
+          variant: 'destructive' 
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: 'Ошибка соединения', 
+        description: 'Проверьте интернет-подключение', 
+        variant: 'destructive' 
+      });
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (

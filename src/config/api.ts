@@ -1,7 +1,7 @@
 import func2url from '../../backend/func2url.json';
 
 export const API_ENDPOINTS = {
-  auth: func2url.auth,
+  auth: func2url.api,
   api: func2url.api,
   yandexDirect: func2url['yandex-direct'],
   yandexOauth: func2url['yandex-oauth'],

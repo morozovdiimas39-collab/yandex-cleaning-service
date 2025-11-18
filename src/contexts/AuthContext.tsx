@@ -124,6 +124,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setAuthData = (newUser: User, token: string) => {
     console.log('🔄 AuthContext: Manually setting auth data');
+    localStorage.setItem('user', JSON.stringify(newUser));
+    localStorage.setItem('sessionToken', token);
     setUser(newUser);
     setSessionToken(token);
   };

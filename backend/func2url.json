@@ -17,7 +17,7 @@
   "yandex-blocked-stats": "https://functions.poehali.dev/8d50b6e9-f7d7-44a4-b8e3-a28a118fd3fb",
   "yandex-blocked-platforms": "https://functions.poehali.dev/1355ce0b-f645-40e8-8d3b-220b9ac9c8bf",
   "rsya-projects": "https://functions.poehali.dev/08f68ba6-cbbb-4ca1-841f-185671e0757d",
-  "yandex-oauth": "https://functions.poehali.dev/052a3544-14b2-4ce8-af5e-26f0e7d0c33a",
+  "yandex-oauth": "https://functions.yandexcloud.net/d4ehp1g3d252kvav3btp",
   "admin": "https://functions.poehali.dev/9ec4d5ef-88f6-4157-b697-08bf129daacf",
   "subscription": "https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c",
   "auth": "https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5",

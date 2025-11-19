@@ -195,7 +195,8 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
 
 def send_to_mq(message: Dict[str, Any]) -> None:
     '''Отправка батча в Message Queue'''
-    # Используем существующую очередь rsyacleaner
+    from botocore.config import Config
+    
     queue_url = 'https://message-queue.api.cloud.yandex.net/b1gfge7vvmv0dmokngu5/dj600000007lh09q06il/rsyacleaner'
     access_key = os.environ.get('YANDEX_MQ_ACCESS_KEY_ID')
     secret_key = os.environ.get('YANDEX_MQ_SECRET_KEY')
@@ -203,17 +204,22 @@ def send_to_mq(message: Dict[str, Any]) -> None:
     if not access_key or not secret_key:
         raise Exception('Message Queue credentials not configured')
     
+    print(f"🔑 Using access key: {access_key[:8]}... (masked)")
+    
     sqs = boto3.client(
         'sqs',
         endpoint_url='https://message-queue.api.cloud.yandex.net',
         region_name='ru-central1',
         aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key
+        aws_secret_access_key=secret_key,
+        config=Config(signature_version='v4')
     )
     
-    sqs.send_message(
+    print(f"📤 Sending batch {message['batch_number']}/{message['total_batches']} to queue...")
+    
+    response = sqs.send_message(
         QueueUrl=queue_url,
         MessageBody=json.dumps(message)
     )
     
-    print(f"📤 Sent batch {message['batch_number']}/{message['total_batches']} to MQ (project {message['project_id']})")
+    print(f"✅ Sent batch {message['batch_number']}/{message['total_batches']} to MQ (MessageId: {response.get('MessageId', 'N/A')})")

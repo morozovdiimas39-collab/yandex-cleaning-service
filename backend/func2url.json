@@ -1,9 +1,9 @@
 {
-  "wordstat-parser": "https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv",
+  "wordstat-parser": "https://functions.poehali.dev/17c36e7b-bb48-4fea-83d1-690d1b0b8802",
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",
-  "rsya-batch-worker": "https://functions.yandexcloud.net/d4ehergvagknor95c65f",
+  "rsya-batch-worker": "https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81",
   "rsya-dlq-processor": "https://functions.poehali.dev/e8f018ef-b008-48e9-90d4-142e067f5130",
-  "rsya-scheduler": "https://functions.yandexcloud.net/d4et4pke4rosupb0kahm",
+  "rsya-scheduler": "https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9",
   "rsya-report-poller": "https://functions.poehali.dev/76d9ac34-ac4d-40a4-93e0-c94c46e028d6",
   "rsya-health": "https://functions.poehali.dev/b3806805-8fff-4bff-bbfc-90b3cd620929",
   "rsya-rotation": "https://functions.poehali.dev/a20d20dc-1850-4d80-a84c-6dfac7f348ca",
@@ -17,11 +17,11 @@
   "yandex-blocked-stats": "https://functions.poehali.dev/8d50b6e9-f7d7-44a4-b8e3-a28a118fd3fb",
   "yandex-blocked-platforms": "https://functions.poehali.dev/1355ce0b-f645-40e8-8d3b-220b9ac9c8bf",
   "rsya-projects": "https://functions.poehali.dev/08f68ba6-cbbb-4ca1-841f-185671e0757d",
-  "yandex-oauth": "https://functions.yandexcloud.net/d4ehp1g3d252kvav3btp",
+  "yandex-oauth": "https://functions.poehali.dev/052a3544-14b2-4ce8-af5e-26f0e7d0c33a",
   "admin": "https://functions.poehali.dev/9ec4d5ef-88f6-4157-b697-08bf129daacf",
   "subscription": "https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c",
-  "auth": "https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5",
-  "api": "https://functions.yandexcloud.net/d4elfvr9rrpdrk58cm74",
+  "auth": "https://functions.poehali.dev/25f40378-63b1-483f-8211-dfd2ccbe897b",
+  "api": "https://functions.poehali.dev/06df3397-13af-46f0-946a-f5d38aa6f60f",
   "yandex-direct": "https://functions.poehali.dev/6b18ca7b-7f12-4758-a9db-4f774aaf2d23",
   "yandex-platforms": "https://functions.poehali.dev/92a3c242-6114-450f-b744-88b7eda19d62"
 }

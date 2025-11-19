@@ -34,7 +34,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     db_url = os.environ.get('DATABASE_URL')
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
-    cur.execute("SET search_path TO t_p97630513_yandex_cleaning_serv, public")
     
     try:
         if endpoint == 'auth':

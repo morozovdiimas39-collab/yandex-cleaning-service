@@ -14,7 +14,7 @@ import AppSidebar from '@/components/layout/AppSidebar';
 import BlockedCampaignGroup from '@/components/rsya/BlockedCampaignGroup';
 import ActiveCampaignGroup from '@/components/rsya/ActiveCampaignGroup';
 import { Textarea } from '@/components/ui/textarea';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface Task {
   id: number;
@@ -71,7 +71,7 @@ interface Project {
   goals?: Goal[];
 }
 
-const RSYA_PROJECTS_URL = func2url['rsya-projects'] || '';
+const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || '';
 
 // Version: 2.0.1 - Removed protectConversions completely
 export default function RSYAProject() {

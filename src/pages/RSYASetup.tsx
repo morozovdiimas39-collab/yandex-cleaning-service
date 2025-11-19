@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface Campaign {
   id: string;
@@ -20,7 +20,7 @@ interface Counter {
   site: string;
 }
 
-const RSYA_PROJECTS_URL = func2url['rsya-projects'];
+const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = 'https://functions.poehali.dev/6b18ca7b-7f12-4758-a9db-4f774aaf2d23';
 
 export default function RSYASetup() {

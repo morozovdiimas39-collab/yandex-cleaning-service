@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/icon';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
-const API_URL = func2url.api;
+const API_URL = BACKEND_URLS.api;
 
 type AuthStep = 'phone' | 'code';
 

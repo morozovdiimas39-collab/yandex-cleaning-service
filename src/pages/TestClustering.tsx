@@ -14,12 +14,12 @@ import WordstatDialog from '@/components/clustering/WordstatDialog';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getMinusWordsFromFilters } from '@/utils/minusFilters';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
-const API_URL = func2url.api;
-const WORDSTAT_API_URL = func2url['wordstat-parser'];
-const WORDSTAT_STATUS_URL = func2url['wordstat-status'];
-const SUBSCRIPTION_URL = func2url.subscription;
+const API_URL = BACKEND_URLS.api;
+const WORDSTAT_API_URL = BACKEND_URLS['wordstat-parser'];
+const WORDSTAT_STATUS_URL = BACKEND_URLS['wordstat-status'];
+const SUBSCRIPTION_URL = BACKEND_URLS.subscription;
 
 // Версия для отладки кэширования
 const APP_VERSION = '2025-01-03-v2';

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
 import { useAuth } from '@/contexts/AuthContext';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -17,7 +17,7 @@ export default function HomePage() {
       if (!user?.id) return;
 
       try {
-        const response = await fetch(func2url.subscription, {
+        const response = await fetch(BACKEND_URLS.subscription, {
           method: 'GET',
           headers: {
             'X-User-Id': user.id

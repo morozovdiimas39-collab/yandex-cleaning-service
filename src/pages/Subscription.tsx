@@ -6,7 +6,7 @@ import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface SubscriptionStatus {
   hasAccess: boolean;
@@ -32,7 +32,7 @@ export default function Subscription() {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(func2url.subscription, {
+      const response = await fetch(BACKEND_URLS.subscription, {
         headers: {
           'X-User-Id': user.id.toString()
         }
@@ -54,7 +54,7 @@ export default function Subscription() {
 
     setActivating(true);
     try {
-      const response = await fetch(func2url.subscription, {
+      const response = await fetch(BACKEND_URLS.subscription, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

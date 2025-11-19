@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 import AdminLogin from '@/components/admin/AdminLogin';
 import AdminHeader from '@/components/admin/AdminHeader';
 import AdminTabs, { TabType } from '@/components/admin/AdminTabs';
@@ -92,7 +92,7 @@ export default function AdminPage() {
   const loadStats = async () => {
     try {
       const response = await fetch(
-        `${func2url.subscription}?action=admin_stats`,
+        `${BACKEND_URLS.subscription}?action=admin_stats`,
         {
           method: 'GET',
           headers: {
@@ -119,7 +119,7 @@ export default function AdminPage() {
 
     try {
       const response = await fetch(
-        `${func2url.subscription}?action=admin_all&limit=${LIMIT}&offset=${offsetValue}`,
+        `${BACKEND_URLS.subscription}?action=admin_all&limit=${LIMIT}&offset=${offsetValue}`,
         {
           method: 'GET',
           headers: {
@@ -164,7 +164,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `${func2url.subscription}?action=admin_update`,
+        `${BACKEND_URLS.subscription}?action=admin_update`,
         {
           method: 'POST',
           headers: {
@@ -257,7 +257,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `${func2url.subscription}?action=admin_delete&userId=${userId}`,
+        `${BACKEND_URLS.subscription}?action=admin_delete&userId=${userId}`,
         {
           method: 'DELETE',
           headers: {
@@ -330,7 +330,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `${func2url.subscription}?action=admin_search&userId=${userId}`,
+        `${BACKEND_URLS.subscription}?action=admin_search&userId=${userId}`,
         {
           method: 'GET',
           headers: {

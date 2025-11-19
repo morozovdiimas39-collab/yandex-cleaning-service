@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
-const RSYA_PROJECTS_URL = func2url['rsya-projects'];
+const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_CLIENT_ID = 'fa264103fca547b7baa436de1a416fbe';
 
 export default function RSYAAuth() {

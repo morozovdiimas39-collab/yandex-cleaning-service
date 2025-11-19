@@ -9,10 +9,10 @@ import Icon from '@/components/ui/icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
-const API_URL = func2url.api;
-const SUBSCRIPTION_URL = func2url.subscription;
+const API_URL = BACKEND_URLS.api;
+const SUBSCRIPTION_URL = BACKEND_URLS.subscription;
 
 interface Project {
   id: number;

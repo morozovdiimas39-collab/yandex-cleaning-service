@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import AppSidebar from '@/components/layout/AppSidebar';
 import ExcelClustersTable from '@/components/wordstat/ExcelClustersTable';
 import { useAuth } from '@/contexts/AuthContext';
-import func2url from '../../backend/func2url.json';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface TopRequest {
   phrase: string;
@@ -66,7 +66,7 @@ export default function WordstatNew() {
       if (!user?.id) return;
 
       try {
-        const response = await fetch(func2url.subscription, {
+        const response = await fetch(BACKEND_URLS.subscription, {
           method: 'GET',
           headers: {
             'X-User-Id': user.id
@@ -119,7 +119,7 @@ export default function WordstatNew() {
       
       const allPhrases: TopRequest[] = [];
       
-      const response = await fetch(func2url['wordstat-parser'], {
+      const response = await fetch(BACKEND_URLS['wordstat-parser'], {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

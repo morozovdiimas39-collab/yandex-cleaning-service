@@ -3,7 +3,7 @@
 
 const CUSTOM_FUNCTION_URLS = {
   'rsya-scheduler': 'https://functions.yandexcloud.net/d4et4pke4rosupb0kahm',
-  // Добавь сюда другие твои функции при необходимости
+  'wordstat-parser': 'https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv',
 };
 
 // Импортируем автогенерируемый файл

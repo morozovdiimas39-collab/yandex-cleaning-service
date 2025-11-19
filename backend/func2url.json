@@ -3,7 +3,7 @@
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",
   "rsya-batch-worker": "https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81",
   "rsya-dlq-processor": "https://functions.poehali.dev/e8f018ef-b008-48e9-90d4-142e067f5130",
-  "rsya-scheduler": "https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9",
+  "rsya-scheduler": "https://functions.yandexcloud.net/d4et4pke4rosupb0kahm",
   "rsya-report-poller": "https://functions.poehali.dev/76d9ac34-ac4d-40a4-93e0-c94c46e028d6",
   "rsya-health": "https://functions.poehali.dev/b3806805-8fff-4bff-bbfc-90b3cd620929",
   "rsya-rotation": "https://functions.poehali.dev/a20d20dc-1850-4d80-a84c-6dfac7f348ca",

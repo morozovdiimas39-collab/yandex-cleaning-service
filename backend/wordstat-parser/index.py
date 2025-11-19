@@ -73,63 +73,62 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         errors = []
         
         for keyword in keywords:
-            for region_id in regions:
-                try:
-                    payload = {
-                        'phrase': keyword,
-                        'regions': [region_id],
-                        'numPhrases': num_phrases,
-                        'devices': devices
-                    }
-                    
-                    print(f"[WORDSTAT] Request to API: keyword={keyword}, region={region_id}")
-                    print(f"[WORDSTAT] Payload: {json.dumps(payload)}")
-                    
-                    response = requests.post(
-                        'https://api.wordstat.yandex.net/v1/topRequests',
-                        headers={
-                            'Authorization': f'Bearer {wordstat_token}',
-                            'Content-Type': 'application/json;charset=utf-8'
-                        },
-                        json=payload,
-                        timeout=30
-                    )
-                    
-                    print(f"[WORDSTAT] Response status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        print(f"[WORDSTAT] Success: {keyword} - {data.get('totalCount', 0)} results")
-                        results.append({
-                            'keyword': keyword,
-                            'region_id': region_id,
-                            'data': data
-                        })
-                    else:
-                        print(f"[WORDSTAT] Error response: {response.text}")
-                        error_detail = {
-                            'keyword': keyword,
-                            'region_id': region_id,
-                            'status_code': response.status_code,
-                            'error_text': response.text
-                        }
-                        try:
-                            error_json = response.json()
-                            error_detail['error_json'] = error_json
-                            print(f"[WORDSTAT] Error JSON: {json.dumps(error_json)}")
-                        except:
-                            pass
-                        errors.append(error_detail)
-                    
-                    time.sleep(0.1)
-                    
-                except Exception as e:
-                    print(f"[WORDSTAT] Exception: {str(e)}")
-                    errors.append({
+            try:
+                payload = {
+                    'phrase': keyword,
+                    'regions': regions,
+                    'numPhrases': num_phrases,
+                    'devices': devices
+                }
+                
+                print(f"[WORDSTAT] Request to API: keyword={keyword}, regions={regions}")
+                print(f"[WORDSTAT] Payload: {json.dumps(payload)}")
+                
+                response = requests.post(
+                    'https://api.wordstat.yandex.net/v1/topRequests',
+                    headers={
+                        'Authorization': f'Bearer {wordstat_token}',
+                        'Content-Type': 'application/json;charset=utf-8'
+                    },
+                    json=payload,
+                    timeout=30
+                )
+                
+                print(f"[WORDSTAT] Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[WORDSTAT] Success: {keyword} - {data.get('totalCount', 0)} results")
+                    results.append({
                         'keyword': keyword,
-                        'region_id': region_id,
-                        'exception': str(e)
+                        'regions': regions,
+                        'data': data
                     })
+                else:
+                    print(f"[WORDSTAT] Error response: {response.text}")
+                    error_detail = {
+                        'keyword': keyword,
+                        'regions': regions,
+                        'status_code': response.status_code,
+                        'error_text': response.text
+                    }
+                    try:
+                        error_json = response.json()
+                        error_detail['error_json'] = error_json
+                        print(f"[WORDSTAT] Error JSON: {json.dumps(error_json)}")
+                    except:
+                        pass
+                    errors.append(error_detail)
+                
+                time.sleep(0.1)
+                
+            except Exception as e:
+                print(f"[WORDSTAT] Exception: {str(e)}")
+                errors.append({
+                    'keyword': keyword,
+                    'regions': regions,
+                    'exception': str(e)
+                })
         
         print(f"[WORDSTAT] Total results: {len(results)}, errors: {len(errors)}")
         

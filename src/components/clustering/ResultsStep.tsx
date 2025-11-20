@@ -1072,13 +1072,25 @@ export default function ResultsStep({
   };
 
   const removePhrase = async (clusterIndex: number, phraseIndex: number) => {
+    saveToHistory();
+    
+    const phrase = clusters[clusterIndex].phrases[phraseIndex];
     const newClusters = [...clusters];
-    newClusters[clusterIndex].phrases = newClusters[
-      clusterIndex
-    ].phrases.filter((_, idx) => idx !== phraseIndex);
+    
+    // Помечаем фразу как минус-слово вместо удаления
+    newClusters[clusterIndex].phrases[phraseIndex] = {
+      ...phrase,
+      isMinusWord: true,
+      minusTerm: undefined // undefined = подтверждённое минус-слово
+    };
+    
     setClusters(newClusters);
-
     await saveToAPI(newClusters, minusWords);
+    
+    toast({
+      title: "🚫 Фраза помечена",
+      description: "Фраза отмечена как минус-слово",
+    });
   };
 
   const addNewCluster = async (afterIndex: number) => {

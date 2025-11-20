@@ -1991,29 +1991,6 @@ export default function ResultsStep({
               className="relative"
               style={{ width: "280px" }}
             >
-              {selectedClusterIndex === null && clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 && (
-                <>
-                  <div 
-                    className="absolute left-0 right-0 h-2 border-r border-gray-300"
-                    style={{ 
-                      backgroundColor: cluster.bgColor,
-                      top: '-4px',
-                      filter: 'brightness(0.85)',
-                      zIndex: 0
-                    }}
-                  />
-                  <div 
-                    className="absolute left-0 right-0 h-2 border-r border-gray-300"
-                    style={{ 
-                      backgroundColor: cluster.bgColor,
-                      top: '-8px',
-                      filter: 'brightness(0.75)',
-                      zIndex: 0
-                    }}
-                  />
-                </>
-              )}
-              
               <div
                 onDragOver={(e) => handleClusterDragOver(e, idx)}
                 onDrop={() => handleClusterDrop(idx)}

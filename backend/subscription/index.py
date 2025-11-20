@@ -3,6 +3,7 @@ Business: Управление подписками пользователей v
 Args: event - dict с httpMethod, body, headers (X-User-Id)
       context - object с request_id
 Returns: HTTP response с информацией о подписке
+Updated: 2025-11-20 credentials refresh
 '''
 
 import json

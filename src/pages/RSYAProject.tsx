@@ -1231,6 +1231,28 @@ export default function RSYAProject() {
                       </div>
                       
                       <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">Цена клика (₽)</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="От"
+                            value={taskMinCpc}
+                            onChange={(e) => setTaskMinCpc(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="До"
+                            value={taskMaxCpc}
+                            onChange={(e) => setTaskMaxCpc(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
                         <label className="text-xs font-medium text-muted-foreground">CTR (%)</label>
                         <div className="grid grid-cols-2 gap-2">
                           <Input

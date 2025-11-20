@@ -181,6 +181,17 @@ export default function ResultsStep({
         hovering: false,
       }));
       
+      // Вычисляем количество подкластеров для каждого кластера
+      const subClustersMap = new Map<number, number>();
+      propsClusters.forEach((cluster, idx) => {
+        const subClustersCount = cluster.subClusters?.length || 0;
+        if (subClustersCount > 0) {
+          subClustersMap.set(idx, subClustersCount);
+          console.log(`📁 Cluster ${idx} "${cluster.name}" has ${subClustersCount} subclusters`);
+        }
+      });
+      setClusterSubClusters(subClustersMap);
+      
       // Проверяем есть ли сохранённое состояние "внутри сегмента"
       const savedIndex = localStorage.getItem('cluster_view_index');
       

@@ -2055,11 +2055,6 @@ export default function ResultsStep({
                   <div className="flex items-center gap-1 shrink-0">
                     {selectedClusterIndex === null ? (
                       <>
-                        {clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold" title="Подсегментов внутри">
-                            📁 {clusterSubClusters.get(idx)}
-                          </span>
-                        )}
                         <button
                           onClick={() => {
                             console.log('🔵 FolderOpen clicked for cluster:', idx);

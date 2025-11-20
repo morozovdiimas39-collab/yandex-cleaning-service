@@ -127,7 +127,9 @@ export default function Auth() {
         const user = {
           id: data.userId,
           phone: data.phone,
-          createdAt: new Date().toISOString()
+          userId: `user_${data.userId}_${Date.now().toString(36)}`,
+          createdAt: new Date().toISOString(),
+          sessionToken: data.sessionToken
         };
         
         setAuthData(user, data.sessionToken);

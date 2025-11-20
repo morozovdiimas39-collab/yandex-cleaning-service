@@ -6,8 +6,7 @@ const PROCESSING_STAGES = [
   { label: 'Анализ ключевых фраз...', duration: 1500 },
   { label: 'Определение интентов...', duration: 2000 },
   { label: 'Группировка в сегменты...', duration: 2500 },
-  { label: 'Выделение минус-слов...', duration: 1500 },
-  { label: 'Финализация результатов...', duration: 1000 }
+  { label: 'Выделение минус-слов...', duration: 1500 }
 ];
 
 interface ProcessingStepProps {

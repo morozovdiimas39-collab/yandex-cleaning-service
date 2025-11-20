@@ -442,7 +442,9 @@ def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: Lis
         'Cost',
         'Impressions',
         'Clicks',
-        'Conversions'
+        'Conversions',
+        'Ctr',
+        'AvgCpc'
     ]
     
     # Добавляем поля цели если указана
@@ -551,13 +553,20 @@ def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: Lis
             if not row.get('Placement') or row['Placement'] == '--':
                 continue
             
+            # Парсим CPC и CTR из API (уже в нормальных единицах)
+            ctr_value = float(row.get('Ctr', 0)) if row.get('Ctr') and row.get('Ctr') != '--' else 0.0
+            cpc_micro = float(row.get('AvgCpc', 0)) if row.get('AvgCpc') and row.get('AvgCpc') != '--' else 0.0
+            cpc_value = cpc_micro / 1_000_000  # Конвертируем из микро-единиц в рубли
+            
             placement = {
                 'campaign_id': int(row['CampaignId']),
                 'domain': row['Placement'],
                 'cost': float(row.get('Cost', 0)),
                 'impressions': int(row.get('Impressions', 0)),
                 'clicks': int(row.get('Clicks', 0)),
-                'conversions': int(row.get('Conversions', 0))
+                'conversions': int(row.get('Conversions', 0)),
+                'ctr': ctr_value,
+                'cpc': cpc_value
             }
             
             # Добавляем goal conversions если есть
@@ -573,52 +582,101 @@ def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: Lis
 
 
 def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
-    '''Фильтрация площадок по критериям задачи'''
+    '''Фильтрация площадок по критериям задачи (11 фильтров)'''
     
     matched = []
-    min_cost = config.get('min_cost', 0)
-    max_ctr = config.get('max_ctr', 100)
-    max_cpa = config.get('max_cpa')
+    
+    # Извлекаем фильтры из конфигурации
     keywords = config.get('keywords', [])
     exceptions = config.get('exceptions', [])
+    min_cpc = config.get('min_cpc')
+    max_cpc = config.get('max_cpc')
+    min_ctr = config.get('min_ctr')
+    max_ctr = config.get('max_ctr')
+    min_cpa = config.get('min_cpa')
+    max_cpa = config.get('max_cpa')
+    min_impressions = config.get('min_impressions')
+    max_impressions = config.get('max_impressions')
+    min_clicks = config.get('min_clicks')
+    max_clicks = config.get('max_clicks')
+    min_conversions = config.get('min_conversions')
+    protect_conversions = config.get('protect_conversions', False)
     
+    # Конвертируем keywords и exceptions в списки
     if isinstance(keywords, str):
         keywords = [k.strip().lower() for k in keywords.split(',') if k.strip()]
-    
     if isinstance(exceptions, str):
         exceptions = [k.strip().lower() for k in exceptions.split(',') if k.strip()]
     
     for placement in placements:
         domain = placement['domain'].lower()
-        cost = placement['cost']
-        clicks = placement['clicks']
-        impressions = placement['impressions']
+        cost = placement.get('cost', 0)
+        clicks = placement.get('clicks', 0)
+        impressions = placement.get('impressions', 0)
         conversions = placement.get('conversions', 0)
+        ctr = placement.get('ctr', 0)  # Уже из API
+        cpc = placement.get('cpc', 0)  # Уже из API
         
-        ctr = (clicks / impressions * 100) if impressions > 0 else 0
+        # Считаем CPA вручную (cost / conversions)
         cpa = (cost / conversions) if conversions > 0 else 0
         
-        has_exception = any(exc in domain for exc in exceptions)
-        if has_exception:
-            continue
+        # 1. ИСКЛЮЧЕНИЯ: если домен содержит исключение — НЕ блокируем (самое сильное правило)
+        if exceptions:
+            has_exception = any(exc in domain for exc in exceptions)
+            if has_exception:
+                continue
         
-        if cost < min_cost:
-            continue
-        
-        if ctr > max_ctr:
-            continue
-        
-        if max_cpa and conversions > 0 and cpa > max_cpa:
-            continue
-        
+        # 2. KEYWORDS: если указаны ключевые слова, домен должен содержать хотя бы одно
         if keywords:
             has_keyword = any(keyword in domain for keyword in keywords)
             if not has_keyword:
                 continue
         
+        # 3. PROTECT_CONVERSIONS: если включено И есть конверсии — НЕ блокируем
+        if protect_conversions and conversions > 0:
+            continue
+        
+        # 4-13. Фильтры по метрикам (блокируем если НЕ в диапазоне)
+        # CPC: блокируем если НИЖЕ min или ВЫШЕ max
+        if min_cpc is not None and cpc < min_cpc:
+            continue
+        if max_cpc is not None and cpc > max_cpc:
+            continue
+        
+        # CTR: блокируем если НИЖЕ min или ВЫШЕ max
+        if min_ctr is not None and ctr < min_ctr:
+            continue
+        if max_ctr is not None and ctr > max_ctr:
+            continue
+        
+        # CPA: блокируем если НИЖЕ min или ВЫШЕ max (только если есть конверсии)
+        if conversions > 0:
+            if min_cpa is not None and cpa < min_cpa:
+                continue
+            if max_cpa is not None and cpa > max_cpa:
+                continue
+        
+        # Impressions: блокируем если НЕ в диапазоне
+        if min_impressions is not None and impressions < min_impressions:
+            continue
+        if max_impressions is not None and impressions > max_impressions:
+            continue
+        
+        # Clicks: блокируем если НЕ в диапазоне
+        if min_clicks is not None and clicks < min_clicks:
+            continue
+        if max_clicks is not None and clicks > max_clicks:
+            continue
+        
+        # Conversions: блокируем если НИЖЕ минимума
+        if min_conversions is not None and conversions < min_conversions:
+            continue
+        
+        # Все проверки пройдены — площадка подходит для блокировки
         placement['priority'] = int(cost)
         placement['metadata'] = {
             'ctr': round(ctr, 2),
+            'cpc': round(cpc, 2),
             'cpa': round(cpa, 2) if conversions > 0 else None
         }
         

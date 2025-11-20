@@ -205,7 +205,7 @@ def process_campaign(
         cursor.execute("""
             SELECT id, description, config
             FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
-            WHERE project_id = %s AND is_enabled = TRUE
+            WHERE project_id = %s AND enabled = TRUE
         """, (project_id,))
         tasks = cursor.fetchall()
         

@@ -2036,17 +2036,6 @@ export default function ResultsStep({
                       className="text-gray-400 flex-shrink-0"
                     />
                   </div>
-                  <Icon
-                    name={
-                      // Показываем FolderOpen если есть подкластеры (независимо от иконки)
-                      (selectedClusterIndex === null && clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0) ||
-                      (selectedClusterIndex !== null && idx > 0 && cluster.phrases.length > 0)
-                        ? 'FolderOpen' 
-                        : cluster.icon as any
-                    }
-                    size={18}
-                    className="text-gray-700"
-                  />
                   <Input
                     value={cluster.name}
                     onChange={(e) => renameCluster(idx, e.target.value)}

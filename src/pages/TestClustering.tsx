@@ -877,7 +877,7 @@ export default function TestClustering() {
           {(step === 'processing' || isWordstatLoading) && (
             <ProcessingStep
               progress={loadingProgress}
-              currentStage={Math.floor(loadingProgress / 20)}
+              currentStage={Math.floor(loadingProgress / 25)}
             />
           )}
 

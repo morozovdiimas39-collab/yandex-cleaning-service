@@ -479,7 +479,9 @@ export default function TestClustering() {
             console.log('📦 Merging new phrases with existing clusters', {
               existingClustersCount: clusters.length,
               existingMinusWordsCount: minusWords.length,
-              newClustersCount: newClusters.length
+              newClustersCount: newClusters.length,
+              existingCities: selectedCities.map(c => c.name),
+              newCities: cities.map(c => c.name)
             });
             
             const updatedClusters = [...clusters];
@@ -525,7 +527,6 @@ export default function TestClustering() {
                 .filter(p => !existingPhrases.has(p.phrase))
                 .map(p => ({
                   ...p,
-                  // ВАЖНО: очищаем флаги минус-слов от сервера
                   isMinusWord: false,
                   minusTerm: undefined,
                   removedPhrases: undefined
@@ -536,8 +537,6 @@ export default function TestClustering() {
               console.log(`✅ Added ${newPhrases.length} new phrases to "Все ключи"`, 
                          `Total now: ${existingAllKeysCluster.phrases.length}`);
             } else if (!existingAllKeysCluster && newAllKeysCluster) {
-              // Если кластера "Все ключи" не было, добавляем его
-              // Очищаем флаги минус-слов у всех фраз
               const cleanedCluster = {
                 ...newAllKeysCluster,
                 phrases: newAllKeysCluster.phrases.map(p => ({
@@ -554,7 +553,20 @@ export default function TestClustering() {
             
             const totalAdded = addedToSegment + addedToAllKeys;
             
-            // ВАЖНО: сохраняем старые минус-слова, не заменяем на новые!
+            // ВАЖНО: объединяем старые и новые регионы (без дубликатов)
+            const existingCityIds = new Set(selectedCities.map(c => c.id));
+            const newCitiesToAdd = cities.filter(c => !existingCityIds.has(c.id));
+            const mergedCities = [...selectedCities, ...newCitiesToAdd];
+            
+            console.log('📍 Merging cities:', {
+              existingCount: selectedCities.length,
+              newCount: cities.length,
+              addedCount: newCitiesToAdd.length,
+              totalCount: mergedCities.length
+            });
+            
+            setSelectedCities(mergedCities);
+            
             const existingMinusWords = minusWords;
             
             console.log('💾 Saving merged data:', {
@@ -562,11 +574,11 @@ export default function TestClustering() {
               minusWordsCount: existingMinusWords.length,
               addedToSegment,
               addedToAllKeys,
-              totalAdded
+              totalAdded,
+              citiesCount: mergedCities.length
             });
             
             setClusters(updatedClusters);
-            // Минус-слова НЕ меняем
             
             await saveResultsToAPI(updatedClusters, existingMinusWords);
             
@@ -580,7 +592,7 @@ export default function TestClustering() {
               toast.info('Все фразы уже есть в кластерах');
             }
             
-            setStep('results'); // Возвращаемся к результатам
+            setStep('results');
           } else {
             // Вызвано из начального шага - полная замена
             console.log('📦 Full replacement of clusters');

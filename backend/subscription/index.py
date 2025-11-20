@@ -312,6 +312,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 amount = body_data.get('amount')
                 plan = body_data.get('plan', 'monthly')
                 
+                print(f'💳 Creating payment: user_id={user_id}, amount={amount}, plan={plan}')
+                
                 if not amount:
                     return {
                         'statusCode': 400,
@@ -321,6 +323,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 alfabank_login = os.environ.get('ALFABANK_LOGIN')
                 alfabank_password = os.environ.get('ALFABANK_PASSWORD')
+                
+                print(f'🔑 Credentials: login={alfabank_login[:3]}*** (len={len(alfabank_login) if alfabank_login else 0}), password={"*" * (len(alfabank_password) if alfabank_password else 0)}')
                 
                 if not alfabank_login or not alfabank_password:
                     return {
@@ -348,10 +352,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     })
                 }
                 
+                print(f'📤 Sending to Alfabank: order={order_number}, amount={payload["amount"]}, gateway={payload["gateway"]}')
+                
                 response = requests.post(api_url, data=payload, timeout=10)
+                
+                print(f'📥 Alfabank response: status={response.status_code}')
                 
                 if response.status_code == 200:
                     data = response.json()
+                    print(f'📋 Response data: {data}')
                     
                     if 'formUrl' in data:
                         return {
@@ -365,6 +374,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             })
                         }
                     else:
+                        print(f'❌ No formUrl in response: {data}')
                         return {
                             'statusCode': 500,
                             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -374,6 +384,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             })
                         }
                 else:
+                    print(f'❌ Bad status code: {response.status_code}, text: {response.text}')
                     return {
                         'statusCode': 500,
                         'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},

@@ -2061,10 +2061,11 @@ export default function ResultsStep({
                   </div>
                   <Icon
                     name={
-                      cluster.icon === 'Folder' && (
-                        (selectedClusterIndex === null && clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0) ||
-                        (selectedClusterIndex !== null && idx > 0 && cluster.phrases.length > 0)
-                      ) ? 'FolderOpen' : cluster.icon as any
+                      // Показываем FolderOpen если есть подкластеры (независимо от иконки)
+                      (selectedClusterIndex === null && clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0) ||
+                      (selectedClusterIndex !== null && idx > 0 && cluster.phrases.length > 0)
+                        ? 'FolderOpen' 
+                        : cluster.icon as any
                     }
                     size={18}
                     className="text-gray-700"

@@ -11,6 +11,7 @@ import requests
 # Retry настройки
 RETRY_DELAYS = [5, 10, 20, 40, 60]  # Exponential backoff
 MAX_WAIT_FOR_429 = 60  # Максимум ждём 60 сек при 429
+API_DELAY = 0.6  # Задержка между API запросами (лимит: 20 req / 10 sec)
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -520,6 +521,7 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
     
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
         
         if resp.status_code == 200:
             return {'status': 200, 'data': resp.text}
@@ -574,6 +576,7 @@ def get_blocked_sites(campaign_id: str, yandex_token: str) -> List[Dict[str, Any
     
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
         if resp.status_code == 200:
             data = resp.json()
             result = data.get('result', {}).get('NegativeKeywordSharedSets', [])
@@ -679,6 +682,7 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
             },
             timeout=30
         )
+        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
         
         if response.status_code != 200:
             print(f'❌ Yandex API error: {response.status_code}, {response.text[:500]}')
@@ -731,6 +735,7 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
             },
             timeout=30
         )
+        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
         
         print(f'📡 HTTP Status: {response.status_code}')
         

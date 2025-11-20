@@ -197,7 +197,7 @@ def send_to_mq(message: Dict[str, Any]) -> None:
     '''Отправка батча в Message Queue'''
     from botocore.config import Config
     
-    queue_url = 'https://message-queue.api.cloud.yandex.net/b1gfge7vvmv0dmokngu5/dj600000007lh09q06il/rsyacleaner'
+    queue_url = 'https://message-queue.api.cloud.yandex.net/b1gtcrip05he61994ldo/dj600000007lh09q06il/rsyacleaner'
     access_key = os.environ.get('YANDEX_MQ_ACCESS_KEY_ID')
     secret_key = os.environ.get('YANDEX_MQ_SECRET_KEY')
     

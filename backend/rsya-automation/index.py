@@ -257,7 +257,9 @@ def process_task(task: Dict[str, Any], project: Dict[str, Any], cursor, conn, co
         goals_to_fetch = []
         if config.get('goal_id'):
             all_goals = fetch_metrika_goals(yandex_token, counter_ids) if counter_ids else []
-            goals_to_fetch = [g for g in all_goals if g['id'] == config['goal_id']]
+            goal_id_int = int(config['goal_id'])
+            goals_to_fetch = [g for g in all_goals if g['id'] == goal_id_int]
+            print(f'🎯 Task goal_id: {goal_id_int}, Found goals: {[g["id"] for g in goals_to_fetch]}')
         
         # Получаем площадки из Яндекс Директа
         config_with_ids = {**config, 'project_id': project_id, 'task_id': task_id}
@@ -428,8 +430,13 @@ def save_pending_report(project_id: int, task_id: int, campaign_ids: List[int], 
 def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: List[Dict], config: Dict) -> List[Dict]:
     '''Получение площадок из Яндекс.Директ API Reports v5 (батчами по 5 кампаний)'''
     
-    date_from = config.get('date_from', datetime.now().strftime('%Y-%m-%d'))
-    date_to = config.get('date_to', datetime.now().strftime('%Y-%m-%d'))
+    # По умолчанию берем последние 30 дней
+    today = datetime.now()
+    default_from = (today - timedelta(days=30)).strftime('%Y-%m-%d')
+    default_to = today.strftime('%Y-%m-%d')
+    
+    date_from = config.get('date_from', default_from)
+    date_to = config.get('date_to', default_to)
     
     # Формируем колонки для запроса (только базовые для онлайн-режима)
     columns = [
@@ -441,10 +448,18 @@ def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: Lis
         'Conversions'
     ]
     
+    # Добавляем поля цели если указана
+    goal_ids = []
+    if goals:
+        goal_ids = [g['id'] for g in goals]
+        columns.extend(['GoalConversions', 'GoalCost'])
+    
     all_placements = []
     batch_size = 5
     
     print(f'📊 Total campaigns: {len(campaign_ids)}, will process in batches of {batch_size}')
+    if goal_ids:
+        print(f'🎯 Goals filter: {goal_ids}')
     
     # Обрабатываем кампании батчами по 5 штук
     for i in range(0, len(campaign_ids), batch_size):
@@ -474,6 +489,10 @@ def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: Lis
                 'IncludeDiscount': 'NO'
             }
         }
+        
+        # Добавляем Goals если указаны
+        if goal_ids:
+            report_data['params']['Goals'] = goal_ids
         
         headers = {
             'Authorization': f'Bearer {token}',
@@ -562,64 +581,90 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
     matched = []
     
     # Получаем критерии из конфига
-    min_cost = config.get('min_cost', 0)
-    max_ctr = config.get('max_ctr', 100)
+    min_impressions = config.get('min_impressions')
+    max_impressions = config.get('max_impressions')
+    min_clicks = config.get('min_clicks')
+    max_clicks = config.get('max_clicks')
+    min_cpc = config.get('min_cpc')
+    max_cpc = config.get('max_cpc')
+    min_ctr = config.get('min_ctr')
+    max_ctr = config.get('max_ctr')
+    min_conversions = config.get('min_conversions')
+    min_cpa = config.get('min_cpa')
     max_cpa = config.get('max_cpa')
     keywords = config.get('keywords', [])
-    protected_keywords = config.get('protected_keywords', [])
+    exceptions = config.get('exceptions', [])
     
     # Если keywords - строка, парсим в список
     if isinstance(keywords, str):
         keywords = [k.strip().lower() for k in keywords.split(',') if k.strip()]
     
-    if isinstance(protected_keywords, str):
-        protected_keywords = [k.strip().lower() for k in protected_keywords.split(',') if k.strip()]
+    if isinstance(exceptions, str):
+        exceptions = [k.strip().lower() for k in exceptions.split(',') if k.strip()]
     
     for placement in placements:
         domain = placement['domain'].lower()
         cost = placement['cost']
         clicks = placement['clicks']
+        impressions = placement['impressions']
         conversions = placement.get('goal_conversions', placement.get('conversions', 0))
         
-        # Пропускаем площадки с защищенными ключевыми словами
-        has_protected = any(keyword in domain for keyword in protected_keywords)
-        if has_protected:
-            print(f'✅ DEBUG: {domain} is PROTECTED, skipping')
+        # Вычисляем метрики
+        ctr = (clicks / impressions * 100) if impressions > 0 else 0
+        cpc = (cost / clicks) if clicks > 0 else 0
+        cpa = (cost / conversions) if conversions > 0 else 0
+        
+        # Пропускаем площадки с исключениями (exceptions)
+        has_exception = any(exc in domain for exc in exceptions)
+        if has_exception:
             continue
         
-        # Проверка минимального расхода
-        if cost < min_cost:
-            print(f'❌ DEBUG: {domain} cost={cost} < min_cost={min_cost}')
+        # Проверка показов
+        if min_impressions is not None and impressions < min_impressions:
+            continue
+        if max_impressions is not None and impressions > max_impressions:
+            continue
+        
+        # Проверка кликов
+        if min_clicks is not None and clicks < min_clicks:
+            continue
+        if max_clicks is not None and clicks > max_clicks:
+            continue
+        
+        # Проверка CPC
+        if min_cpc is not None and clicks > 0 and cpc < min_cpc:
+            continue
+        if max_cpc is not None and clicks > 0 and cpc > max_cpc:
             continue
         
         # Проверка CTR
-        ctr = (clicks / placement['impressions'] * 100) if placement['impressions'] > 0 else 0
-        if ctr > max_ctr:
-            print(f'❌ DEBUG: {domain} CTR={ctr:.2f}% > max_ctr={max_ctr}%')
+        if min_ctr is not None and ctr < min_ctr:
+            continue
+        if max_ctr is not None and ctr > max_ctr:
             continue
         
-        # Проверка CPA (если указан)
-        if max_cpa is not None and conversions > 0:
-            cpa = cost / conversions
-            if cpa > max_cpa:
-                print(f'❌ DEBUG: {domain} CPA={cpa:.2f} > max_cpa={max_cpa}')
-                continue
+        # Проверка конверсий
+        if min_conversions is not None and conversions < min_conversions:
+            continue
+        
+        # Проверка CPA
+        if min_cpa is not None and conversions > 0 and cpa < min_cpa:
+            continue
+        if max_cpa is not None and conversions > 0 and cpa > max_cpa:
+            continue
         
         # Проверка ключевых слов (если указаны)
         if keywords:
             has_keyword = any(keyword in domain for keyword in keywords)
             if not has_keyword:
-                print(f'❌ DEBUG: {domain} does NOT have keywords={keywords}')
                 continue
         
         # Площадка прошла все фильтры
-        print(f'✅ DEBUG: {domain} MATCHED (cost={cost}, ctr={ctr:.2f}%, conversions={conversions})')
-        
-        # Вычисляем приоритет (чем больше потрачено, тем выше приоритет)
         placement['priority'] = int(cost)
         placement['metadata'] = {
             'ctr': round(ctr, 2),
-            'cpa': round(cost / conversions, 2) if conversions > 0 else None,
+            'cpc': round(cpc, 2),
+            'cpa': round(cpa, 2) if conversions > 0 else None,
             'conversions': conversions
         }
         

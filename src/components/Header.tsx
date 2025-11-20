@@ -31,6 +31,15 @@ export default function Header() {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => navigate('/clustering')}
+                className="text-slate-600 hover:text-slate-800"
+              >
+                <Icon name="Search" className="h-4 w-4 mr-2" />
+                Сбор фраз Wordstat
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => navigate('/rsya')}
                 className="text-slate-600 hover:text-slate-800"
               >

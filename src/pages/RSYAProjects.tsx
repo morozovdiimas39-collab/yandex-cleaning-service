@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
-import AppSidebar from '@/components/layout/AppSidebar';
+import Header from '@/components/Header';
 import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface Project {
@@ -123,10 +123,10 @@ export default function RSYAProjects() {
   };
 
   return (
-    <div className="flex">
-      <AppSidebar />
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 ml-64 flex-1">
-        <div className="p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+      <Header />
+      <div className="p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-8">
               <div>

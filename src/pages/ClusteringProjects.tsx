@@ -264,13 +264,23 @@ export default function ClusteringProjects() {
               <p className="text-slate-500">Собирайте и сегментируйте запросы в несколько раз быстрее</p>
             </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" className="gap-2 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
-                  <Icon name="Plus" size={20} />
-                  Создать проект
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-3">
+              <Button 
+                size="lg" 
+                variant="outline"
+                className="gap-2 shadow-lg border-purple-300 text-purple-700 hover:bg-purple-50"
+                onClick={() => navigate('/rsya')}
+              >
+                <Icon name="Shield" size={20} />
+                Чистка РСЯ
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" className="gap-2 shadow-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
+                    <Icon name="Plus" size={20} />
+                    Создать проект
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Создать новый проект</DialogTitle>

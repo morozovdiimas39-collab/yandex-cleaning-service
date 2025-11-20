@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import requests
 
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
@@ -301,10 +302,175 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
             }
         
-        # POST - активация платной подписки
+        # POST - активация платной подписки или создание платежа
         elif method == 'POST':
             body_data = json.loads(event.get('body', '{}'))
             action = body_data.get('action')
+            
+            # Создание платежа через Альфа-Банк
+            if action == 'create_payment':
+                amount = body_data.get('amount')
+                plan = body_data.get('plan', 'monthly')
+                
+                if not amount:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Missing amount'})
+                    }
+                
+                alfabank_login = os.environ.get('ALFABANK_LOGIN')
+                alfabank_password = os.environ.get('ALFABANK_PASSWORD')
+                
+                if not alfabank_login or not alfabank_password:
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Alfabank credentials not configured'})
+                    }
+                
+                order_number = f"{user_id}_{plan}_{int(context.request_id[:8], 16)}"
+                
+                api_url = 'https://pay.alfabank.ru/payment/rest/register.do'
+                
+                payload = {
+                    'userName': alfabank_login,
+                    'password': alfabank_password,
+                    'orderNumber': order_number,
+                    'amount': int(amount * 100),
+                    'returnUrl': f'https://devdirectkit.ru/subscription?payment=success&order={order_number}&plan={plan}',
+                    'failUrl': 'https://devdirectkit.ru/subscription?payment=failed',
+                    'description': f'Подписка DirectKit - {plan}',
+                    'jsonParams': json.dumps({
+                        'user_id': user_id,
+                        'plan': plan
+                    })
+                }
+                
+                response = requests.post(api_url, data=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if 'formUrl' in data:
+                        return {
+                            'statusCode': 200,
+                            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                            'body': json.dumps({
+                                'success': True,
+                                'payment_url': data['formUrl'],
+                                'order_id': data.get('orderId'),
+                                'order_number': order_number
+                            })
+                        }
+                    else:
+                        return {
+                            'statusCode': 500,
+                            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                            'body': json.dumps({
+                                'error': 'Payment creation failed',
+                                'details': data
+                            })
+                        }
+                else:
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': f'Alfabank API error: {response.status_code}'})
+                    }
+            
+            # Проверка статуса платежа
+            if action == 'check_payment':
+                order_number = body_data.get('orderNumber')
+                plan = body_data.get('plan', 'monthly')
+                
+                if not order_number:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Missing orderNumber'})
+                    }
+                
+                alfabank_login = os.environ.get('ALFABANK_LOGIN')
+                alfabank_password = os.environ.get('ALFABANK_PASSWORD')
+                
+                api_url = 'https://pay.alfabank.ru/payment/rest/getOrderStatusExtended.do'
+                
+                payload = {
+                    'userName': alfabank_login,
+                    'password': alfabank_password,
+                    'orderNumber': order_number
+                }
+                
+                response = requests.post(api_url, data=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    order_status = data.get('orderStatus')
+                    
+                    is_paid = order_status == 2
+                    
+                    if is_paid:
+                        cur.execute("SELECT * FROM subscriptions WHERE user_id = %s", (user_id,))
+                        existing = cur.fetchone()
+                        
+                        now = datetime.now()
+                        
+                        if plan == 'monthly':
+                            days = 30
+                        elif plan == 'quarterly':
+                            days = 90
+                        elif plan == 'yearly':
+                            days = 365
+                        else:
+                            days = 30
+                        
+                        ends_at = now + timedelta(days=days)
+                        
+                        if existing:
+                            cur.execute(
+                                """UPDATE subscriptions 
+                                   SET plan_type = %s, status = %s,
+                                       subscription_started_at = %s, subscription_ends_at = %s,
+                                       updated_at = %s
+                                   WHERE user_id = %s""",
+                                ('monthly', 'active', now, ends_at, now, user_id)
+                            )
+                        else:
+                            cur.execute(
+                                """INSERT INTO subscriptions 
+                                   (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
+                                   VALUES (%s, %s, %s, %s, %s)""",
+                                (user_id, 'monthly', 'active', now, ends_at)
+                            )
+                        
+                        conn.commit()
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({
+                            'success': True,
+                            'is_paid': is_paid,
+                            'status': order_status,
+                            'status_text': {
+                                0: 'Заказ зарегистрирован',
+                                1: 'Предавторизован',
+                                2: 'Оплачен',
+                                3: 'Отменён',
+                                4: 'Возвращён',
+                                5: 'Инициирована авторизация',
+                                6: 'Отклонён'
+                            }.get(order_status, 'Неизвестный статус'),
+                            'data': data
+                        })
+                    }
+                else:
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Failed to check payment status'})
+                    }
             
             if action == 'activate':
                 cur.execute(

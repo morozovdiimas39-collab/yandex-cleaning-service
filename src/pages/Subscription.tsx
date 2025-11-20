@@ -23,10 +23,27 @@ export default function Subscription() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
     loadSubscription();
+    
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const orderNumber = params.get('order');
+    const plan = params.get('plan');
+    
+    if (paymentStatus === 'success' && orderNumber && plan) {
+      checkPaymentStatus(orderNumber, plan);
+    } else if (paymentStatus === 'failed') {
+      toast({
+        title: 'Оплата отменена',
+        description: 'Попробуйте снова',
+        variant: 'destructive'
+      });
+      window.history.replaceState({}, '', '/subscription');
+    }
   }, [authLoading]);
 
   const loadSubscription = async () => {
@@ -81,6 +98,84 @@ export default function Subscription() {
       });
     } finally {
       setActivating(false);
+    }
+  };
+
+  const handlePayment = async (plan: string, amount: number) => {
+    if (!user?.id) return;
+
+    setPaymentLoading(plan);
+    try {
+      const response = await fetch(BACKEND_URLS.subscription, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString()
+        },
+        body: JSON.stringify({
+          action: 'create_payment',
+          amount: amount,
+          plan: plan
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.payment_url) {
+          window.location.href = data.payment_url;
+        } else {
+          throw new Error('No payment URL');
+        }
+      } else {
+        throw new Error('Payment creation failed');
+      }
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось создать платёж',
+        variant: 'destructive'
+      });
+      setPaymentLoading(null);
+    }
+  };
+
+  const checkPaymentStatus = async (orderNumber: string, plan: string) => {
+    if (!user?.id) return;
+
+    try {
+      const response = await fetch(BACKEND_URLS.subscription, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString()
+        },
+        body: JSON.stringify({
+          action: 'check_payment',
+          orderNumber: orderNumber,
+          plan: plan
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.is_paid) {
+          toast({
+            title: 'Оплата прошла успешно!',
+            description: 'Подписка активирована'
+          });
+          await loadSubscription();
+        } else {
+          toast({
+            title: 'Проверка платежа',
+            description: data.status_text || 'Платёж ещё обрабатывается',
+            variant: 'destructive'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Payment check error:', error);
+    } finally {
+      window.history.replaceState({}, '', '/subscription');
     }
   };
 
@@ -325,10 +420,18 @@ export default function Subscription() {
                   </div>
 
                   <Button
-                    onClick={() => navigate('/payment')}
+                    onClick={() => handlePayment('monthly', 990)}
+                    disabled={paymentLoading === 'monthly'}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   >
-                    Оформить
+                    {paymentLoading === 'monthly' ? (
+                      <>
+                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
+                        Переход к оплате...
+                      </>
+                    ) : (
+                      'Оформить'
+                    )}
                   </Button>
                   
                   {subscription?.hasAccess && subscription.planType === 'monthly' && (
@@ -381,11 +484,19 @@ export default function Subscription() {
                   </div>
 
                   <Button
-                    onClick={() => navigate('/payment')}
+                    onClick={() => handlePayment('quarterly', 2500)}
+                    disabled={paymentLoading === 'quarterly'}
                     variant="outline"
                     className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
                   >
-                    Оформить
+                    {paymentLoading === 'quarterly' ? (
+                      <>
+                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
+                        Переход к оплате...
+                      </>
+                    ) : (
+                      'Оформить'
+                    )}
                   </Button>
                 </Card>
 
@@ -431,10 +542,18 @@ export default function Subscription() {
                   </div>
 
                   <Button
-                    onClick={() => navigate('/payment')}
+                    onClick={() => handlePayment('yearly', 8000)}
+                    disabled={paymentLoading === 'yearly'}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold"
                   >
-                    Оформить
+                    {paymentLoading === 'yearly' ? (
+                      <>
+                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
+                        Переход к оплате...
+                      </>
+                    ) : (
+                      'Оформить'
+                    )}
                   </Button>
                 </Card>
               </div>

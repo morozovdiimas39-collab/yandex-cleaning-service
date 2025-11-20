@@ -39,12 +39,13 @@ export default function ClusteringProjects() {
   const [hasAccess, setHasAccess] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
   const navigate = useNavigate();
-  const { user, sessionToken } = useAuth();
+  const { user, sessionToken, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
+    if (authLoading) return;
     checkSubscription();
     loadProjects();
-  }, []);
+  }, [authLoading]);
 
   const checkSubscription = async () => {
     if (!user?.id) {

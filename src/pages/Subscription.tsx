@@ -23,7 +23,7 @@ export default function Subscription() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -101,10 +101,10 @@ export default function Subscription() {
     }
   };
 
-  const handlePayment = async (plan: string, amount: number) => {
+  const handlePayment = async () => {
     if (!user?.id) return;
 
-    setPaymentLoading(plan);
+    setPaymentLoading(true);
     try {
       const response = await fetch(BACKEND_URLS.subscription, {
         method: 'POST',
@@ -114,8 +114,8 @@ export default function Subscription() {
         },
         body: JSON.stringify({
           action: 'create_payment',
-          amount: amount,
-          plan: plan
+          amount: 1500,
+          plan: 'monthly'
         })
       });
 
@@ -127,15 +127,16 @@ export default function Subscription() {
           throw new Error('No payment URL');
         }
       } else {
-        throw new Error('Payment creation failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment creation failed');
       }
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: 'Не удалось создать платёж',
+        description: error instanceof Error ? error.message : 'Не удалось создать платёж',
         variant: 'destructive'
       });
-      setPaymentLoading(null);
+      setPaymentLoading(false);
     }
   };
 
@@ -202,9 +203,7 @@ export default function Subscription() {
     return new Date(dateString).toLocaleDateString('ru-RU', {
       day: 'numeric',
       month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric'
     });
   };
 
@@ -213,19 +212,13 @@ export default function Subscription() {
       <Header />
       <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
         <div className="container mx-auto px-6 py-8">
-          <div className="max-w-7xl mx-auto space-y-8">
+          <div className="max-w-4xl mx-auto space-y-8">
             
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Подписка</h1>
                 <p className="text-gray-600">Управление тарифом и доступом к сервису</p>
               </div>
-              {user?.userId && (
-                <div className="px-4 py-2 bg-white border border-slate-200 rounded-lg">
-                  <div className="text-xs text-gray-500 mb-1">ID профиля</div>
-                  <div className="font-mono text-sm text-gray-700">{user.userId}</div>
-                </div>
-              )}
             </div>
 
             <Card className="p-6 bg-white border border-slate-200 shadow-sm">
@@ -315,8 +308,8 @@ export default function Subscription() {
             <div>
               <h2 className="text-2xl font-semibold mb-6">Выберите тариф</h2>
               
-              <div className="flex gap-4 overflow-x-auto pb-4">
-                <Card className="flex-shrink-0 w-[280px] p-6 bg-white border border-slate-200 shadow-sm relative overflow-hidden">
+              <div className="grid md:grid-cols-2 gap-6 max-w-3xl">
+                <Card className="p-6 bg-white border border-slate-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-4 right-4">
                     <div className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">
                       ТРИАЛ
@@ -336,15 +329,15 @@ export default function Subscription() {
 
                   <div className="space-y-2.5 mb-6">
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm text-gray-700">Безлимит ключей</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm text-gray-700">Безлимит сегментов</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm text-gray-700">Безлимит проектов</span>
                     </div>
                     <div className="flex items-start gap-2">
@@ -378,7 +371,7 @@ export default function Subscription() {
                   )}
                 </Card>
 
-                <Card className="flex-shrink-0 w-[280px] p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 shadow-lg relative overflow-hidden">
+                <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 shadow-lg relative overflow-hidden">
                   <div className="absolute top-4 right-4">
                     <div className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-semibold">
                       ПОПУЛЯРНЫЙ
@@ -386,27 +379,27 @@ export default function Subscription() {
                   </div>
                   
                   <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">Месячная</h3>
+                    <h3 className="text-xl font-bold mb-2">Месячная подписка</h3>
                     <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-3xl font-bold text-emerald-600">990₽</span>
+                      <span className="text-3xl font-bold text-emerald-600">1500₽</span>
                       <span className="text-gray-600 text-sm">/ месяц</span>
                     </div>
                     <p className="text-gray-700 text-sm">
-                      Полный доступ
+                      Полный доступ ко всем функциям
                     </p>
                   </div>
 
                   <div className="space-y-2.5 mb-6">
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm font-medium text-gray-900">Безлимит ключей</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm font-medium text-gray-900">Безлимит сегментов</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                       <span className="text-sm font-medium text-gray-900">Безлимит проектов</span>
                     </div>
                     <div className="flex items-start gap-2">
@@ -415,22 +408,22 @@ export default function Subscription() {
                     </div>
                     <div className="flex items-start gap-2">
                       <Icon name="Headphones" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Приоритет. поддержка</span>
+                      <span className="text-sm font-medium text-gray-900">Приоритетная поддержка</span>
                     </div>
                   </div>
 
                   <Button
-                    onClick={() => handlePayment('monthly', 990)}
-                    disabled={paymentLoading === 'monthly'}
+                    onClick={handlePayment}
+                    disabled={paymentLoading}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   >
-                    {paymentLoading === 'monthly' ? (
+                    {paymentLoading ? (
                       <>
                         <Icon name="Loader2" className="animate-spin mr-2" size={16} />
                         Переход к оплате...
                       </>
                     ) : (
-                      'Оформить'
+                      'Оформить подписку'
                     )}
                   </Button>
                   
@@ -441,121 +434,6 @@ export default function Subscription() {
                     </div>
                   )}
                 </Card>
-
-                <Card className="flex-shrink-0 w-[280px] p-6 bg-white border border-blue-200 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-4 right-4">
-                    <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                      ВЫГОДНО
-                    </div>
-                  </div>
-                  
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">Квартальная</h3>
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-3xl font-bold text-blue-600">2500₽</span>
-                      <span className="text-gray-600 text-sm">/ 3 мес</span>
-                    </div>
-                    <p className="text-gray-600 text-sm">
-                      Экономия 15%
-                    </p>
-                  </div>
-
-                  <div className="space-y-2.5 mb-6">
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-gray-700">Безлимит ключей</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-gray-700">Безлимит сегментов</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-gray-700">Безлимит проектов</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Check" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-gray-700">Все функции</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Headphones" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-gray-700">Приоритет. поддержка</span>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => handlePayment('quarterly', 2500)}
-                    disabled={paymentLoading === 'quarterly'}
-                    variant="outline"
-                    className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                  >
-                    {paymentLoading === 'quarterly' ? (
-                      <>
-                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
-                        Переход к оплате...
-                      </>
-                    ) : (
-                      'Оформить'
-                    )}
-                  </Button>
-                </Card>
-
-                <Card className="flex-shrink-0 w-[280px] p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-500 shadow-lg relative overflow-hidden">
-                  <div className="absolute top-4 right-4">
-                    <div className="px-3 py-1 bg-purple-600 text-white rounded-full text-xs font-semibold">
-                      ЛУЧШАЯ ЦЕНА
-                    </div>
-                  </div>
-                  
-                  <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">Годовая</h3>
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-3xl font-bold text-purple-600">8000₽</span>
-                      <span className="text-gray-600 text-sm">/ год</span>
-                    </div>
-                    <p className="text-gray-700 text-sm">
-                      Экономия 33%
-                    </p>
-                  </div>
-
-                  <div className="space-y-2.5 mb-6">
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Безлимит ключей</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Безлимит сегментов</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Infinity" size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Безлимит проектов</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Check" size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Все функции</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Headphones" size={18} className="text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Приоритет. поддержка</span>
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={() => handlePayment('yearly', 8000)}
-                    disabled={paymentLoading === 'yearly'}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-                  >
-                    {paymentLoading === 'yearly' ? (
-                      <>
-                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
-                        Переход к оплате...
-                      </>
-                    ) : (
-                      'Оформить'
-                    )}
-                  </Button>
-                </Card>
               </div>
             </div>
 
@@ -565,10 +443,10 @@ export default function Subscription() {
                 <div>
                   <h3 className="font-semibold text-blue-900 mb-2">О подписке</h3>
                   <ul className="space-y-1 text-sm text-blue-800">
-                    <li>• Все тарифы включают безлимитное использование всех функций</li>
-                    <li>• Подписка продлевается автоматически</li>
-                    <li>• Отменить подписку можно в любой момент</li>
-                    <li>• После отмены доступ сохраняется до конца оплаченного периода</li>
+                    <li>• Безопасная оплата через Альфа-Банк</li>
+                    <li>• Подписка активируется автоматически после оплаты</li>
+                    <li>• Доступ сохраняется на 30 дней</li>
+                    <li>• Все данные останутся в вашем аккаунте</li>
                   </ul>
                 </div>
               </div>

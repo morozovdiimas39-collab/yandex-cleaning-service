@@ -336,11 +336,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 payload = {
                     'userName': alfabank_login,
                     'password': alfabank_password,
+                    'gateway': '773502993200',
                     'orderNumber': order_number,
                     'amount': int(amount * 100),
                     'returnUrl': f'https://devdirectkit.ru/subscription?payment=success&order={order_number}&plan={plan}',
                     'failUrl': 'https://devdirectkit.ru/subscription?payment=failed',
-                    'description': f'Подписка DirectKit - {plan}',
+                    'description': f'Подписка DirectKit - 1 месяц',
                     'jsonParams': json.dumps({
                         'user_id': user_id,
                         'plan': plan

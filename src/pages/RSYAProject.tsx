@@ -253,7 +253,7 @@ export default function RSYAProject() {
       setLoadingGoals(true);
       console.log('🎯 Загрузка целей:', { counterIds, hasToken: !!yandexToken });
       
-      const GOALS_URL = func2url['yandex-metrika-goals'] || '';
+      const GOALS_URL = BACKEND_URLS['yandex-metrika-goals'] || '';
       
       const response = await fetch(GOALS_URL, {
         method: 'POST',
@@ -291,8 +291,8 @@ export default function RSYAProject() {
     try {
       setSyncing(true);
       
-      const STATS_URL = func2url['yandex-platform-stats'] || '';
-      const BLOCKED_URL = func2url['yandex-blocked-platforms'] || '';
+      const STATS_URL = BACKEND_URLS['yandex-platform-stats'] || '';
+      const BLOCKED_URL = BACKEND_URLS['yandex-blocked-platforms'] || '';
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 420000);

@@ -23,6 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 builds
-
-# Backend auto-generated files (NEVER touch!)
-backend/func2url.json

@@ -17,7 +17,7 @@ interface SubscriptionStatus {
 }
 
 export default function Subscription() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
@@ -25,8 +25,9 @@ export default function Subscription() {
   const [activating, setActivating] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
     loadSubscription();
-  }, []);
+  }, [authLoading]);
 
   const loadSubscription = async () => {
     if (!user?.id) return;

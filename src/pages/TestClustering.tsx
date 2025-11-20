@@ -66,7 +66,7 @@ export default function TestClustering() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
 
-  const { user, sessionToken } = useAuth();
+  const { user, sessionToken, isLoading: authLoading } = useAuth();
 
   // Защита от закрытия страницы во время обработки
   useEffect(() => {
@@ -143,6 +143,11 @@ export default function TestClustering() {
     const fetchProject = async () => {
       if (!projectId) {
         setIsLoading(false);
+        return;
+      }
+
+      // КРИТИЧНО: Ждём завершения проверки токена
+      if (authLoading) {
         return;
       }
 
@@ -240,7 +245,7 @@ export default function TestClustering() {
     };
 
     fetchProject();
-  }, [projectId, navigate, restoreStateFromStorage]);
+  }, [projectId, authLoading, sessionToken, navigate, restoreStateFromStorage]);
 
   const saveResultsToAPI = useCallback(async (clustersData: Cluster[], minusWordsData: Phrase[]) => {
     console.log('🔥 saveResultsToAPI CALLED', {

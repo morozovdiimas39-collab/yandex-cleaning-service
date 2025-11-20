@@ -37,7 +37,7 @@ export default function WordstatNew() {
   const [mode, setMode] = useState<'context' | 'seo'>('context');
   const [step, setStep] = useState<WorkflowStep>('input');
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const regions = [
@@ -63,6 +63,7 @@ export default function WordstatNew() {
   // Проверка подписки при монтировании компонента
   useEffect(() => {
     const checkSubscription = async () => {
+      if (authLoading) return;
       if (!user?.id) return;
 
       try {
@@ -99,7 +100,7 @@ export default function WordstatNew() {
     };
 
     checkSubscription();
-  }, [user, navigate, toast]);
+  }, [authLoading, user, navigate, toast]);
 
   const fetchClusters = async () => {
     if (!keywords.trim()) {

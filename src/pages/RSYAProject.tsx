@@ -72,6 +72,7 @@ interface Project {
 }
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || '';
+const AUTOMATION_URL = BACKEND_URLS['rsya-automation'] || '';
 
 // Version: 2.0.1 - Removed protectConversions completely
 export default function RSYAProject() {
@@ -134,8 +135,6 @@ export default function RSYAProject() {
   const [maxClicks, setMaxClicks] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [runningTasks, setRunningTasks] = useState<Set<number>>(new Set());
-  
-  const AUTOMATION_URL = func2url['rsya-automation'] || '';
 
   const KEYWORD_PRESETS = [
     { value: 'com.', label: 'com.' },

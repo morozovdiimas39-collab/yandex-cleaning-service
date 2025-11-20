@@ -19,10 +19,9 @@ export default function ProcessingStep({ progress, currentStage }: ProcessingSte
     <div className="max-w-2xl mx-auto">
       <Card className="border-slate-200 shadow-lg">
         <CardHeader className="border-b bg-gradient-to-br from-slate-50 to-white text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-emerald-500 rounded-full flex items-center justify-center animate-pulse">
+          <div className="w-16 h-16 mx-auto bg-emerald-500 rounded-full flex items-center justify-center animate-pulse">
             <Icon name="Sparkles" className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl text-slate-800">ИИ обрабатывает ваши данные</CardTitle>
         </CardHeader>
         <CardContent className="pt-8 pb-8 space-y-8">
           <div className="space-y-3">

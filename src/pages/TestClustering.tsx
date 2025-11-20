@@ -463,7 +463,7 @@ export default function TestClustering() {
           totalCount: 0
         },
         {
-          name: 'Сегмент',
+          name: 'Собранные фразы',
           phrases: allPhrases.map(p => ({
             phrase: p.phrase,
             frequency: p.count,
@@ -485,16 +485,16 @@ export default function TestClustering() {
             });
             
             const updatedClusters = [...clusters];
-            const existingSegmentCluster = updatedClusters.find(c => c.name === 'Сегмент');
+            const existingSegmentCluster = updatedClusters.find(c => c.name === 'Собранные фразы');
             const existingAllKeysCluster = updatedClusters.find(c => c.name === 'Все ключи');
             
-            const newSegmentCluster = newClusters.find(c => c.name === 'Сегмент');
+            const newSegmentCluster = newClusters.find(c => c.name === 'Собранные фразы');
             
-            console.log('🔍 Found existing "Сегмент":', !!existingSegmentCluster, 
+            console.log('🔍 Found existing "Собранные фразы":', !!existingSegmentCluster, 
                        'with phrases:', existingSegmentCluster?.phrases.length);
             console.log('🔍 Found existing "Все ключи":', !!existingAllKeysCluster, 
                        'with phrases:', existingAllKeysCluster?.phrases.length);
-            console.log('🔍 Found new "Сегмент":', !!newSegmentCluster,
+            console.log('🔍 Found new "Собранные фразы":', !!newSegmentCluster,
                        'with phrases:', newSegmentCluster?.phrases.length);
             console.log('🔍 Found new "Все ключи":', !!newAllKeysCluster,
                        'with phrases:', newAllKeysCluster?.phrases.length);
@@ -502,7 +502,7 @@ export default function TestClustering() {
             let addedToSegment = 0;
             let addedToAllKeys = 0;
             
-            // 1. Добавляем новые ПОЛЬЗОВАТЕЛЬСКИЕ ключи в "Сегмент"
+            // 1. Добавляем новые ПОЛЬЗОВАТЕЛЬСКИЕ ключи в "Собранные фразы"
             if (existingSegmentCluster && newSegmentCluster) {
               const existingSegmentPhrases = new Set(existingSegmentCluster.phrases.map(p => p.phrase));
               const newSegmentPhrases = newSegmentCluster.phrases
@@ -516,7 +516,7 @@ export default function TestClustering() {
               
               existingSegmentCluster.phrases.push(...newSegmentPhrases);
               addedToSegment = newSegmentPhrases.length;
-              console.log(`✅ Added ${newSegmentPhrases.length} new phrases to "Сегмент"`, 
+              console.log(`✅ Added ${newSegmentPhrases.length} new phrases to "Собранные фразы"`, 
                          `Total now: ${existingSegmentCluster.phrases.length}`);
             }
             
@@ -583,9 +583,9 @@ export default function TestClustering() {
             await saveResultsToAPI(updatedClusters, existingMinusWords);
             
             if (addedToSegment > 0 && addedToAllKeys > 0) {
-              toast.success(`Добавлено ${addedToSegment} фраз в "Сегмент" и ${addedToAllKeys} фраз в "Все ключи"!`);
+              toast.success(`Добавлено ${addedToSegment} фраз в "Собранные фразы" и ${addedToAllKeys} фраз в "Все ключи"!`);
             } else if (addedToSegment > 0) {
-              toast.success(`Добавлено ${addedToSegment} новых фраз в "Сегмент"!`);
+              toast.success(`Добавлено ${addedToSegment} новых фраз в "Собранные фразы"!`);
             } else if (addedToAllKeys > 0) {
               toast.success(`Добавлено ${addedToAllKeys} новых фраз в "Все ключи"!`);
             } else {

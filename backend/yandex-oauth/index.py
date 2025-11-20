@@ -99,7 +99,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'isBase64Encoded': False
             }
         
-        dsn = os.environ.get('DATABASE_URL')
+        dsn = os.environ.get('MY_DATABASE_URL')
         conn = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
         cur = conn.cursor()
         
@@ -195,7 +195,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'isBase64Encoded': False
             }
         
-        dsn = os.environ.get('DATABASE_URL')
+        dsn = os.environ.get('MY_DATABASE_URL')
         conn = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
         cur = conn.cursor()
         

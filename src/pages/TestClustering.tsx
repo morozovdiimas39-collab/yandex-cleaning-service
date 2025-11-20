@@ -204,8 +204,8 @@ export default function TestClustering() {
           // Если есть готовые результаты, показываем их (приоритет выше сохраненного состояния)
           if (project.results && project.results.clusters && project.results.clusters.length > 0) {
             console.log('✅ SHOWING RESULTS PAGE! Clusters:', project.results.clusters.length);
-            console.log('🔍 First cluster from DB:', project.results.clusters[0]);
-            console.log('🔍 First phrase from DB:', project.results.clusters[0]?.phrases?.[0]);
+            console.log('🔍 ALL clusters from DB:', JSON.stringify(project.results.clusters.map((c: any) => ({ name: c.name, phrasesCount: c.phrases?.length }))));
+            console.log('🔍 First cluster FULL:', JSON.stringify(project.results.clusters[0]));
             
             // Конвертируем frequency → count для компонента ResultsStep
             const convertedClusters = project.results.clusters.map((cluster: any) => ({
@@ -215,6 +215,8 @@ export default function TestClustering() {
                 count: phrase.frequency || phrase.count || 0
               }))
             }));
+            
+            console.log('🔍 CONVERTED clusters:', JSON.stringify(convertedClusters.map((c: any) => ({ name: c.name, phrasesCount: c.phrases?.length }))));
             
             setClusters(convertedClusters);
             setMinusWords(project.results.minusWords || []);

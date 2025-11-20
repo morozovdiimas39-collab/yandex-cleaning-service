@@ -183,7 +183,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'isBase64Encoded': False
                 }
             
-            redirect_uri = 'https://functions.poehali.dev/052a3544-14b2-4ce8-af5e-26f0e7d0c33a'
+            redirect_uri = 'https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5'
             # Запрашиваем права на Директ и Метрику
             scope = 'direct:api metrika:read'
             auth_url = f'https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&scope={scope}&state={user_id}'

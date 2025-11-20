@@ -281,28 +281,29 @@ export default function ClusteringProjects() {
                     Создать проект
                   </Button>
                 </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Создать новый проект</DialogTitle>
-                  <DialogDescription>Введите название проекта для сегментации</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div>
-                    <Label htmlFor="projectName">Название проекта</Label>
-                    <Input
-                      id="projectName"
-                      placeholder="Например: Недвижимость Москва"
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
-                    />
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Создать новый проект</DialogTitle>
+                    <DialogDescription>Введите название проекта для сегментации</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <Label htmlFor="projectName">Название проекта</Label>
+                      <Input
+                        id="projectName"
+                        placeholder="Например: Недвижимость Москва"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+                      />
+                    </div>
+                    <Button onClick={handleCreateProject} className="w-full">
+                      Создать
+                    </Button>
                   </div>
-                  <Button onClick={handleCreateProject} className="w-full">
-                    Создать
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="mb-6">

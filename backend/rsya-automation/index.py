@@ -255,11 +255,14 @@ def process_task(task: Dict[str, Any], project: Dict[str, Any], cursor, conn, co
         
         # Определяем какие цели запрашивать
         goals_to_fetch = []
-        if config.get('goal_id'):
+        if config.get('goal_id') and config['goal_id'] != 'all':
             all_goals = fetch_metrika_goals(yandex_token, counter_ids) if counter_ids else []
-            goal_id_int = int(config['goal_id'])
-            goals_to_fetch = [g for g in all_goals if g['id'] == goal_id_int]
-            print(f'🎯 Task goal_id: {goal_id_int}, Found goals: {[g["id"] for g in goals_to_fetch]}')
+            try:
+                goal_id_int = int(config['goal_id'])
+                goals_to_fetch = [g for g in all_goals if int(g.get('id', 0)) == goal_id_int]
+                print(f'🎯 Task goal_id: {goal_id_int}, All goals: {[g.get("id") for g in all_goals]}, Found: {[g["id"] for g in goals_to_fetch]}')
+            except (ValueError, KeyError) as e:
+                print(f'⚠️ Invalid goal_id: {config["goal_id"]}, error: {e}')
         
         # Получаем площадки из Яндекс Директа
         config_with_ids = {**config, 'project_id': project_id, 'task_id': task_id}
@@ -358,7 +361,7 @@ def process_task(task: Dict[str, Any], project: Dict[str, Any], cursor, conn, co
                 worker_url = 'https://functions.poehali.dev/eec1c17a-e079-4e13-983b-12132a3888fd'
                 requests.post(worker_url, json={}, timeout=1)
                 print('🚀 Triggered worker to process queue')
-            except:
+            except Exception:
                 pass  # Ignore timeout, worker запустится
         
         # Обновляем execution_log после успешного выполнения

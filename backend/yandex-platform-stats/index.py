@@ -457,20 +457,32 @@ def parse_tsv_report(tsv_text: str, goal_id: str):
     # Ищем поля конверсий и CPA
     conversions_idx = None
     cpa_idx = None
+    goal_cost_idx = None
     
-    if goal_id and goal_id != '':
-        # Если указана цель, ищем поле Conversions_<goal_id>_*
-        for col_name, idx in header_map.items():
-            if col_name.startswith('Conversions_') and goal_id in col_name:
-                conversions_idx = idx
-                print(f'✅ Found goal-specific conversions field: {col_name} at index {idx}')
-                break
-            
-        for col_name, idx in header_map.items():
-            if col_name.startswith('CostPerConversion_') and goal_id in col_name:
-                cpa_idx = idx
-                print(f'✅ Found goal-specific CPA field: {col_name} at index {idx}')
-                break
+    if goal_id and goal_id != '' and goal_id != 'all':
+        # Если указана цель, сначала ищем GoalConversions (из Goals параметра)
+        if 'GoalConversions' in header_map:
+            conversions_idx = header_map['GoalConversions']
+            print(f'✅ Found GoalConversions field at index {conversions_idx}')
+        # Альтернатива: поле Conversions_<goal_id>_* (старый формат)
+        else:
+            for col_name, idx in header_map.items():
+                if col_name.startswith('Conversions_') and goal_id in col_name:
+                    conversions_idx = idx
+                    print(f'✅ Found goal-specific conversions field: {col_name} at index {idx}')
+                    break
+        
+        # Ищем GoalCost для расчёта CPA
+        if 'GoalCost' in header_map:
+            goal_cost_idx = header_map['GoalCost']
+            print(f'✅ Found GoalCost field at index {goal_cost_idx}')
+        # Альтернатива: CostPerConversion_<goal_id>
+        else:
+            for col_name, idx in header_map.items():
+                if col_name.startswith('CostPerConversion_') and goal_id in col_name:
+                    cpa_idx = idx
+                    print(f'✅ Found goal-specific CPA field: {col_name} at index {idx}')
+                    break
     else:
         # Если цель не указана, ищем общие поля Conversions и CostPerConversion
         conversions_idx = header_map.get('Conversions')
@@ -513,13 +525,19 @@ def parse_tsv_report(tsv_text: str, goal_id: str):
             conv_str = fields[conversions_idx]
             conversions = int(conv_str) if conv_str and conv_str != '--' else 0
         
-        # Парсим CPA из правильного поля
+        # Парсим CPA: сначала пробуем CostPerConversion, потом GoalCost
         if cpa_idx is not None and cpa_idx < len(fields):
             cpa_str = fields[cpa_idx]
             cpa_micro = float(cpa_str) if cpa_str and cpa_str != '--' else 0.0
             cpa_value = cpa_micro / 1_000_000
+        elif goal_cost_idx is not None and goal_cost_idx < len(fields) and conversions > 0:
+            # Если есть GoalCost, считаем CPA = GoalCost / GoalConversions
+            goal_cost_str = fields[goal_cost_idx]
+            goal_cost_micro = float(goal_cost_str) if goal_cost_str and goal_cost_str != '--' else 0.0
+            goal_cost = goal_cost_micro / 1_000_000
+            cpa_value = goal_cost / conversions if conversions > 0 else 0.0
         elif conversions > 0:
-            # Если CPA не пришел, считаем вручную
+            # Если ничего не пришло, считаем CPA вручную из общего Cost
             cpa_value = cost / conversions
         
         platform_dict = {

@@ -447,10 +447,10 @@ def get_platforms_with_retry(
                 report_name = response.get('report_name', f"report_{campaign_id}_{date_from}")
                 cursor.execute("""
                     INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
-                    (project_id, campaign_ids, date_from, date_to, report_name, status)
+                    (project_id, campaign_id, date_from, date_to, report_name, status)
                     VALUES (%s, %s, %s, %s, %s, 'pending')
                     ON CONFLICT DO NOTHING
-                """, (project_id, json.dumps([campaign_id]), date_from, date_to, report_name))
+                """, (project_id, campaign_id, date_from, date_to, report_name))
                 conn.commit()
                 print(f"⏳ Report {report_name} is pending (campaign {campaign_id})")
                 return None
@@ -602,16 +602,20 @@ def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool
         print(f'❌ Failed to fetch ExcludedSites for campaign {campaign_id}')
         return False
     
+    # Приводим все домены к lowercase (Яндекс чувствителен к регистру)
+    current_excluded_normalized = [d.lower() for d in current_excluded]
+    domains_normalized = [d.lower() for d in domains]
+    
     # Фильтруем домены которых еще нет в списке
-    current_excluded_set = set(current_excluded)
-    domains_to_add = [d for d in domains if d not in current_excluded_set]
+    current_excluded_set = set(current_excluded_normalized)
+    domains_to_add = [d for d in domains_normalized if d not in current_excluded_set]
     
     if not domains_to_add:
         print(f'✅ All {len(domains)} domains already blocked in campaign {campaign_id}')
         return True
     
     # Добавляем новые домены (используем set для уникальности)
-    new_excluded_list = list(set(list(current_excluded_set) + domains_to_add))
+    new_excluded_list = list(set(current_excluded_normalized + domains_to_add))
     
     print(f'📝 Campaign {campaign_id}: Adding {len(domains_to_add)} domains (current: {len(current_excluded)}, new total: {len(new_excluded_list)})')
     

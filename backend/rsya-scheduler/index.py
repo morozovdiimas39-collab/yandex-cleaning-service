@@ -60,7 +60,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
               AND s.next_run_at <= CURRENT_TIMESTAMP
               AND p.yandex_token IS NOT NULL
             ORDER BY s.next_run_at
-            LIMIT 100
+            LIMIT 5
         """)
         
         projects = cursor.fetchall()

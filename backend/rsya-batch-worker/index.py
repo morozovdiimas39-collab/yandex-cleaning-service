@@ -448,10 +448,10 @@ def get_platforms_with_retry(
                 report_name = response.get('report_name', f"report_{campaign_id}_{date_from}")
                 cursor.execute("""
                     INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
-                    (project_id, campaign_id, date_from, date_to, report_name, status)
+                    (project_id, campaign_ids, date_from, date_to, report_name, status)
                     VALUES (%s, %s, %s, %s, %s, 'pending')
                     ON CONFLICT DO NOTHING
-                """, (project_id, campaign_id, date_from, date_to, report_name))
+                """, (project_id, json.dumps([campaign_id]), date_from, date_to, report_name))
                 conn.commit()
                 print(f"⏳ Report {report_name} is pending (campaign {campaign_id})")
                 return None

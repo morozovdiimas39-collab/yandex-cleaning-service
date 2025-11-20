@@ -10,9 +10,10 @@
       "expectedBody": {
         "id": "number",
         "phone": "string",
-        "createdAt": "string"
+        "createdAt": "string",
+        "sessionToken": "string"
       },
-      "bodyMatcher": "partial"
+      "bodyMatcher": "types"
     }
   ]
 }

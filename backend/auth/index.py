@@ -1,6 +1,7 @@
 import json
 import os
 import psycopg2
+import secrets
 from typing import Dict, Any
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -105,6 +106,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             user_id, user_phone, created_at = user_row
             conn.commit()
         
+        session_token = secrets.token_urlsafe(32)
+        
         cur.close()
         conn.close()
         
@@ -115,7 +118,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({
                 'id': user_id,
                 'phone': user_phone,
-                'createdAt': created_at.isoformat() if created_at else None
+                'createdAt': created_at.isoformat() if created_at else None,
+                'sessionToken': session_token
             })
         }
     except Exception as e:

@@ -102,35 +102,52 @@ export default function Subscription() {
   };
 
   const handlePayment = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.error('❌ No user ID');
+      return;
+    }
 
+    console.log('💳 Starting payment creation...', { userId: user.id });
     setPaymentLoading(true);
+    
     try {
+      const requestBody = {
+        action: 'create_payment',
+        amount: 1500,
+        plan: 'monthly'
+      };
+      
+      console.log('📤 Payment request:', requestBody);
+      
       const response = await fetch(BACKEND_URLS.subscription, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-User-Id': user.id.toString()
         },
-        body: JSON.stringify({
-          action: 'create_payment',
-          amount: 1500,
-          plan: 'monthly'
-        })
+        body: JSON.stringify(requestBody)
       });
+
+      console.log('📥 Payment response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Payment response data:', data);
+        
         if (data.payment_url) {
+          console.log('🔗 Redirecting to:', data.payment_url);
           window.location.href = data.payment_url;
         } else {
+          console.error('❌ No payment_url in response:', data);
           throw new Error('No payment URL');
         }
       } else {
         const errorData = await response.json();
+        console.error('❌ Payment error response:', errorData);
         throw new Error(errorData.error || 'Payment creation failed');
       }
     } catch (error) {
+      console.error('❌ Payment creation error:', error);
       toast({
         title: 'Ошибка',
         description: error instanceof Error ? error.message : 'Не удалось создать платёж',

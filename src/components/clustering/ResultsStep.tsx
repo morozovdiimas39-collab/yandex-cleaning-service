@@ -2053,7 +2053,7 @@ export default function ResultsStep({
                           title="Открыть сегмент"
                         >
                           <Icon 
-                            name={clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 ? "Folder" : "FolderInput"} 
+                            name={clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 ? "FolderClosed" : "FolderInput"} 
                             size={16} 
                           />
                         </button>

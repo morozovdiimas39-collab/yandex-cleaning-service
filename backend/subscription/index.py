@@ -322,10 +322,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'body': json.dumps({'error': 'Missing amount'})
                     }
                 
+                # DEBUG: показываем ВСЕ переменные окружения
+                all_env_keys = list(os.environ.keys())
+                print(f'🔍 ALL ENV KEYS: {all_env_keys}')
+                
                 alfabank_login = os.environ.get('ALFABANK_LOGIN')
                 alfabank_password = os.environ.get('ALFABANK_PASSWORD')
                 
-                print(f'🔑 Credentials: login={alfabank_login[:3]}*** (len={len(alfabank_login) if alfabank_login else 0}), password={"*" * (len(alfabank_password) if alfabank_password else 0)}')
+                print(f'🔑 Credentials: login={alfabank_login[:3] if alfabank_login else "None"}*** (len={len(alfabank_login) if alfabank_login else 0}), password={"*" * len(alfabank_password) if alfabank_password else "None"}')
                 
                 if not alfabank_login or not alfabank_password:
                     return {

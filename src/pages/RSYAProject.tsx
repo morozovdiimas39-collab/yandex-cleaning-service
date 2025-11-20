@@ -534,17 +534,11 @@ export default function RSYAProject() {
 
   const deleteTask = async (taskId: number) => {
     try {
-      const response = await fetch(RSYA_PROJECTS_URL, {
-        method: 'POST',
+      const response = await fetch(`${RSYA_PROJECTS_URL}?action=delete_task&project_id=${projectId}&task_id=${taskId}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'X-User-Id': userId
-        },
-        body: JSON.stringify({
-          action: 'delete_task',
-          project_id: projectId,
-          task_id: taskId
-        })
+        }
       });
       
       if (!response.ok) throw new Error('Ошибка удаления');

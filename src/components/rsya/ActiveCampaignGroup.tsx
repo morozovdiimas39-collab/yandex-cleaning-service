@@ -125,11 +125,6 @@ export default function ActiveCampaignGroup({
                     <span className={`truncate text-sm ${isMarked ? 'line-through text-red-600' : ''} ${isProtected ? 'text-blue-600' : ''}`}>
                       {placement.domain}
                     </span>
-                    {isProtected && (
-                      <Badge variant="secondary" className="text-xs ml-2">
-                        Нельзя заблокировать
-                      </Badge>
-                    )}
                     {isMarked && !isProtected && (
                       <Badge variant="destructive" className="text-xs ml-2">
                         Будет заблокирована

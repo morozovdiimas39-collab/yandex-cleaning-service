@@ -2063,7 +2063,10 @@ export default function ResultsStep({
                           className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
                           title="Открыть сегмент"
                         >
-                          <Icon name="FolderInput" size={16} />
+                          <Icon 
+                            name={clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 ? "FolderOpen" : "FolderInput"} 
+                            size={16} 
+                          />
                         </button>
                       </>
                     ) : (

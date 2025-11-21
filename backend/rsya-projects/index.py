@@ -749,10 +749,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 (project_name, user_id_int)
             )
             row = cursor.fetchone()
+            project_id = row[0]
+            
+            # Создаём расписание для нового проекта (каждые 8 часов)
+            cursor.execute(
+                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_project_schedule (project_id, interval_hours, next_run_at, is_active) VALUES (%s, %s, NOW() + INTERVAL '8 hours', true)",
+                (project_id, 8)
+            )
+            
             conn.commit()
             
             project = {
-                'id': row[0],
+                'id': project_id,
                 'name': row[1],
                 'created_at': row[2].isoformat() if row[2] else None,
                 'has_token': False

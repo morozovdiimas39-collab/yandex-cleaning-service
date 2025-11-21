@@ -155,6 +155,18 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
         print(f"⚠️ Project {project_id} has no campaigns")
         return 0
     
+    # Проверяем, что батчи не созданы недавно (защита от дублей)
+    cursor.execute("""
+        SELECT COUNT(*) as count 
+        FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches 
+        WHERE project_id = %s AND created_at > NOW() - INTERVAL '5 minutes'
+    """, (project_id,))
+    
+    recent_batches = cursor.fetchone()['count']
+    if recent_batches > 0:
+        print(f"⚠️ Project {project_id} already has {recent_batches} batches created in last 5 minutes, skipping")
+        return 0
+    
     # Разбиваем на батчи
     batches = []
     for i in range(0, len(campaign_ids), BATCH_SIZE):

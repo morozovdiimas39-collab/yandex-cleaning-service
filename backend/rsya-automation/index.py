@@ -402,26 +402,26 @@ def save_pending_report(project_id: int, task_id: int, campaign_ids: List[int], 
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor()
         
-        cursor.execute("""
-            INSERT INTO rsya_pending_reports 
-            (project_id, task_id, campaign_ids, date_from, date_to, report_name, status, retry_count)
-            VALUES (%s, %s, %s, %s, %s, %s, 'pending', 0)
-        """, (
-            project_id,
-            task_id,
-            json.dumps(campaign_ids),
-            date_from,
-            date_to,
-            report_name
-        ))
+        for campaign_id in campaign_ids:
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_async_reports 
+                (project_id, campaign_id, report_name, date_from, date_to, status)
+                VALUES (%s, %s, %s, %s, %s, 'pending')
+            """, (
+                project_id,
+                str(campaign_id),
+                report_name,
+                date_from,
+                date_to
+            ))
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        print(f'✅ Saved pending report: {report_name} (project={project_id}, campaigns={len(campaign_ids)})')
+        print(f'✅ Saved {len(campaign_ids)} async reports: {report_name} (project={project_id})')
     except Exception as e:
-        print(f'❌ Error saving pending report: {str(e)}')
+        print(f'❌ Error saving async reports: {str(e)}')
 
 
 def fetch_placements_from_yandex(token: str, campaign_ids: List[int], goals: List[Dict], config: Dict) -> List[Dict]:

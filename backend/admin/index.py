@@ -1185,23 +1185,23 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
     # Проблемные записи в очереди (много попыток)
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
-            p.name as project_name,
-            bq.task_id,
-            t.description as task_description,
-            bq.status,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.error_message,
-            bq.created_at
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.attempts >= 3
-        ORDER BY bq.attempts DESC, bq.created_at ASC
+            block_queue.id,
+            block_queue.domain,
+            block_queue.project_id,
+            rsya_projects.name as project_name,
+            block_queue.task_id,
+            rsya_tasks.description as task_description,
+            block_queue.status,
+            block_queue.attempts,
+            block_queue.cost,
+            block_queue.clicks,
+            block_queue.error_message,
+            block_queue.created_at
+        FROM t_p97630513_yandex_cleaning_serv.block_queue
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects ON rsya_projects.id = block_queue.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks ON rsya_tasks.id = block_queue.task_id
+        WHERE block_queue.attempts >= 3
+        ORDER BY block_queue.attempts DESC, block_queue.created_at ASC
         LIMIT 50
     """)
     
@@ -1210,23 +1210,23 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
     # Старые pending записи (ждут > 1 часа)
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
-            p.name as project_name,
-            bq.task_id,
-            t.description as task_description,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.created_at,
-            EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 3600 as hours_waiting
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.status = 'pending'
-          AND bq.created_at < NOW() - INTERVAL '1 hour'
-        ORDER BY bq.created_at ASC
+            block_queue.id,
+            block_queue.domain,
+            block_queue.project_id,
+            rsya_projects.name as project_name,
+            block_queue.task_id,
+            rsya_tasks.description as task_description,
+            block_queue.attempts,
+            block_queue.cost,
+            block_queue.clicks,
+            block_queue.created_at,
+            EXTRACT(EPOCH FROM (NOW() - block_queue.created_at)) / 3600 as hours_waiting
+        FROM t_p97630513_yandex_cleaning_serv.block_queue
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects ON rsya_projects.id = block_queue.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks ON rsya_tasks.id = block_queue.task_id
+        WHERE block_queue.status = 'pending'
+          AND block_queue.created_at < NOW() - INTERVAL '1 hour'
+        ORDER BY block_queue.created_at ASC
         LIMIT 50
     """)
     

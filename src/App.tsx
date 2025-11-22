@@ -32,7 +32,7 @@ import WordstatParserPage from "./pages/WordstatParserPage";
 import ClusteringKeywordsPage from "./pages/ClusteringKeywordsPage";
 import YandexDirectOperatorsPage from "./pages/YandexDirectOperatorsPage";
 import MinusWordsGeneratorPage from "./pages/MinusWordsGeneratorPage";
-import RSYACleaningPage from "./pages/RSYACleaningPage";
+import RSYACleaningPage from "./pages/RSYACleaningLanding";
 import BlogPage from "./pages/BlogPage";
 import PricingPage from "./pages/PricingPage";
 import AboutPage from "./pages/AboutPage";

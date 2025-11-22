@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Icon from '@/components/ui/icon';
 import SEOHead from '@/components/SEOHead';
 
-export default function RSYACleaningLanding() {
+export default function RSYACleaningPage() {
   const navigate = useNavigate();
 
   return (

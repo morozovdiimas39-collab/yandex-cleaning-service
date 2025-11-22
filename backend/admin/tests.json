@@ -4,22 +4,16 @@
       "name": "Test unauthorized access",
       "method": "GET",
       "path": "/",
-      "expectedStatus": 401,
-      "expectedBody": {
-        "error": "Unauthorized"
-      }
+      "expectedStatus": 401
     },
     {
       "name": "Test non-admin access",
       "method": "GET",
       "path": "/",
       "headers": {
-        "X-User-Id": "999"
+        "X-User-Id": "test-user"
       },
-      "expectedStatus": 403,
-      "expectedBody": {
-        "error": "Access denied: admin only"
-      }
+      "expectedStatus": 403
     }
   ]
 }

@@ -965,7 +965,7 @@ def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
             bl.conversions,
             bl.created_at,
             bq.status,
-            bq.blocked_at,
+            bq.processed_at as blocked_at,
             bq.attempts,
             bq.error_message
         FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs bl
@@ -1167,7 +1167,7 @@ def get_rsya_dashboard_stats(cur) -> Dict[str, Any]:
 def get_rsya_workers_health(cur) -> Dict[str, Any]:
     '''Статистика по воркерам и scheduler'ам для мониторинга'''
     
-    # Статистика очереди блокировок (исправлено)
+    # Статистика очереди блокировок
     cur.execute("""
         SELECT 
             status,
@@ -1182,27 +1182,26 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
     
     queue_status = cur.fetchall()
     
-    # Проблемные записи в очереди (много попыток)
+    # Проблемные записи в очереди (много попыток) - убрал processed_at
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
+            q.id,
+            q.domain,
+            q.project_id,
             p.name as project_name,
-            bq.task_id,
+            q.task_id,
             t.description as task_description,
-            bq.status,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.error_message,
-            bq.created_at,
-            bq.processed_at
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.attempts >= 3
-        ORDER BY bq.attempts DESC, bq.created_at ASC
+            q.status,
+            q.attempts,
+            q.cost,
+            q.clicks,
+            q.error_message,
+            q.created_at
+        FROM t_p97630513_yandex_cleaning_serv.block_queue q
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = q.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = q.task_id
+        WHERE q.attempts >= 3
+        ORDER BY q.attempts DESC, q.created_at ASC
         LIMIT 50
     """)
     
@@ -1211,23 +1210,23 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
     # Старые pending записи (ждут > 1 часа)
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
+            q.id,
+            q.domain,
+            q.project_id,
             p.name as project_name,
-            bq.task_id,
+            q.task_id,
             t.description as task_description,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.created_at,
-            EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 3600 as hours_waiting
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.status = 'pending'
-          AND bq.created_at < NOW() - INTERVAL '1 hour'
-        ORDER BY bq.created_at ASC
+            q.attempts,
+            q.cost,
+            q.clicks,
+            q.created_at,
+            EXTRACT(EPOCH FROM (NOW() - q.created_at)) / 3600 as hours_waiting
+        FROM t_p97630513_yandex_cleaning_serv.block_queue q
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = q.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = q.task_id
+        WHERE q.status = 'pending'
+          AND q.created_at < NOW() - INTERVAL '1 hour'
+        ORDER BY q.created_at ASC
         LIMIT 50
     """)
     

@@ -1167,7 +1167,7 @@ def get_rsya_dashboard_stats(cur) -> Dict[str, Any]:
 def get_rsya_workers_health(cur) -> Dict[str, Any]:
     '''Статистика по воркерам и scheduler'ам для мониторинга'''
     
-    # Статистика очереди блокировок
+    # Статистика очереди блокировок (исправлено)
     cur.execute("""
         SELECT 
             status,

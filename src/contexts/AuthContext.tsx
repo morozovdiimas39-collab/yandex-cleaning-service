@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { API_ENDPOINTS } from '@/config/api';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 export interface User {
   id: number;
@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsedUser = JSON.parse(storedUser);
         
         console.log('🌐 AuthContext: Verifying token with backend...');
-        const response = await fetch(`${API_ENDPOINTS.auth}?endpoint=verify`, {
+        const response = await fetch(`${BACKEND_URLS.api}?endpoint=verify`, {
           method: 'GET',
           headers: {
             'X-Session-Token': storedToken
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (phone: string) => {
-    const response = await fetch(API_ENDPOINTS.auth, {
+    const response = await fetch(BACKEND_URLS.api, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone })

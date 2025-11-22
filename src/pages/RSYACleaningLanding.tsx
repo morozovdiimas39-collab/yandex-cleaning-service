@@ -19,19 +19,38 @@ export default function RSYACleaningPage() {
       <header className="border-b bg-white sticky top-0 z-50 shadow-sm backdrop-blur-sm bg-white/90">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center">
-              <Icon name="Zap" size={20} className="text-white" />
-            </div>
+            <img 
+              src="https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/16625d69-4f43-4dfb-a302-c6efe2ad9bc7.jpg" 
+              alt="DirectKit Logo" 
+              className="w-10 h-10 rounded-xl object-cover shadow-sm"
+            />
             <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
               DirectKit
             </span>
           </div>
+          <nav className="hidden md:flex items-center gap-6">
+            <button onClick={() => navigate('/rsya-cleaning')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
+              Чистка РСЯ
+            </button>
+            <button onClick={() => navigate('/pricing')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
+              Цены
+            </button>
+            <button onClick={() => navigate('/cases')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
+              Кейсы
+            </button>
+            <button onClick={() => navigate('/blog')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
+              Блог
+            </button>
+            <button onClick={() => navigate('/about-us')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
+              О нас
+            </button>
+          </nav>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/pricing')}>
-              Тарифы
+            <Button onClick={() => navigate('/login')} variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50">
+              Войти
             </Button>
-            <Button onClick={() => navigate('/auth')} className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg shadow-emerald-500/30">
-              Попробовать бесплатно
+            <Button onClick={() => navigate('/auth')} className="bg-emerald-600 hover:bg-emerald-700">
+              Регистрация
             </Button>
           </div>
         </div>
@@ -88,6 +107,25 @@ export default function RSYACleaningPage() {
               <p className="text-slate-700 font-medium">Метрик анализа</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-gradient-to-b from-white to-slate-50">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-4xl font-bold text-center mb-12 text-slate-900">Как работает автоматическая чистка — видео обзор</h2>
+          <Card className="border-0 shadow-2xl overflow-hidden mb-20">
+            <CardContent className="p-0">
+              <div className="relative aspect-video bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+                <div className="text-center text-white">
+                  <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="Play" size={40} className="text-white ml-1" />
+                  </div>
+                  <p className="text-xl font-medium">Видео будет добавлено — отправьте ссылку</p>
+                  <p className="text-sm text-slate-400 mt-2">YouTube или Vimeo iframe</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
 

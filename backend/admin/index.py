@@ -455,7 +455,11 @@ def get_execution_logs(cur, params: Dict) -> Dict[str, Any]:
             l.*,
             p.name as project_name,
             t.description as task_description,
-            EXTRACT(EPOCH FROM (l.completed_at - l.started_at)) as duration_seconds
+            CASE 
+                WHEN l.completed_at IS NOT NULL 
+                THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
+                ELSE NULL 
+            END as duration_seconds
         FROM rsya_cleaning_execution_logs l
         LEFT JOIN rsya_projects p ON l.project_id = p.id
         LEFT JOIN rsya_tasks t ON l.task_id = t.id
@@ -870,7 +874,11 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
     cur.execute("""
         SELECT 
             l.*,
-            EXTRACT(EPOCH FROM (l.completed_at - l.started_at)) as duration_seconds
+            CASE 
+                WHEN l.completed_at IS NOT NULL 
+                THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
+                ELSE NULL 
+            END as duration_seconds
         FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
         WHERE l.task_id = %s
         ORDER BY l.started_at DESC
@@ -895,7 +903,11 @@ def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
             l.*,
             p.name as project_name,
             t.description as task_description,
-            EXTRACT(EPOCH FROM (l.completed_at - l.started_at)) as duration_seconds
+            CASE 
+                WHEN l.completed_at IS NOT NULL 
+                THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
+                ELSE NULL 
+            END as duration_seconds
         FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = l.project_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = l.task_id

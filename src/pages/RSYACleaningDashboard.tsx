@@ -258,6 +258,7 @@ const RSYACleaningDashboard = () => {
                         <TableHeader>
                           <TableRow>
                             <TableHead>ID</TableHead>
+                            <TableHead>User ID</TableHead>
                             <TableHead>Название</TableHead>
                             <TableHead>Логин</TableHead>
                             <TableHead className="text-center">Задачи</TableHead>
@@ -275,6 +276,7 @@ const RSYACleaningDashboard = () => {
                               onClick={() => loadProjectDetail(project.id)}
                             >
                               <TableCell className="font-medium">{project.id}</TableCell>
+                              <TableCell className="text-muted-foreground font-mono text-xs">{project.user_id}</TableCell>
                               <TableCell className="font-medium">{project.name}</TableCell>
                               <TableCell className="text-muted-foreground">{project.client_login || '-'}</TableCell>
                               <TableCell className="text-center">

@@ -15,7 +15,9 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 def get_db_connection():
-    dsn = os.environ.get('MY_DATABASE_URL') or os.environ.get('DATABASE_URL')
+    dsn = os.environ.get('DATABASE_URL')
+    if not dsn:
+        raise Exception('DATABASE_URL not found in environment')
     return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:

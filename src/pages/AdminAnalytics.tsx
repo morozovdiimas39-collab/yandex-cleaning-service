@@ -40,20 +40,30 @@ export default function AdminAnalytics() {
   }, []);
 
   const loadAnalytics = async () => {
+    console.log('🔄 Loading admin analytics...');
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=analytics`, {
+      const url = `${BACKEND_URLS.admin}?action=analytics`;
+      console.log('📡 Fetching from:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'X-Admin-Key': 'directkit_admin_2024'
         }
       });
 
+      console.log('📊 Response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Analytics data loaded:', data);
         setAnalytics(data);
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Error response:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Failed to load analytics:', error);
+      console.error('❌ Failed to load analytics:', error);
     } finally {
       setLoading(false);
     }

@@ -533,7 +533,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             FROM referrals r
                             JOIN partners p ON r.partner_id = p.id
                             WHERE r.referred_user_id = %s AND p.is_active = true
-                        """, (int(user_id),))
+                        """, (str(user_id),))
                         
                         referral = cur.fetchone()
                         
@@ -637,7 +637,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     SELECT id, referral_code, commission_rate, total_earned, total_referrals, is_active
                     FROM partners
                     WHERE user_id = %s
-                """, (int(user_id),))
+                """, (str(user_id),))
                 
                 partner = cur.fetchone()
                 
@@ -649,7 +649,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         (user_id, referral_code, commission_rate, total_earned, total_referrals, is_active)
                         VALUES (%s, %s, 20.00, 0, 0, true)
                         RETURNING id, referral_code, commission_rate, total_earned, total_referrals, is_active
-                    """, (int(user_id), referral_code))
+                    """, (str(user_id), referral_code))
                     
                     partner = cur.fetchone()
                     conn.commit()
@@ -751,7 +751,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 cur.execute("""
                     SELECT id FROM referrals
                     WHERE referred_user_id = %s
-                """, (int(new_user_id),))
+                """, (str(new_user_id),))
                 
                 if cur.fetchone():
                     return {
@@ -767,7 +767,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     (partner_id, referred_user_id, status)
                     VALUES (%s, %s, 'pending')
                     RETURNING id
-                """, (partner['id'], int(new_user_id)))
+                """, (partner['id'], str(new_user_id)))
                 
                 referral = cur.fetchone()
                 

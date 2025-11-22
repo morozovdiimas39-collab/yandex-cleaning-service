@@ -33,13 +33,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     headers = event.get('headers', {})
     user_id = headers.get('x-user-id') or headers.get('X-User-Id')
-    
-    if not user_id:
-        return {
-            'statusCode': 401,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'Unauthorized'})
-        }
+    admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -49,11 +43,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         action = params.get('action')
         stats_action = params.get('stats')
         
-        # Проверка admin key для админских action'ов
-        admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
-        
-        # Общая аналитика системы
-        if action == 'analytics':
+        # Админские действия с admin key (не требуют user_id)
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail']:
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -61,99 +52,76 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Invalid admin key'})
                 }
             
-            analytics_data = get_system_analytics(cur)
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(analytics_data, default=str)
-            }
+            if action == 'analytics':
+                analytics_data = get_system_analytics(cur)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(analytics_data, default=str)
+                }
+            
+            elif action == 'rsya_projects':
+                projects_data = get_rsya_projects(cur)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(projects_data, default=str)
+                }
+            
+            elif action == 'rsya_project_detail':
+                project_id = params.get('project_id')
+                if not project_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'project_id required'})
+                    }
+                
+                project_data = get_rsya_project_detail(cur, int(project_id))
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(project_data, default=str)
+                }
+            
+            elif action == 'rsya_task_detail':
+                task_id = params.get('task_id')
+                if not task_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'task_id required'})
+                    }
+                
+                task_data = get_rsya_task_detail(cur, int(task_id))
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(task_data, default=str)
+                }
+            
+            elif action == 'rsya_execution_detail':
+                execution_id = params.get('execution_id')
+                if not execution_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'execution_id required'})
+                    }
+                
+                execution_data = get_rsya_execution_detail(cur, int(execution_id))
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(execution_data, default=str)
+                }
         
-        # Список всех РССЯ проектов
-        if action == 'rsya_projects':
-            if admin_key != 'directkit_admin_2024':
-                return {
-                    'statusCode': 403,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid admin key'})
-                }
-            
-            projects_data = get_rsya_projects(cur)
+        # Для остальных действий требуется user_id
+        if not user_id:
             return {
-                'statusCode': 200,
+                'statusCode': 401,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(projects_data, default=str)
-            }
-        
-        # Детали проекта
-        if action == 'rsya_project_detail':
-            if admin_key != 'directkit_admin_2024':
-                return {
-                    'statusCode': 403,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid admin key'})
-                }
-            
-            project_id = params.get('project_id')
-            if not project_id:
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'project_id required'})
-                }
-            
-            project_data = get_rsya_project_detail(cur, int(project_id))
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(project_data, default=str)
-            }
-        
-        # Детали задачи
-        if action == 'rsya_task_detail':
-            if admin_key != 'directkit_admin_2024':
-                return {
-                    'statusCode': 403,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid admin key'})
-                }
-            
-            task_id = params.get('task_id')
-            if not task_id:
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'task_id required'})
-                }
-            
-            task_data = get_rsya_task_detail(cur, int(task_id))
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(task_data, default=str)
-            }
-        
-        # Детали выполнения
-        if action == 'rsya_execution_detail':
-            if admin_key != 'directkit_admin_2024':
-                return {
-                    'statusCode': 403,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid admin key'})
-                }
-            
-            execution_id = params.get('execution_id')
-            if not execution_id:
-                return {
-                    'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'execution_id required'})
-                }
-            
-            execution_data = get_rsya_execution_detail(cur, int(execution_id))
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps(execution_data, default=str)
+                'body': json.dumps({'error': 'Unauthorized'})
             }
         
         # Статистика чистки площадок - доступна всем авторизованным

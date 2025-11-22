@@ -43,8 +43,12 @@ export default function AffiliateProgram() {
   }, [user, authLoading]);
 
   const loadAffiliateData = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('❌ No user ID, skipping affiliate data load');
+      return;
+    }
     
+    console.log('🔄 Loading affiliate data for user:', user.id);
     setLoading(true);
     try {
       const response = await fetch(BACKEND_URLS.subscription, {
@@ -56,13 +60,18 @@ export default function AffiliateProgram() {
         body: JSON.stringify({ action: 'affiliate_stats' })
       });
 
+      console.log('📡 Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Affiliate data loaded:', data);
         setReferralCode(data.partner.referral_code);
         setCommissionRate(data.partner.commission_rate);
         setStats(data.stats);
         setReferrals(data.referrals || []);
       } else {
+        const errorText = await response.text();
+        console.error('❌ Error response:', response.status, errorText);
         toast({
           title: 'Ошибка',
           description: 'Не удалось загрузить данные',
@@ -70,7 +79,7 @@ export default function AffiliateProgram() {
         });
       }
     } catch (error) {
-      console.error('Error loading affiliate data:', error);
+      console.error('❌ Error loading affiliate data:', error);
       toast({
         title: 'Ошибка',
         description: 'Не удалось подключиться к серверу',

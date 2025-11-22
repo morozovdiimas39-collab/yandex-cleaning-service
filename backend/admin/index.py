@@ -810,6 +810,7 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
             t.id,
             t.description,
             t.enabled,
+            t.config,
             t.last_executed_at,
             COUNT(l.id) as total_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
@@ -817,7 +818,7 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
         FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
         WHERE t.project_id = %s
-        GROUP BY t.id, t.description, t.enabled, t.last_executed_at
+        GROUP BY t.id, t.description, t.enabled, t.config, t.last_executed_at
         ORDER BY t.id
     """, (project_id,))
     

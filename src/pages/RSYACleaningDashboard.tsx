@@ -404,6 +404,7 @@ const RSYACleaningDashboard = () => {
                         <TableRow>
                           <TableHead>ID</TableHead>
                           <TableHead>Описание</TableHead>
+                          <TableHead>Настройки</TableHead>
                           <TableHead>Статус</TableHead>
                           <TableHead className="text-right">Запусков</TableHead>
                           <TableHead className="text-right">Заблокировано</TableHead>
@@ -412,34 +413,47 @@ const RSYACleaningDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {projectDetail.tasks_stats.map((task: any) => (
-                          <TableRow 
-                            key={task.id}
-                            className="cursor-pointer hover:bg-gray-50"
-                            onClick={() => loadTaskDetail(task.id)}
-                          >
-                            <TableCell className="font-medium">{task.id}</TableCell>
-                            <TableCell>{task.description}</TableCell>
-                            <TableCell>
-                              {task.enabled ? (
-                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Активна</Badge>
-                              ) : (
-                                <Badge variant="secondary">Выключена</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">{task.total_executions}</TableCell>
-                            <TableCell className="text-right">
-                              <span className="text-red-600 font-semibold">{task.total_blocked}</span>
-                            </TableCell>
-                            <TableCell className="text-right">{task.errors}</TableCell>
-                            <TableCell>
-                              {task.last_executed_at 
-                                ? new Date(task.last_executed_at).toLocaleString('ru-RU')
-                                : <span className="text-muted-foreground">Нет запусков</span>
-                              }
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {projectDetail.tasks_stats.map((task: any) => {
+                          const config = task.config || {};
+                          const configParts = [];
+                          if (config.min_clicks) configParts.push(`Клики ≥ ${config.min_clicks}`);
+                          if (config.min_cost) configParts.push(`Расход ≥ ${config.min_cost}₽`);
+                          if (config.max_ctr) configParts.push(`CTR ≤ ${config.max_ctr}%`);
+                          if (config.min_conversions !== undefined) configParts.push(`Конверсии ≥ ${config.min_conversions}`);
+                          if (config.max_cpc) configParts.push(`CPC ≤ ${config.max_cpc}₽`);
+                          
+                          return (
+                            <TableRow 
+                              key={task.id}
+                              className="cursor-pointer hover:bg-gray-50"
+                              onClick={() => loadTaskDetail(task.id)}
+                            >
+                              <TableCell className="font-medium">{task.id}</TableCell>
+                              <TableCell>{task.description}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[300px]">
+                                {configParts.length > 0 ? configParts.join(', ') : '-'}
+                              </TableCell>
+                              <TableCell>
+                                {task.enabled ? (
+                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Активна</Badge>
+                                ) : (
+                                  <Badge variant="secondary">Выключена</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">{task.total_executions}</TableCell>
+                              <TableCell className="text-right">
+                                <span className="text-red-600 font-semibold">{task.total_blocked}</span>
+                              </TableCell>
+                              <TableCell className="text-right">{task.errors}</TableCell>
+                              <TableCell>
+                                {task.last_executed_at 
+                                  ? new Date(task.last_executed_at).toLocaleString('ru-RU')
+                                  : <span className="text-muted-foreground">Нет запусков</span>
+                                }
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   ) : (

@@ -12,6 +12,7 @@ jobs:
           - admin
           - api
           - auth
+          - subscription
           - fetch-git-file
           - rsya-automation
           - rsya-batch-worker

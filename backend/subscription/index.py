@@ -214,7 +214,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         r.created_at,
                         r.paid_at
                     FROM referrals r
-                    JOIN users u ON r.referred_user_id = u.id
+                    LEFT JOIN users u ON r.referred_user_id = CAST(u.id AS TEXT)
                     ORDER BY r.created_at DESC
                     LIMIT 100
                 """)
@@ -681,7 +681,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         s.plan_type,
                         s.amount as subscription_amount
                     FROM referrals r
-                    JOIN users u ON r.referred_user_id = u.id
+                    LEFT JOIN users u ON r.referred_user_id = CAST(u.id AS TEXT)
                     LEFT JOIN subscriptions s ON r.subscription_id = s.id
                     WHERE r.partner_id = %s
                     ORDER BY r.created_at DESC

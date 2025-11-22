@@ -518,9 +518,6 @@ const RSYACleaningDashboard = () => {
                     ) : (
                       <Badge variant="secondary" className="text-lg py-2 px-4">Выключена</Badge>
                     )}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {taskDetail.task_info.schedule || 'Без расписания'}
-                    </p>
                   </CardContent>
                 </Card>
               </div>

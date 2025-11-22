@@ -28,8 +28,7 @@ interface Project {
   id: number;
   user_id: string;
   name: string;
-  client_id: string;
-  login: string;
+  client_login: string | null;
   is_configured: boolean;
   tasks_count: number;
   active_tasks_count: number;
@@ -161,7 +160,7 @@ const RSYACleaningDashboard = () => {
 
   const filteredProjects = projects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.login.toLowerCase().includes(searchQuery.toLowerCase());
+                          (p.client_login && p.client_login.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || 
                           (statusFilter === 'active' && p.is_configured) ||
                           (statusFilter === 'inactive' && !p.is_configured);
@@ -277,7 +276,7 @@ const RSYACleaningDashboard = () => {
                             >
                               <TableCell className="font-medium">{project.id}</TableCell>
                               <TableCell className="font-medium">{project.name}</TableCell>
-                              <TableCell className="text-muted-foreground">{project.login}</TableCell>
+                              <TableCell className="text-muted-foreground">{project.client_login || '-'}</TableCell>
                               <TableCell className="text-center">
                                 <Badge variant="outline">
                                   {project.active_tasks_count}/{project.tasks_count}
@@ -346,7 +345,7 @@ const RSYACleaningDashboard = () => {
             <div>
               <h1 className="text-3xl font-bold mb-6">{projectDetail.project_info.name}</h1>
               <p className="text-muted-foreground mb-6">
-                ID: {projectDetail.project_info.id} | Логин: {projectDetail.project_info.login}
+                ID: {projectDetail.project_info.id} | Логин: {projectDetail.project_info.client_login || '-'}
               </p>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6">

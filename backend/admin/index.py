@@ -760,8 +760,7 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
             p.id,
             p.user_id,
             p.name,
-            p.client_id,
-            p.login,
+            p.client_login,
             p.is_configured,
             COUNT(DISTINCT t.id) as tasks_count,
             COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
@@ -771,7 +770,7 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
         FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
-        GROUP BY p.id, p.user_id, p.name, p.client_id, p.login, p.is_configured
+        GROUP BY p.id, p.user_id, p.name, p.client_login, p.is_configured
         ORDER BY p.id DESC
     """)
     

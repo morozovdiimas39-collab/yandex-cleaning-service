@@ -9,6 +9,53 @@ import { generateWordstatPDF } from '@/utils/pdfGenerator';
 export default function WordstatParserPage() {
   const navigate = useNavigate();
 
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Как парсер собирает данные из WordStat?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Парсер работает через официальный API Яндекс.Директ. Получает доступ к WordStat после авторизации через OAuth, собирает запросы из правой и левой колонки, фильтрует по вашим настройкам и выгружает в Excel.'
+        }
+      },
+      {
+        '@type': 'Question',
+        name: 'Почему нет капчи при парсинге?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Мы используем API Яндекса вместо парсинга через браузер. API не показывает капчу и не блокирует запросы. Это официальный способ автоматизации, разрешённый Яндексом.'
+        }
+      },
+      {
+        '@type': 'Question',
+        name: 'Сколько запросов можно собрать?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Бесплатный тариф: до 1000 запросов. Платные тарифы: от 10 000 до неограниченного количества. Один запуск парсера может собрать до 50 000 ключевых слов из WordStat.'
+        }
+      },
+      {
+        '@type': 'Question',
+        name: 'В каком формате выгружаются данные?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Excel (.xlsx) и CSV. Таблица содержит: запрос, частотность, регион, дата сбора и дополнительные метрики. Готова для кластеризации или импорта в Яндекс.Директ.'
+        }
+      },
+      {
+        '@type': 'Question',
+        name: 'Насколько актуальны данные из парсера?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: '100% актуальные данные на момент парсинга. Парсер получает частотность напрямую из WordStat API. Рекомендуем обновлять семантику каждые 1-2 месяца для поддержания актуальности.'
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <SEOHead 
@@ -16,6 +63,7 @@ export default function WordstatParserPage() {
         description="Автоматический парсер WordStat для сбора ключевых слов. Парсинг Яндекс Вордстата с регионами, фильтрацией по частотности. Выгрузка wordstat в Excel. Быстрый сбор семантики онлайн без капчи."
         keywords="парсер wordstat, вордстат парсер, парсер яндекс wordstat онлайн, wordstat парсер бесплатно, сбор ключевых слов wordstat, парсинг вордстата, wordstat api парсер"
         canonical="https://directkit.ru/wordstat-parser"
+        jsonLd={faqSchema}
       />
 
       <LandingHeader />

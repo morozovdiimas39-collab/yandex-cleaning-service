@@ -41,7 +41,48 @@ export default function LandingPage() {
       '@type': 'Organization',
       name: 'DirectKit',
       url: 'https://directkit.ru'
-    }
+    },
+    review: [
+      {
+        '@type': 'Review',
+        author: {
+          '@type': 'Person',
+          name: 'Александр Ковалёв'
+        },
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: '5',
+          bestRating: '5'
+        },
+        reviewBody: 'На сбор семантики уходило 2-3 дня. С DirectKit делаю за пару часов. Чистка РСЯ работает сама — CPA снизился на 35%.'
+      },
+      {
+        '@type': 'Review',
+        author: {
+          '@type': 'Person',
+          name: 'Мария Соколова'
+        },
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: '5',
+          bestRating: '5'
+        },
+        reviewBody: 'Никогда не работала с рекламой, но DirectKit оказался очень простым. CPC снизился на 40%, заявок в 2 раза больше!'
+      },
+      {
+        '@type': 'Review',
+        author: {
+          '@type': 'Person',
+          name: 'Дмитрий Петров'
+        },
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: '5',
+          bestRating: '5'
+        },
+        reviewBody: 'Используем для всех клиентов. Особенно ценим автоматическую чистку — экономим до 30% бюджета на каждом проекте.'
+      }
+    ]
   };
 
   return (

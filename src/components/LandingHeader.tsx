@@ -10,8 +10,10 @@ export default function LandingHeader() {
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
           <img 
             src="https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/16625d69-4f43-4dfb-a302-c6efe2ad9bc7.jpg" 
-            alt="DirectKit Logo" 
+            alt="Логотип DirectKit - автоматизация Яндекс.Директ, парсер Wordstat и чистка РСЯ" 
             className="w-10 h-10 rounded-xl object-cover shadow-sm"
+            width="40"
+            height="40"
           />
           <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
             DirectKit

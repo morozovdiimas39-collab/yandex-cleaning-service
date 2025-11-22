@@ -851,7 +851,14 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
     # Информация о задаче
     cur.execute("""
         SELECT 
-            t.*,
+            t.id,
+            t.project_id,
+            t.description,
+            t.enabled,
+            t.config,
+            t.created_at,
+            t.updated_at,
+            t.last_executed_at,
             p.name as project_name,
             COUNT(l.id) as total_executions,
             COUNT(CASE WHEN l.status = 'completed' THEN 1 END) as successful_executions,
@@ -863,7 +870,7 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = t.project_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
         WHERE t.id = %s
-        GROUP BY t.id, p.name
+        GROUP BY t.id, t.project_id, t.description, t.enabled, t.config, t.created_at, t.updated_at, t.last_executed_at, p.name
     """, (task_id,))
     
     task_info = cur.fetchone()

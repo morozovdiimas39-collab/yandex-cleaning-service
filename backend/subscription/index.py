@@ -198,7 +198,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         p.total_earned,
                         p.total_referrals,
                         p.is_active
-                    FROM partners p
+                    FROM t_p97630513_yandex_cleaning_serv.partners p
                     ORDER BY p.total_earned DESC
                 """)
                 partners = cur.fetchall()
@@ -213,8 +213,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         r.commission_amount,
                         r.created_at,
                         r.paid_at
-                    FROM referrals r
-                    LEFT JOIN users u ON r.referred_user_id = CAST(u.id AS TEXT)
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
+                    LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON r.referred_user_id = u.id
                     ORDER BY r.created_at DESC
                     LIMIT 100
                 """)
@@ -532,10 +532,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         
                         cur.execute("""
                             SELECT r.id, r.partner_id, p.commission_rate
-                            FROM referrals r
-                            JOIN partners p ON r.partner_id = p.id
+                            FROM t_p97630513_yandex_cleaning_serv.referrals r
+                            JOIN t_p97630513_yandex_cleaning_serv.partners p ON r.partner_id = p.id
                             WHERE r.referred_user_id = %s AND p.is_active = true
-                        """, (str(user_id),))
+                        """, (int(user_id),))
                         
                         referral = cur.fetchone()
                         
@@ -544,7 +544,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             
                             # Обновляем реферала
                             cur.execute("""
-                                UPDATE referrals
+                                UPDATE t_p97630513_yandex_cleaning_serv.referrals
                                 SET 
                                     subscription_id = %s,
                                     commission_amount = COALESCE(commission_amount, 0) + %s,
@@ -555,7 +555,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             
                             # Обновляем заработок партнера
                             cur.execute("""
-                                UPDATE partners
+                                UPDATE t_p97630513_yandex_cleaning_serv.partners
                                 SET total_earned = total_earned + %s
                                 WHERE id = %s
                             """, (commission, referral['partner_id']))

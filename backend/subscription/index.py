@@ -637,7 +637,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Получаем или создаем партнера
                 cur.execute("""
                     SELECT id, referral_code, commission_rate, total_earned, total_referrals, is_active
-                    FROM partners
+                    FROM t_p97630513_yandex_cleaning_serv.partners
                     WHERE user_id = %s
                 """, (str(user_id),))
                 
@@ -647,7 +647,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     # Создаем партнера
                     referral_code = f"DK{str(user_id).zfill(8)}"
                     cur.execute("""
-                        INSERT INTO partners 
+                        INSERT INTO t_p97630513_yandex_cleaning_serv.partners 
                         (user_id, referral_code, commission_rate, total_earned, total_referrals, is_active)
                         VALUES (%s, %s, 20.00, 0, 0, true)
                         RETURNING id, referral_code, commission_rate, total_earned, total_referrals, is_active
@@ -662,7 +662,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         COUNT(*) as total_referrals,
                         COUNT(CASE WHEN r.status = 'paid' THEN 1 END) as conversions,
                         COALESCE(SUM(r.commission_amount), 0) as total_earned
-                    FROM referrals r
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
                     WHERE r.partner_id = %s
                 """, (partner['id'],))
                 
@@ -680,9 +680,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         r.paid_at,
                         s.plan_type,
                         s.amount as subscription_amount
-                    FROM referrals r
-                    LEFT JOIN users u ON r.referred_user_id = CAST(u.id AS TEXT)
-                    LEFT JOIN subscriptions s ON r.subscription_id = s.id
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
+                    LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON r.referred_user_id = CAST(u.id AS TEXT)
+                    LEFT JOIN t_p97630513_yandex_cleaning_serv.subscriptions s ON r.subscription_id = s.id
                     WHERE r.partner_id = %s
                     ORDER BY r.created_at DESC
                     LIMIT 100

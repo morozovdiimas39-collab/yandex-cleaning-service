@@ -17,9 +17,14 @@ export default function AdminSidebar() {
       icon: 'Folder'
     },
     {
-      title: 'Чистка РССЯ',
+      title: 'Чистка РСЯ',
       path: '/admin/rsya-cleaning',
       icon: 'Ban'
+    },
+    {
+      title: 'Воркеры РСЯ',
+      path: '/admin/rsya-workers',
+      icon: 'Activity'
     },
     {
       title: 'Сбор ключей',

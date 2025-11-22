@@ -44,7 +44,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия с admin key (не требуют user_id)
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail']:
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health']:
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -114,6 +114,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                     'body': json.dumps(execution_data, default=str)
+                }
+            
+            elif action == 'rsya_dashboard_stats':
+                dashboard_data = get_rsya_dashboard_stats(cur)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(dashboard_data, default=str)
+                }
+            
+            elif action == 'rsya_workers_health':
+                workers_data = get_rsya_workers_health(cur)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(workers_data, default=str)
                 }
         
         # Для остальных действий требуется user_id
@@ -757,7 +773,7 @@ def get_system_analytics(cur) -> Dict[str, Any]:
 
 
 def get_rsya_projects(cur) -> Dict[str, Any]:
-    '''Получить список всех РССЯ проектов с агрегированной статистикой'''
+    '''Получить список всех РСЯ проектов с агрегированной статистикой'''
     
     cur.execute("""
         SELECT 
@@ -965,4 +981,335 @@ def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
     return {
         'execution': execution,
         'platforms': platforms
+    }
+
+
+def get_rsya_dashboard_stats(cur) -> Dict[str, Any]:
+    '''Расширенная статистика для дашборда РСЯ'''
+    
+    # KPI метрики
+    cur.execute("""
+        SELECT 
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_projects) as total_projects,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE is_configured = true) as active_projects,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks) as total_tasks,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE enabled = true) as active_tasks,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE started_at > NOW() - INTERVAL '24 hours') as executions_24h,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE started_at > NOW() - INTERVAL '7 days') as executions_7d,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE started_at > NOW() - INTERVAL '30 days') as executions_30d,
+            (SELECT COALESCE(SUM(placements_blocked), 0) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs) as total_blocked,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE status = 'error' AND started_at > NOW() - INTERVAL '24 hours') as errors_24h,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'pending') as queue_pending,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'processing') as queue_processing,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'failed') as queue_failed
+    """)
+    
+    kpi = cur.fetchone()
+    
+    # График активности за 30 дней
+    cur.execute("""
+        SELECT 
+            DATE(started_at) as date,
+            COUNT(*) as executions,
+            COALESCE(SUM(placements_blocked), 0) as blocked,
+            COUNT(CASE WHEN status = 'error' THEN 1 END) as errors
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+        WHERE started_at > NOW() - INTERVAL '30 days'
+        GROUP BY DATE(started_at)
+        ORDER BY date ASC
+    """)
+    
+    activity_chart = cur.fetchall()
+    
+    # Топ-5 проектов по выполнениям
+    cur.execute("""
+        SELECT 
+            p.id,
+            p.name,
+            p.user_id,
+            COUNT(l.id) as executions,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked
+        FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        WHERE l.started_at > NOW() - INTERVAL '30 days'
+        GROUP BY p.id, p.name, p.user_id
+        ORDER BY executions DESC
+        LIMIT 5
+    """)
+    
+    top_projects_executions = cur.fetchall()
+    
+    # Топ-5 проектов по блокировкам
+    cur.execute("""
+        SELECT 
+            p.id,
+            p.name,
+            p.user_id,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
+            COUNT(l.id) as executions
+        FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        WHERE l.started_at > NOW() - INTERVAL '30 days'
+        GROUP BY p.id, p.name, p.user_id
+        ORDER BY total_blocked DESC
+        LIMIT 5
+    """)
+    
+    top_projects_blocks = cur.fetchall()
+    
+    # Проблемные проекты (с ошибками)
+    cur.execute("""
+        SELECT 
+            p.id,
+            p.name,
+            p.user_id,
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors,
+            COUNT(l.id) as total_executions
+        FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        WHERE l.started_at > NOW() - INTERVAL '7 days'
+        GROUP BY p.id, p.name, p.user_id
+        HAVING COUNT(CASE WHEN l.status = 'error' THEN 1 END) > 0
+        ORDER BY errors DESC
+        LIMIT 5
+    """)
+    
+    problematic_projects = cur.fetchall()
+    
+    # Задачи, которые давно не выполнялись
+    cur.execute("""
+        SELECT 
+            t.id,
+            t.description,
+            t.project_id,
+            p.name as project_name,
+            t.last_executed_at,
+            EXTRACT(EPOCH FROM (NOW() - t.last_executed_at)) / 3600 as hours_since_execution
+        FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = t.project_id
+        WHERE t.enabled = true 
+          AND t.last_executed_at IS NOT NULL
+          AND t.last_executed_at < NOW() - INTERVAL '24 hours'
+        ORDER BY t.last_executed_at ASC
+        LIMIT 10
+    """)
+    
+    stale_tasks = cur.fetchall()
+    
+    # Последняя активность (20 выполнений)
+    cur.execute("""
+        SELECT 
+            l.id,
+            l.execution_type,
+            l.project_id,
+            p.name as project_name,
+            p.user_id,
+            l.task_id,
+            t.description as task_description,
+            l.started_at,
+            l.completed_at,
+            l.status,
+            l.placements_found,
+            l.placements_blocked,
+            CASE 
+                WHEN l.completed_at IS NOT NULL 
+                THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
+                ELSE NULL 
+            END as duration_seconds
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = l.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = l.task_id
+        ORDER BY l.started_at DESC
+        LIMIT 20
+    """)
+    
+    recent_activity = cur.fetchall()
+    
+    # Средняя скорость блокировки (площадок/час за последние 24ч)
+    avg_speed = 0
+    if kpi['total_blocked'] > 0:
+        cur.execute("""
+            SELECT 
+                COALESCE(SUM(placements_blocked), 0) as blocked_24h,
+                COUNT(DISTINCT DATE_TRUNC('hour', started_at)) as active_hours
+            FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+            WHERE started_at > NOW() - INTERVAL '24 hours'
+        """)
+        speed_data = cur.fetchone()
+        if speed_data['active_hours'] > 0:
+            avg_speed = float(speed_data['blocked_24h']) / float(speed_data['active_hours'])
+    
+    return {
+        'kpi': {
+            'total_projects': kpi['total_projects'],
+            'active_projects': kpi['active_projects'],
+            'total_tasks': kpi['total_tasks'],
+            'active_tasks': kpi['active_tasks'],
+            'executions_24h': kpi['executions_24h'],
+            'executions_7d': kpi['executions_7d'],
+            'executions_30d': kpi['executions_30d'],
+            'total_blocked': int(kpi['total_blocked']),
+            'errors_24h': kpi['errors_24h'],
+            'queue_pending': kpi['queue_pending'],
+            'queue_processing': kpi['queue_processing'],
+            'queue_failed': kpi['queue_failed'],
+            'avg_speed_per_hour': round(avg_speed, 2)
+        },
+        'activity_chart': activity_chart,
+        'top_projects_executions': top_projects_executions,
+        'top_projects_blocks': top_projects_blocks,
+        'problematic_projects': problematic_projects,
+        'stale_tasks': stale_tasks,
+        'recent_activity': recent_activity
+    }
+
+
+def get_rsya_workers_health(cur) -> Dict[str, Any]:
+    '''Статистика по воркерам и scheduler'ам для мониторинга'''
+    
+    # Статистика очереди блокировок
+    cur.execute("""
+        SELECT 
+            status,
+            COUNT(*) as count,
+            COALESCE(SUM(cost), 0) as total_cost,
+            COALESCE(AVG(attempts), 0) as avg_attempts,
+            MIN(created_at) as oldest_record,
+            MAX(created_at) as newest_record
+        FROM t_p97630513_yandex_cleaning_serv.block_queue
+        GROUP BY status
+    """)
+    
+    queue_status = cur.fetchall()
+    
+    # Проблемные записи в очереди (много попыток)
+    cur.execute("""
+        SELECT 
+            bq.id,
+            bq.domain,
+            bq.project_id,
+            p.name as project_name,
+            bq.task_id,
+            t.description as task_description,
+            bq.status,
+            bq.attempts,
+            bq.cost,
+            bq.clicks,
+            bq.error_message,
+            bq.created_at,
+            bq.last_attempt_at
+        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
+        WHERE bq.attempts >= 3
+        ORDER BY bq.attempts DESC, bq.created_at ASC
+        LIMIT 50
+    """)
+    
+    problematic_queue = cur.fetchall()
+    
+    # Старые pending записи (ждут > 1 часа)
+    cur.execute("""
+        SELECT 
+            bq.id,
+            bq.domain,
+            bq.project_id,
+            p.name as project_name,
+            bq.task_id,
+            t.description as task_description,
+            bq.attempts,
+            bq.cost,
+            bq.clicks,
+            bq.created_at,
+            EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 3600 as hours_waiting
+        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
+        WHERE bq.status = 'pending'
+          AND bq.created_at < NOW() - INTERVAL '1 hour'
+        ORDER BY bq.created_at ASC
+        LIMIT 50
+    """)
+    
+    old_pending = cur.fetchall()
+    
+    # Статистика выполнений по типам за последние 24ч
+    cur.execute("""
+        SELECT 
+            execution_type,
+            COUNT(*) as count,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at))), 0) as avg_duration_seconds,
+            COALESCE(SUM(placements_blocked), 0) as total_blocked
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+        WHERE started_at > NOW() - INTERVAL '24 hours'
+        GROUP BY execution_type
+    """)
+    
+    execution_types_24h = cur.fetchall()
+    
+    # Активность воркеров по часам (последние 24 часа)
+    cur.execute("""
+        SELECT 
+            DATE_TRUNC('hour', started_at) as hour,
+            COUNT(*) as executions,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
+            COALESCE(SUM(placements_blocked), 0) as blocked
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+        WHERE started_at > NOW() - INTERVAL '24 hours'
+        GROUP BY DATE_TRUNC('hour', started_at)
+        ORDER BY hour ASC
+    """)
+    
+    hourly_activity = cur.fetchall()
+    
+    # Последние ошибки воркеров
+    cur.execute("""
+        SELECT 
+            l.id,
+            l.execution_type,
+            l.project_id,
+            p.name as project_name,
+            l.task_id,
+            t.description as task_description,
+            l.started_at,
+            l.error_message,
+            l.request_id
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = l.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = l.task_id
+        WHERE l.status = 'error'
+          AND l.started_at > NOW() - INTERVAL '24 hours'
+        ORDER BY l.started_at DESC
+        LIMIT 20
+    """)
+    
+    recent_errors = cur.fetchall()
+    
+    # Снапшоты очереди за последние 24 часа
+    cur.execute("""
+        SELECT 
+            created_at,
+            pending_count,
+            processing_count,
+            blocked_count,
+            failed_count,
+            total_count
+        FROM t_p97630513_yandex_cleaning_serv.rsya_queue_snapshots
+        WHERE created_at > NOW() - INTERVAL '24 hours'
+        ORDER BY created_at ASC
+    """)
+    
+    queue_snapshots = cur.fetchall()
+    
+    return {
+        'queue_status': queue_status,
+        'problematic_queue': problematic_queue,
+        'old_pending': old_pending,
+        'execution_types_24h': execution_types_24h,
+        'hourly_activity': hourly_activity,
+        'recent_errors': recent_errors,
+        'queue_snapshots': queue_snapshots
     }

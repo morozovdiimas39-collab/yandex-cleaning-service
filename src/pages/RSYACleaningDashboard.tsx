@@ -48,6 +48,7 @@ const RSYACleaningDashboard = () => {
   const [taskDetail, setTaskDetail] = useState<any>(null);
   const [executionDetail, setExecutionDetail] = useState<any>(null);
   const [executionPlatforms, setExecutionPlatforms] = useState<any[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -56,6 +57,21 @@ const RSYACleaningDashboard = () => {
   const [error, setError] = useState<string>('');
 
   const ITEMS_PER_PAGE = 20;
+
+  const loadDashboardStats = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      setDashboardStats(data);
+    } catch (err: any) {
+      console.error('Ошибка загрузки статистики:', err);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -145,7 +161,16 @@ const RSYACleaningDashboard = () => {
 
   useEffect(() => {
     loadProjects();
-  }, []);
+    loadDashboardStats();
+    
+    const interval = setInterval(() => {
+      if (viewMode === 'projects') {
+        loadDashboardStats();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [viewMode]);
 
   const handleBackClick = () => {
     if (viewMode === 'execution-detail') {
@@ -215,9 +240,204 @@ const RSYACleaningDashboard = () => {
           {viewMode === 'projects' && (
             <div>
               <div className="mb-6">
-                <h1 className="text-4xl font-bold mb-2">Чистка РССЯ</h1>
+                <h1 className="text-4xl font-bold mb-2">Чистка РСЯ</h1>
                 <p className="text-muted-foreground">Все проекты и задачи по автоматической блокировке площадок</p>
               </div>
+
+              {dashboardStats && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Проекты</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{dashboardStats.kpi.active_projects}/{dashboardStats.kpi.total_projects}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Активных / Всего</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Задачи</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{dashboardStats.kpi.active_tasks}/{dashboardStats.kpi.total_tasks}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Активных / Всего</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Запусков 24ч</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">{dashboardStats.kpi.executions_24h}</div>
+                        <p className="text-xs text-muted-foreground mt-1">7д: {dashboardStats.kpi.executions_7d}</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Заблокировано</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-red-600">{dashboardStats.kpi.total_blocked.toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Всего площадок</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Ошибок 24ч</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-orange-600">{dashboardStats.kpi.errors_24h}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Выполнений с ошибкой</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">Скорость</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-600">{dashboardStats.kpi.avg_speed_per_hour}</div>
+                        <p className="text-xs text-muted-foreground mt-1">Площадок/час</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Топ-5 проектов по выполнениям (30д)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {dashboardStats.top_projects_executions.length > 0 ? (
+                          <div className="space-y-3">
+                            {dashboardStats.top_projects_executions.map((proj: any) => (
+                              <div key={proj.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => loadProjectDetail(proj.id)}>
+                                <div>
+                                  <div className="font-medium">{proj.name}</div>
+                                  <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold text-blue-600">{proj.executions}</div>
+                                  <div className="text-xs text-muted-foreground">{proj.total_blocked} заблок.</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-center py-4">Нет данных</p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Топ-5 проектов по блокировкам (30д)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {dashboardStats.top_projects_blocks.length > 0 ? (
+                          <div className="space-y-3">
+                            {dashboardStats.top_projects_blocks.map((proj: any) => (
+                              <div key={proj.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => loadProjectDetail(proj.id)}>
+                                <div>
+                                  <div className="font-medium">{proj.name}</div>
+                                  <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold text-red-600">{proj.total_blocked}</div>
+                                  <div className="text-xs text-muted-foreground">{proj.executions} запусков</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-center py-4">Нет данных</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {dashboardStats.problematic_projects.length > 0 && (
+                    <Card className="mb-6 border-orange-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="AlertTriangle" className="text-orange-600" size={20} />
+                          Проблемные проекты (с ошибками за 7д)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {dashboardStats.problematic_projects.map((proj: any) => (
+                            <div key={proj.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100" onClick={() => loadProjectDetail(proj.id)}>
+                              <div>
+                                <div className="font-medium">{proj.name}</div>
+                                <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-orange-600">{proj.errors} ошибок</div>
+                                <div className="text-xs text-muted-foreground">из {proj.total_executions} запусков</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card className="mb-6">
+                    <CardHeader>
+                      <CardTitle>Последняя активность</CardTitle>
+                      <CardDescription>Обновляется каждые 30 секунд</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {dashboardStats.recent_activity.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Проект</TableHead>
+                              <TableHead>Задача</TableHead>
+                              <TableHead>Дата</TableHead>
+                              <TableHead className="text-right">Найдено</TableHead>
+                              <TableHead className="text-right">Заблок.</TableHead>
+                              <TableHead>Статус</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {dashboardStats.recent_activity.map((act: any) => (
+                              <TableRow key={act.id} className="cursor-pointer hover:bg-gray-50" onClick={() => loadExecutionDetail(act.id)}>
+                                <TableCell>
+                                  <div className="font-medium">{act.project_name || `#${act.project_id}`}</div>
+                                  <div className="text-xs text-muted-foreground">User: {act.user_id}</div>
+                                </TableCell>
+                                <TableCell className="text-sm">{act.task_description || '-'}</TableCell>
+                                <TableCell className="text-sm">{new Date(act.started_at).toLocaleString('ru-RU')}</TableCell>
+                                <TableCell className="text-right">{act.placements_found || 0}</TableCell>
+                                <TableCell className="text-right"><span className="text-red-600 font-semibold">{act.placements_blocked || 0}</span></TableCell>
+                                <TableCell>
+                                  {act.status === 'completed' ? (
+                                    <Badge className="bg-green-100 text-green-800">Успешно</Badge>
+                                  ) : act.status === 'error' ? (
+                                    <Badge className="bg-red-100 text-red-800">Ошибка</Badge>
+                                  ) : (
+                                    <Badge variant="secondary">{act.status}</Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">Нет активности</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
 
               <div className="flex gap-4 mb-6">
                 <div className="flex-1">

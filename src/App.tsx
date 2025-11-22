@@ -41,6 +41,7 @@ import AboutUsPage from "./pages/AboutUsPage";
 import CasesPage from "./pages/CasesPage";
 import RSYACleaningDashboard from "./pages/RSYACleaningDashboard";
 import RSYATestCleaning from "./pages/RSYATestCleaning";
+import RSYAWorkersMonitoring from "./pages/RSYAWorkersMonitoring";
 
 const queryClient = new QueryClient();
 
@@ -97,6 +98,7 @@ const App = () => (
           <Route path="/cases" element={<CasesPage />} />
           <Route path="/keisy" element={<CasesPage />} />
           <Route path="/admin/rsya-cleaning" element={<RSYACleaningDashboard />} />
+          <Route path="/admin/rsya-workers" element={<RSYAWorkersMonitoring />} />
           <Route path="/rsya-test-cleaning" element={<RSYATestCleaning />} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

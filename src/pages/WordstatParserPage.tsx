@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Icon from '@/components/ui/icon';
 import SEOHead from '@/components/SEOHead';
 import LandingHeader from '@/components/LandingHeader';
+import { generateWordstatPDF } from '@/utils/pdfGenerator';
 
 export default function WordstatParserPage() {
   const navigate = useNavigate();
@@ -48,10 +49,11 @@ export default function WordstatParserPage() {
               <Button 
                 size="lg" 
                 variant="outline" 
-                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                onClick={generateWordstatPDF}
                 className="text-lg px-8 py-6 border-2 hover:bg-slate-50"
               >
-                Как это работает
+                <Icon name="FileDown" size={20} className="mr-2" />
+                Скачать PDF
               </Button>
             </div>
           </div>

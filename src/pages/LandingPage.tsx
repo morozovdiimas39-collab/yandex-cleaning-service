@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Icon from '@/components/ui/icon';
 import { Helmet } from 'react-helmet-async';
 import LandingHeader from '@/components/LandingHeader';
+import { generateWordstatPDF, generateRSYAPDF } from '@/utils/pdfGenerator';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -243,12 +244,13 @@ export default function LandingPage() {
                             Подробнее
                           </Button>
                           <Button 
-                            onClick={() => navigate('/auth')}
+                            onClick={generateWordstatPDF}
                             variant="outline"
                             size="lg"
                             className="border-2 border-white text-white hover:bg-white/10"
                           >
-                            Попробовать
+                            <Icon name="FileDown" size={20} className="mr-2" />
+                            Скачать PDF
                           </Button>
                         </div>
                       </div>
@@ -358,12 +360,13 @@ export default function LandingPage() {
                             Подробнее
                           </Button>
                           <Button 
-                            onClick={() => navigate('/auth')}
+                            onClick={generateRSYAPDF}
                             variant="outline"
                             size="lg"
                             className="border-2 border-white text-white hover:bg-white/10"
                           >
-                            Попробовать
+                            <Icon name="FileDown" size={20} className="mr-2" />
+                            Скачать PDF
                           </Button>
                         </div>
                       </div>

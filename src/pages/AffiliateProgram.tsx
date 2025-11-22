@@ -89,6 +89,40 @@ export default function AffiliateProgram() {
     });
   };
 
+  if (!user) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>Требуется авторизация</CardTitle>
+            <CardDescription>
+              Для доступа к партнёрской программе необходимо войти в систему
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.href = '/auth'} className="w-full">
+              Войти
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <AppSidebar />
+        <div className="flex-1 overflow-auto ml-64 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Загрузка данных...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <AppSidebar />

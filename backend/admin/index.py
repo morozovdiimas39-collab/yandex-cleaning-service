@@ -49,9 +49,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         action = params.get('action')
         stats_action = params.get('stats')
         
-        # Общая аналитика системы - доступна всем админам
+        # Проверка admin key для админских action'ов
+        admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
+        
+        # Общая аналитика системы
         if action == 'analytics':
-            admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -64,6 +66,94 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps(analytics_data, default=str)
+            }
+        
+        # Список всех РССЯ проектов
+        if action == 'rsya_projects':
+            if admin_key != 'directkit_admin_2024':
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid admin key'})
+                }
+            
+            projects_data = get_rsya_projects(cur)
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(projects_data, default=str)
+            }
+        
+        # Детали проекта
+        if action == 'rsya_project_detail':
+            if admin_key != 'directkit_admin_2024':
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid admin key'})
+                }
+            
+            project_id = params.get('project_id')
+            if not project_id:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'project_id required'})
+                }
+            
+            project_data = get_rsya_project_detail(cur, int(project_id))
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(project_data, default=str)
+            }
+        
+        # Детали задачи
+        if action == 'rsya_task_detail':
+            if admin_key != 'directkit_admin_2024':
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid admin key'})
+                }
+            
+            task_id = params.get('task_id')
+            if not task_id:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'task_id required'})
+                }
+            
+            task_data = get_rsya_task_detail(cur, int(task_id))
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(task_data, default=str)
+            }
+        
+        # Детали выполнения
+        if action == 'rsya_execution_detail':
+            if admin_key != 'directkit_admin_2024':
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid admin key'})
+                }
+            
+            execution_id = params.get('execution_id')
+            if not execution_id:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'execution_id required'})
+                }
+            
+            execution_data = get_rsya_execution_detail(cur, int(execution_id))
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(execution_data, default=str)
             }
         
         # Статистика чистки площадок - доступна всем авторизованным
@@ -691,4 +781,189 @@ def get_system_analytics(cur) -> Dict[str, Any]:
             'failed': wordstat_stats['failed'],
             'totalKeywords': int(wordstat_stats['total_keywords'])
         }
+    }
+
+
+def get_rsya_projects(cur) -> Dict[str, Any]:
+    '''Получить список всех РССЯ проектов с агрегированной статистикой'''
+    
+    cur.execute("""
+        SELECT 
+            p.id,
+            p.user_id,
+            p.name,
+            p.client_id,
+            p.login,
+            p.is_configured,
+            COUNT(DISTINCT t.id) as tasks_count,
+            COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
+            COUNT(DISTINCT l.id) as total_executions,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
+            MAX(l.started_at) as last_execution_at
+        FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        GROUP BY p.id, p.user_id, p.name, p.client_id, p.login, p.is_configured
+        ORDER BY p.id DESC
+    """)
+    
+    projects = cur.fetchall()
+    
+    return {'projects': projects}
+
+
+def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
+    '''Детальная информация о проекте'''
+    
+    # Информация о проекте
+    cur.execute("""
+        SELECT 
+            p.*,
+            COUNT(DISTINCT t.id) as tasks_count,
+            COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
+            COUNT(DISTINCT l.id) as total_executions,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors
+        FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        WHERE p.id = %s
+        GROUP BY p.id
+    """, (project_id,))
+    
+    project_info = cur.fetchone()
+    
+    # Статистика по задачам проекта
+    cur.execute("""
+        SELECT 
+            t.id,
+            t.description,
+            t.enabled,
+            t.schedule,
+            t.last_executed_at,
+            COUNT(l.id) as total_executions,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors
+        FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
+        WHERE t.project_id = %s
+        GROUP BY t.id, t.description, t.enabled, t.schedule, t.last_executed_at
+        ORDER BY t.id
+    """, (project_id,))
+    
+    tasks_stats = cur.fetchall()
+    
+    # Статистика за последние 30 дней
+    cur.execute("""
+        SELECT 
+            DATE(started_at) as date,
+            COUNT(*) as executions,
+            COALESCE(SUM(placements_blocked), 0) as total_blocked
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+        WHERE project_id = %s AND started_at > NOW() - INTERVAL '30 days'
+        GROUP BY DATE(started_at)
+        ORDER BY date DESC
+    """, (project_id,))
+    
+    daily_stats = cur.fetchall()
+    
+    return {
+        'project_info': project_info,
+        'tasks_stats': tasks_stats,
+        'daily_stats': daily_stats
+    }
+
+
+def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
+    '''Детальная информация о задаче'''
+    
+    # Информация о задаче
+    cur.execute("""
+        SELECT 
+            t.*,
+            p.name as project_name,
+            COUNT(l.id) as total_executions,
+            COUNT(CASE WHEN l.status = 'completed' THEN 1 END) as successful_executions,
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as failed_executions,
+            COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue 
+             WHERE task_id = t.id AND status = 'pending') as pending_in_queue
+        FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = t.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
+        WHERE t.id = %s
+        GROUP BY t.id, p.name
+    """, (task_id,))
+    
+    task_info = cur.fetchone()
+    
+    if not task_info:
+        return {'error': 'Task not found'}
+    
+    # История выполнений (последние 50)
+    cur.execute("""
+        SELECT 
+            l.*,
+            EXTRACT(EPOCH FROM (l.completed_at - l.started_at)) as duration_seconds
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
+        WHERE l.task_id = %s
+        ORDER BY l.started_at DESC
+        LIMIT 50
+    """, (task_id,))
+    
+    execution_logs = cur.fetchall()
+    
+    return {
+        'task_info': task_info,
+        'project_name': task_info['project_name'],
+        'execution_logs': execution_logs
+    }
+
+
+def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
+    '''Детальная информация о конкретном выполнении'''
+    
+    # Информация о выполнении
+    cur.execute("""
+        SELECT 
+            l.*,
+            p.name as project_name,
+            t.description as task_description,
+            EXTRACT(EPOCH FROM (l.completed_at - l.started_at)) as duration_seconds
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = l.project_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = l.task_id
+        WHERE l.id = %s
+    """, (execution_id,))
+    
+    execution = cur.fetchone()
+    
+    if not execution:
+        return {'error': 'Execution not found'}
+    
+    # Список площадок, связанных с этим выполнением
+    cur.execute("""
+        SELECT 
+            bl.domain,
+            bl.cost,
+            bl.clicks,
+            bl.conversions,
+            bl.created_at,
+            bq.status,
+            bq.blocked_at,
+            bq.attempts,
+            bq.error_message
+        FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs bl
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.block_queue bq 
+            ON bq.domain = bl.domain AND bq.project_id = bl.project_id
+        WHERE bl.execution_id = %s
+        ORDER BY bl.cost DESC
+        LIMIT 200
+    """, (execution_id,))
+    
+    platforms = cur.fetchall()
+    
+    return {
+        'execution': execution,
+        'platforms': platforms
     }

@@ -46,7 +46,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     try:
         params = event.get('queryStringParameters') or {}
+        action = params.get('action')
         stats_action = params.get('stats')
+        
+        # Общая аналитика системы - доступна всем админам
+        if action == 'analytics':
+            admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
+            if admin_key != 'directkit_admin_2024':
+                return {
+                    'statusCode': 403,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Invalid admin key'})
+                }
+            
+            analytics_data = get_system_analytics(cur)
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(analytics_data, default=str)
+            }
         
         # Статистика чистки площадок - доступна всем авторизованным
         if stats_action:
@@ -600,4 +618,77 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
         'daily_stats': daily_stats,
         'tasks_stats': tasks_stats,
         'queue_stats': queue_stats
+    }
+
+
+def get_system_analytics(cur) -> Dict[str, Any]:
+    '''Общая аналитика системы для админ-панели'''
+    
+    # Общие метрики
+    cur.execute("""
+        SELECT 
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_projects) as total_projects,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE is_configured = true) as active_projects,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks) as total_tasks,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE enabled = true) as active_tasks,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.users) as total_users,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.wordstat_tasks) as total_wordstat_tasks,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue) as total_block_queue
+    """)
+    
+    overview = cur.fetchone()
+    
+    # Статистика РССЯ
+    cur.execute("""
+        SELECT 
+            COUNT(*) as total_executions,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_executions,
+            COUNT(CASE WHEN status = 'error' THEN 1 END) as failed_executions,
+            COALESCE(SUM(placements_blocked), 0) as total_blocked,
+            CASE 
+                WHEN COUNT(*) > 0 THEN COALESCE(SUM(placements_blocked), 0)::FLOAT / COUNT(*)
+                ELSE 0
+            END as avg_blocked_per_execution
+        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+    """)
+    
+    rsya_stats = cur.fetchone()
+    
+    # Статистика Wordstat
+    cur.execute("""
+        SELECT 
+            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+            COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+            COALESCE(SUM(keywords_count), 0) as total_keywords
+        FROM t_p97630513_yandex_cleaning_serv.clustering_projects
+    """)
+    
+    wordstat_stats = cur.fetchone()
+    
+    return {
+        'overview': {
+            'totalProjects': overview['total_projects'],
+            'activeProjects': overview['active_projects'],
+            'totalTasks': overview['total_tasks'],
+            'activeTasks': overview['active_tasks'],
+            'totalUsers': overview['total_users'],
+            'totalWordstatTasks': overview['total_wordstat_tasks'],
+            'totalBlockQueue': overview['total_block_queue']
+        },
+        'rsya': {
+            'totalExecutions': rsya_stats['total_executions'],
+            'successfulExecutions': rsya_stats['successful_executions'],
+            'failedExecutions': rsya_stats['failed_executions'],
+            'totalBlocked': int(rsya_stats['total_blocked']),
+            'avgBlockedPerExecution': float(rsya_stats['avg_blocked_per_execution'])
+        },
+        'wordstat': {
+            'pending': wordstat_stats['pending'],
+            'processing': wordstat_stats['processing'],
+            'completed': wordstat_stats['completed'],
+            'failed': wordstat_stats['failed'],
+            'totalKeywords': int(wordstat_stats['total_keywords'])
+        }
     }

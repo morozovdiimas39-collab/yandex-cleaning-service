@@ -25,6 +25,7 @@ import HowToUse from "./pages/HowToUse";
 import Subscription from "./pages/Subscription";
 import AffiliateProgram from "./pages/AffiliateProgram";
 import AdminPage from "./pages/AdminPage";
+import AdminAnalytics from "./pages/AdminAnalytics";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./components/Home";
@@ -74,6 +75,7 @@ const App = () => (
           <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
           <Route path="/affiliate" element={<ProtectedRoute><AffiliateProgram /></ProtectedRoute>} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/how-to-use" element={<HowToUse />} />
           
           <Route path="/wordstat-parser" element={<WordstatParserPage />} />

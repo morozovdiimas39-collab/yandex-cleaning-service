@@ -254,7 +254,7 @@ const RSYAWorkersMonitoring = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Icon name="Clock" className="text-yellow-600" size={20} />
-                      Долгие pending записи (>1 часа)
+                      Долгие pending записи (&gt;1 часа)
                     </CardTitle>
                     <CardDescription>Площадки, которые долго ждут в очереди</CardDescription>
                   </CardHeader>

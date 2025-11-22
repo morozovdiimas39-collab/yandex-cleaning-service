@@ -878,6 +878,7 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
         return {'error': 'Task not found'}
     
     # История выполнений (последние 50)
+    cur.execute("SET search_path TO t_p97630513_yandex_cleaning_serv, public")
     cur.execute("""
         SELECT 
             l.*,
@@ -886,7 +887,7 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
                 THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
                 ELSE NULL 
             END as duration_seconds
-        FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l
+        FROM rsya_cleaning_execution_logs l
         WHERE l.task_id = %s
         ORDER BY l.started_at DESC
         LIMIT 50

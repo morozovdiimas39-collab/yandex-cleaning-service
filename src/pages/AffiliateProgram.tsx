@@ -5,23 +5,79 @@ import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { BACKEND_URLS } from '@/config/backend-urls';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+
+interface Referral {
+  id: number;
+  user_id: number;
+  phone: string;
+  status: string;
+  commission: number;
+  plan_type: string;
+  subscription_amount: number;
+  created_at: string;
+  paid_at: string | null;
+}
 
 export default function AffiliateProgram() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [referralCode, setReferralCode] = useState<string>('');
+  const [commissionRate, setCommissionRate] = useState<number>(20);
   const [stats, setStats] = useState({
     referrals: 0,
     earnings: 0,
     conversions: 0
   });
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user?.id) {
-      const code = `DK${String(user.id).padStart(8, '0')}`;
-      setReferralCode(code);
+      loadAffiliateData();
     }
   }, [user]);
+
+  const loadAffiliateData = async () => {
+    if (!user?.id) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch(BACKEND_URLS.subscription, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id.toString()
+        },
+        body: JSON.stringify({ action: 'affiliate_stats' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setReferralCode(data.partner.referral_code);
+        setCommissionRate(data.partner.commission_rate);
+        setStats(data.stats);
+        setReferrals(data.referrals || []);
+      } else {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось загрузить данные',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading affiliate data:', error);
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось подключиться к серверу',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const referralLink = `https://directkit.ru/auth?ref=${referralCode}`;
 
@@ -47,7 +103,7 @@ export default function AffiliateProgram() {
               Партнерская программа
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Зарабатывайте 30% с каждой покупки приведенных пользователей
+              Зарабатывайте {commissionRate}% с каждой покупки приведенных пользователей
             </p>
           </div>
 
@@ -98,7 +154,7 @@ export default function AffiliateProgram() {
             <CardHeader>
               <CardTitle>Ваша реферальная ссылка</CardTitle>
               <CardDescription>
-                Делитесь этой ссылкой с коллегами и получайте 30% с их подписок
+                Делитесь этой ссылкой с коллегами и получайте {commissionRate}% с их подписок
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -166,7 +222,7 @@ export default function AffiliateProgram() {
                 <div>
                   <h4 className="font-semibold mb-1">Получайте вознаграждение</h4>
                   <p className="text-muted-foreground">
-                    Вы получаете 30% с каждого платежа вашего реферала, пока действует его подписка
+                    Вы получаете {commissionRate}% с каждого платежа вашего реферала, пока действует его подписка
                   </p>
                 </div>
               </div>
@@ -194,7 +250,7 @@ export default function AffiliateProgram() {
                 </div>
                 <CardTitle>Высокий процент</CardTitle>
                 <CardDescription className="text-base leading-relaxed">
-                  30% комиссия - один из самых высоких показателей на рынке SaaS-сервисов
+                  20% комиссия - один из самых высоких показателей на рынке SaaS-сервисов
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -223,6 +279,54 @@ export default function AffiliateProgram() {
               </CardHeader>
             </Card>
           </div>
+
+          {/* Список рефералов */}
+          {referrals.length > 0 && (
+            <Card className="border-0 shadow-lg mb-8">
+              <CardHeader>
+                <CardTitle>Ваши рефералы</CardTitle>
+                <CardDescription>
+                  История приведенных пользователей и начисленных комиссий
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Телефон</TableHead>
+                      <TableHead>Статус</TableHead>
+                      <TableHead>Комиссия</TableHead>
+                      <TableHead>Зарегистрирован</TableHead>
+                      <TableHead>Оплачено</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {referrals.map((ref) => (
+                      <TableRow key={ref.id}>
+                        <TableCell className="font-mono text-sm">{ref.user_id}</TableCell>
+                        <TableCell>{ref.phone || '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant={ref.status === 'paid' ? 'default' : 'secondary'}>
+                            {ref.status === 'paid' ? 'Оплачено' : ref.status === 'pending' ? 'Ожидание' : ref.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {ref.commission > 0 ? `${ref.commission.toFixed(2)} ₽` : '—'}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(ref.created_at).toLocaleDateString('ru-RU')}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {ref.paid_at ? new Date(ref.paid_at).toLocaleDateString('ru-RU') : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           {/* FAQ */}
           <Card className="border-0 shadow-lg">

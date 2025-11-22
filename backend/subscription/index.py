@@ -186,6 +186,64 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'success': True})
                 }
             
+            # GET admin_affiliates - статистика партнеров
+            if method == 'GET' and query_params.get('action') == 'admin_affiliates':
+                cur.execute("""
+                    SELECT 
+                        p.user_id,
+                        p.referral_code,
+                        p.commission_rate,
+                        p.total_earned,
+                        p.total_referrals,
+                        p.is_active
+                    FROM t_p97630513_yandex_cleaning_serv.partners p
+                    ORDER BY p.total_earned DESC
+                """)
+                partners = cur.fetchall()
+                
+                cur.execute("""
+                    SELECT 
+                        r.id,
+                        r.partner_id,
+                        r.referred_user_id,
+                        u.phone,
+                        r.status,
+                        r.commission_amount,
+                        r.created_at,
+                        r.paid_at
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
+                    JOIN t_p97630513_yandex_cleaning_serv.users u ON r.referred_user_id = u.id
+                    ORDER BY r.created_at DESC
+                    LIMIT 100
+                """)
+                referrals = cur.fetchall()
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'partners': [{
+                            'user_id': p['user_id'],
+                            'referral_code': p['referral_code'],
+                            'commission_rate': float(p['commission_rate']),
+                            'total_earned': float(p['total_earned']),
+                            'total_referrals': p['total_referrals'],
+                            'is_active': p['is_active']
+                        } for p in partners],
+                        'referrals': [{
+                            'id': r['id'],
+                            'partner_id': r['partner_id'],
+                            'referred_user_id': r['referred_user_id'],
+                            'phone': r['phone'],
+                            'status': r['status'],
+                            'commission_amount': float(r['commission_amount']) if r['commission_amount'] else 0,
+                            'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                            'paid_at': r['paid_at'].isoformat() if r['paid_at'] else None
+                        } for r in referrals]
+                    }, default=str),
+                    'isBase64Encoded': False
+                }
+            
             # GET admin_stats - статистика
             if method == 'GET' and query_params.get('action') == 'admin_stats':
                 now = datetime.now()
@@ -444,22 +502,61 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         
                         ends_at = now + timedelta(days=days)
                         
+                        subscription_id = None
+                        
                         if existing:
                             cur.execute(
                                 """UPDATE subscriptions 
                                    SET plan_type = %s, status = %s,
                                        subscription_started_at = %s, subscription_ends_at = %s,
                                        updated_at = %s
-                                   WHERE user_id = %s""",
+                                   WHERE user_id = %s
+                                   RETURNING id""",
                                 ('monthly', 'active', now, ends_at, now, user_id)
                             )
+                            subscription_id = cur.fetchone()['id']
                         else:
                             cur.execute(
                                 """INSERT INTO subscriptions 
                                    (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
-                                   VALUES (%s, %s, %s, %s, %s)""",
+                                   VALUES (%s, %s, %s, %s, %s)
+                                   RETURNING id""",
                                 (user_id, 'monthly', 'active', now, ends_at)
                             )
+                            subscription_id = cur.fetchone()['id']
+                        
+                        # Начисляем комиссию партнеру, если есть реферал
+                        payment_amount = data.get('amount', 0) / 100  # из копеек в рубли
+                        
+                        cur.execute("""
+                            SELECT r.id, r.partner_id, p.commission_rate
+                            FROM t_p97630513_yandex_cleaning_serv.referrals r
+                            JOIN t_p97630513_yandex_cleaning_serv.partners p ON r.partner_id = p.id
+                            WHERE r.referred_user_id = %s AND p.is_active = true
+                        """, (int(user_id),))
+                        
+                        referral = cur.fetchone()
+                        
+                        if referral:
+                            commission = payment_amount * (float(referral['commission_rate']) / 100)
+                            
+                            # Обновляем реферала
+                            cur.execute("""
+                                UPDATE t_p97630513_yandex_cleaning_serv.referrals
+                                SET 
+                                    subscription_id = %s,
+                                    commission_amount = COALESCE(commission_amount, 0) + %s,
+                                    status = 'paid',
+                                    paid_at = NOW()
+                                WHERE id = %s
+                            """, (subscription_id, commission, referral['id']))
+                            
+                            # Обновляем заработок партнера
+                            cur.execute("""
+                                UPDATE t_p97630513_yandex_cleaning_serv.partners
+                                SET total_earned = total_earned + %s
+                                WHERE id = %s
+                            """, (commission, referral['partner_id']))
                         
                         conn.commit()
                     
@@ -531,6 +628,166 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'expiresAt': subscription['subscription_ends_at'].isoformat()
                         }
                     })
+                }
+            
+            # Партнерская программа - получение статистики
+            if action == 'affiliate_stats':
+                # Получаем или создаем партнера
+                cur.execute("""
+                    SELECT id, referral_code, commission_rate, total_earned, total_referrals, is_active
+                    FROM t_p97630513_yandex_cleaning_serv.partners
+                    WHERE user_id = %s
+                """, (int(user_id),))
+                
+                partner = cur.fetchone()
+                
+                if not partner:
+                    # Создаем партнера
+                    referral_code = f"DK{str(user_id).zfill(8)}"
+                    cur.execute("""
+                        INSERT INTO t_p97630513_yandex_cleaning_serv.partners 
+                        (user_id, referral_code, commission_rate, total_earned, total_referrals, is_active)
+                        VALUES (%s, %s, 20.00, 0, 0, true)
+                        RETURNING id, referral_code, commission_rate, total_earned, total_referrals, is_active
+                    """, (int(user_id), referral_code))
+                    
+                    partner = cur.fetchone()
+                    conn.commit()
+                
+                # Получаем статистику рефералов
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total_referrals,
+                        COUNT(CASE WHEN r.status = 'paid' THEN 1 END) as conversions,
+                        COALESCE(SUM(r.commission_amount), 0) as total_earned
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
+                    WHERE r.partner_id = %s
+                """, (partner['id'],))
+                
+                stats = cur.fetchone()
+                
+                # Получаем список рефералов
+                cur.execute("""
+                    SELECT 
+                        r.id,
+                        r.referred_user_id,
+                        u.phone,
+                        r.status,
+                        r.commission_amount,
+                        r.created_at,
+                        r.paid_at,
+                        s.plan_type,
+                        s.amount as subscription_amount
+                    FROM t_p97630513_yandex_cleaning_serv.referrals r
+                    JOIN t_p97630513_yandex_cleaning_serv.users u ON r.referred_user_id = u.id
+                    LEFT JOIN t_p97630513_yandex_cleaning_serv.subscriptions s ON r.subscription_id = s.id
+                    WHERE r.partner_id = %s
+                    ORDER BY r.created_at DESC
+                    LIMIT 100
+                """, (partner['id'],))
+                
+                referrals = cur.fetchall()
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'partner': {
+                            'id': partner['id'],
+                            'referral_code': partner['referral_code'],
+                            'commission_rate': float(partner['commission_rate']),
+                            'is_active': partner['is_active']
+                        },
+                        'stats': {
+                            'referrals': stats['total_referrals'],
+                            'conversions': stats['conversions'],
+                            'earnings': float(stats['total_earned'])
+                        },
+                        'referrals': [{
+                            'id': r['id'],
+                            'user_id': r['referred_user_id'],
+                            'phone': r['phone'],
+                            'status': r['status'],
+                            'commission': float(r['commission_amount']) if r['commission_amount'] else 0,
+                            'plan_type': r['plan_type'],
+                            'subscription_amount': float(r['subscription_amount']) if r['subscription_amount'] else 0,
+                            'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                            'paid_at': r['paid_at'].isoformat() if r['paid_at'] else None
+                        } for r in referrals]
+                    }, default=str),
+                    'isBase64Encoded': False
+                }
+            
+            # Регистрация реферала
+            if action == 'register_referral':
+                referral_code = body_data.get('referral_code')
+                new_user_id = body_data.get('new_user_id', user_id)
+                
+                if not referral_code:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'success': True, 'message': 'No referral code'}),
+                        'isBase64Encoded': False
+                    }
+                
+                # Находим партнера по коду
+                cur.execute("""
+                    SELECT id FROM t_p97630513_yandex_cleaning_serv.partners
+                    WHERE referral_code = %s AND is_active = true
+                """, (referral_code,))
+                
+                partner = cur.fetchone()
+                
+                if not partner:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'success': True, 'message': 'Invalid code'}),
+                        'isBase64Encoded': False
+                    }
+                
+                # Проверяем, не зарегистрирован ли уже этот пользователь
+                cur.execute("""
+                    SELECT id FROM t_p97630513_yandex_cleaning_serv.referrals
+                    WHERE referred_user_id = %s
+                """, (int(new_user_id),))
+                
+                if cur.fetchone():
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'success': True, 'message': 'Already registered'}),
+                        'isBase64Encoded': False
+                    }
+                
+                # Создаем реферала
+                cur.execute("""
+                    INSERT INTO t_p97630513_yandex_cleaning_serv.referrals
+                    (partner_id, referred_user_id, status)
+                    VALUES (%s, %s, 'pending')
+                    RETURNING id
+                """, (partner['id'], int(new_user_id)))
+                
+                referral = cur.fetchone()
+                
+                # Обновляем счетчик рефералов
+                cur.execute("""
+                    UPDATE t_p97630513_yandex_cleaning_serv.partners
+                    SET total_referrals = total_referrals + 1
+                    WHERE id = %s
+                """, (partner['id'],))
+                
+                conn.commit()
+                
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'success': True,
+                        'referral_id': referral['id']
+                    }),
+                    'isBase64Encoded': False
                 }
             
             return {

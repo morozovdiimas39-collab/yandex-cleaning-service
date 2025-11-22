@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,24 @@ const API_URL = BACKEND_URLS.api;
 type AuthStep = 'phone' | 'code';
 
 export default function Auth() {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [sentCode, setSentCode] = useState('1234');
+  const [referralCode, setReferralCode] = useState<string>('');
   const { toast } = useToast();
   const { setAuthData } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      localStorage.setItem('referral_code', ref);
+    }
+  }, [searchParams]);
 
   const formatPhone = (value: string) => {
     let digits = value.replace(/\D/g, '');
@@ -134,6 +144,28 @@ export default function Auth() {
         
         setAuthData(user, data.sessionToken);
         
+        // Регистрируем реферала если есть код
+        const savedReferralCode = referralCode || localStorage.getItem('referral_code');
+        if (savedReferralCode && data.isNewUser) {
+          try {
+            await fetch(BACKEND_URLS.subscription, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-Id': data.userId.toString()
+              },
+              body: JSON.stringify({
+                action: 'register_referral',
+                referral_code: savedReferralCode,
+                new_user_id: data.userId
+              })
+            });
+            localStorage.removeItem('referral_code');
+          } catch (err) {
+            console.error('Failed to register referral:', err);
+          }
+        }
+        
         toast({ 
           title: '✅ Вход выполнен', 
           description: 'Добро пожаловать!' 
@@ -174,6 +206,14 @@ export default function Auth() {
           <CardDescription>
             {step === 'phone' ? 'Введите номер телефона для входа' : 'Введите код из SMS'}
           </CardDescription>
+          {referralCode && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
+              <Icon name="Gift" size={18} className="text-emerald-600" />
+              <p className="text-sm text-emerald-700">
+                Вы пришли по реферальной ссылке! После регистрации вы будете связаны с партнером.
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {step === 'phone' ? (

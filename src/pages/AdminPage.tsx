@@ -8,6 +8,7 @@ import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
 import AnalyticsTab from '@/components/admin/AnalyticsTab';
 import BulkTab from '@/components/admin/BulkTab';
+import AffiliatesTab from '@/components/admin/AffiliatesTab';
 
 interface User {
   userId: string;
@@ -419,6 +420,10 @@ export default function AdminPage() {
             onBulkPlanChange={setBulkPlan}
             onBulkUpdate={bulkUpdateSubscriptions}
           />
+        )}
+
+        {activeTab === 'affiliates' && (
+          <AffiliatesTab />
         )}
       </div>
     </div>

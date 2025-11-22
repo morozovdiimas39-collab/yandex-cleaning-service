@@ -634,12 +634,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Партнерская программа - получение статистики
             if action == 'affiliate_stats':
+                print(f'🔍 Getting partner for user_id={user_id}')
                 # Получаем или создаем партнера
                 cur.execute("""
                     SELECT id, referral_code, commission_rate, total_earned, total_referrals, is_active
                     FROM t_p97630513_yandex_cleaning_serv.partners
                     WHERE user_id = %s
                 """, (int(user_id),))
+                print('✅ Partner query executed')
                 
                 partner = cur.fetchone()
                 
@@ -657,6 +659,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     conn.commit()
                 
                 # Получаем статистику рефералов
+                print(f'📊 Getting stats for partner_id={partner["id"]}')
                 cur.execute("""
                     SELECT 
                         COUNT(*) as total_referrals,
@@ -665,10 +668,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     FROM t_p97630513_yandex_cleaning_serv.referrals r
                     WHERE r.partner_id = %s
                 """, (partner['id'],))
+                print('✅ Stats query executed')
                 
                 stats = cur.fetchone()
                 
                 # Получаем список рефералов
+                print(f'📝 Getting referrals list for partner_id={partner["id"]}')
                 cur.execute("""
                     SELECT 
                         r.id,
@@ -678,8 +683,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         r.commission_amount,
                         r.created_at,
                         r.paid_at,
-                        s.plan_type,
-                        s.amount as subscription_amount
+                        s.plan_type
                     FROM t_p97630513_yandex_cleaning_serv.referrals r
                     LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON r.referred_user_id = u.id
                     LEFT JOIN t_p97630513_yandex_cleaning_serv.subscriptions s ON r.subscription_id = s.id
@@ -687,6 +691,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     ORDER BY r.created_at DESC
                     LIMIT 100
                 """, (partner['id'],))
+                print('✅ Referrals list query executed')
                 
                 referrals = cur.fetchall()
                 
@@ -712,7 +717,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'status': r['status'],
                             'commission': float(r['commission_amount']) if r['commission_amount'] else 0,
                             'plan_type': r['plan_type'],
-                            'subscription_amount': float(r['subscription_amount']) if r['subscription_amount'] else 0,
                             'created_at': r['created_at'].isoformat() if r['created_at'] else None,
                             'paid_at': r['paid_at'].isoformat() if r['paid_at'] else None
                         } for r in referrals]

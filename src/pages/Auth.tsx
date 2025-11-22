@@ -146,7 +146,7 @@ export default function Auth() {
         
         // Регистрируем реферала если есть код
         const savedReferralCode = referralCode || localStorage.getItem('referral_code');
-        if (savedReferralCode && data.isNewUser) {
+        if (savedReferralCode) {
           try {
             await fetch(BACKEND_URLS.subscription, {
               method: 'POST',
@@ -206,14 +206,7 @@ export default function Auth() {
           <CardDescription>
             {step === 'phone' ? 'Введите номер телефона для входа' : 'Введите код из SMS'}
           </CardDescription>
-          {referralCode && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
-              <Icon name="Gift" size={18} className="text-emerald-600" />
-              <p className="text-sm text-emerald-700">
-                Вы пришли по реферальной ссылке! После регистрации вы будете связаны с партнером.
-              </p>
-            </div>
-          )}
+
         </CardHeader>
         <CardContent className="space-y-4">
           {step === 'phone' ? (

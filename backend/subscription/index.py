@@ -739,7 +739,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 # Находим партнера по коду
                 cur.execute("""
-                    SELECT id FROM partners
+                    SELECT id FROM t_p97630513_yandex_cleaning_serv.partners
                     WHERE referral_code = %s AND is_active = true
                 """, (referral_code,))
                 
@@ -755,9 +755,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 # Проверяем, не зарегистрирован ли уже этот пользователь
                 cur.execute("""
-                    SELECT id FROM referrals
+                    SELECT id FROM t_p97630513_yandex_cleaning_serv.referrals
                     WHERE referred_user_id = %s
-                """, (str(new_user_id),))
+                """, (int(new_user_id),))
                 
                 if cur.fetchone():
                     return {
@@ -769,17 +769,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 # Создаем реферала
                 cur.execute("""
-                    INSERT INTO referrals
+                    INSERT INTO t_p97630513_yandex_cleaning_serv.referrals
                     (partner_id, referred_user_id, status)
                     VALUES (%s, %s, 'pending')
                     RETURNING id
-                """, (partner['id'], str(new_user_id)))
+                """, (partner['id'], int(new_user_id)))
                 
                 referral = cur.fetchone()
                 
                 # Обновляем счетчик рефералов
                 cur.execute("""
-                    UPDATE partners
+                    UPDATE t_p97630513_yandex_cleaning_serv.partners
                     SET total_referrals = total_referrals + 1
                     WHERE id = %s
                 """, (partner['id'],))

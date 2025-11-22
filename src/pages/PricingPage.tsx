@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import SEOHead from '@/components/SEOHead';
+import LandingHeader from '@/components/LandingHeader';
 
 export default function PricingPage() {
   const navigate = useNavigate();
@@ -16,21 +17,7 @@ export default function PricingPage() {
         canonical="https://directkit.ru/pricing"
       />
 
-      <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center">
-              <Icon name="Zap" size={20} className="text-white" />
-            </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
-              DirectKit
-            </span>
-          </div>
-          <Button onClick={() => navigate('/auth')} className="bg-emerald-600 hover:bg-emerald-700">
-            Попробовать бесплатно
-          </Button>
-        </div>
-      </header>
+      <LandingHeader />
 
       <section className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 py-20">
         <div className="max-w-7xl mx-auto px-6">

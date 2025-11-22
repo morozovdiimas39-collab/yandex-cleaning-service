@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
-import { Helmet } from 'react-helmet-async';
+import SEOHead from '@/components/SEOHead';
 import LandingHeader from '@/components/LandingHeader';
 import { generateWordstatPDF, generateRSYAPDF } from '@/utils/pdfGenerator';
 
@@ -11,14 +11,51 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [activeProduct, setActiveProduct] = useState<'wordstat' | 'rsya'>('wordstat');
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'DirectKit',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    offers: {
+      '@type': 'Offer',
+      price: '1990',
+      priceCurrency: 'RUB',
+      availability: 'https://schema.org/InStock'
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '4.9',
+      ratingCount: '2500',
+      bestRating: '5',
+      worstRating: '1'
+    },
+    description: 'Профессиональные инструменты для автоматизации Яндекс.Директ. Парсер Wordstat, автоматическая чистка РСЯ, кластеризация запросов.',
+    featureList: [
+      'Парсер Wordstat - сбор 10000+ запросов за 30 минут',
+      'Автоматическая чистка РСЯ 24/7',
+      'Кластеризация запросов',
+      'Снижение CPA на 40%'
+    ],
+    creator: {
+      '@type': 'Organization',
+      name: 'DirectKit',
+      url: 'https://directkit.ru'
+    }
+  };
+
   return (
     <>
-      <Helmet>
-        <title>DirectKit — Автоматизация Яндекс.Директ: Парсер Wordstat и Чистка РСЯ</title>
-        <meta name="description" content="Профессиональные инструменты для Яндекс.Директ. Парсинг Wordstat за 30 минут, автоматическая чистка РСЯ 24/7. Снижение CPA на 40%, экономия времени в 10 раз." />
-        <meta name="keywords" content="directkit, парсер wordstat, чистка рся, автоматизация директ, яндекс директ инструменты, парсинг вордстат, блокировка площадок рся" />
-        <link rel="canonical" href="https://directkit.ru/" />
-      </Helmet>
+      <SEOHead 
+        title="DirectKit — Автоматизация Яндекс.Директ: Парсер Wordstat и Чистка РСЯ"
+        description="Профессиональные инструменты для Яндекс.Директ. Парсинг Wordstat за 30 минут, автоматическая чистка РСЯ 24/7. Снижение CPA на 40%, экономия времени в 10 раз."
+        keywords="directkit, парсер wordstat, чистка рся, автоматизация директ, яндекс директ инструменты, парсинг вордстат, блокировка площадок рся, кластеризация запросов"
+        canonical="https://directkit.ru/"
+        ogTitle="DirectKit — Автоматизация Яндекс.Директ"
+        ogDescription="Парсинг Wordstat, чистка РСЯ, кластеризация. Снижение CPA на 40%. 2500+ пользователей."
+        ogType="website"
+        jsonLd={jsonLd}
+      />
       <div className="min-h-screen bg-white">
       <LandingHeader />
 

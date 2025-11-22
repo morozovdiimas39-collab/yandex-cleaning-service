@@ -36,6 +36,7 @@ import RSYACleaningPage from "./pages/RSYACleaningLanding";
 import BlogPage from "./pages/BlogPage";
 import PricingPage from "./pages/PricingPage";
 import AboutPage from "./pages/AboutPage";
+import AboutUsPage from "./pages/AboutUsPage";
 import CasesPage from "./pages/CasesPage";
 import RSYACleaningDashboard from "./pages/RSYACleaningDashboard";
 import RSYATestCleaning from "./pages/RSYATestCleaning";
@@ -89,8 +90,8 @@ const App = () => (
           <Route path="/blog/:slug" element={<BlogPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/tseny" element={<PricingPage />} />
-          <Route path="/about-us" element={<AboutPage />} />
-          <Route path="/o-nas" element={<AboutPage />} />
+          <Route path="/about-us" element={<AboutUsPage />} />
+          <Route path="/o-nas" element={<AboutUsPage />} />
           <Route path="/cases" element={<CasesPage />} />
           <Route path="/keisy" element={<CasesPage />} />
           <Route path="/admin/rsya-cleaning" element={<RSYACleaningDashboard />} />

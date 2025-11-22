@@ -1197,7 +1197,7 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
             bq.clicks,
             bq.error_message,
             bq.created_at,
-            bq.last_attempt_at
+            bq.processed_at
         FROM t_p97630513_yandex_cleaning_serv.block_queue bq
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id

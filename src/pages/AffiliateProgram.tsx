@@ -22,7 +22,7 @@ interface Referral {
 }
 
 export default function AffiliateProgram() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [referralCode, setReferralCode] = useState<string>('');
   const [commissionRate, setCommissionRate] = useState<number>(20);
@@ -37,8 +37,10 @@ export default function AffiliateProgram() {
   useEffect(() => {
     if (user?.id) {
       loadAffiliateData();
+    } else if (!authLoading && !user) {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const loadAffiliateData = async () => {
     if (!user?.id) return;
@@ -89,27 +91,7 @@ export default function AffiliateProgram() {
     });
   };
 
-  if (!user) {
-    return (
-      <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Требуется авторизация</CardTitle>
-            <CardDescription>
-              Для доступа к партнёрской программе необходимо войти в систему
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.href = '/auth'} className="w-full">
-              Войти
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
         <AppSidebar />
@@ -118,6 +100,29 @@ export default function AffiliateProgram() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
             <p className="text-muted-foreground">Загрузка данных...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <AppSidebar />
+        <div className="flex-1 overflow-auto ml-64 flex items-center justify-center">
+          <Card className="max-w-md">
+            <CardHeader>
+              <CardTitle>Требуется авторизация</CardTitle>
+              <CardDescription>
+                Для доступа к партнёрской программе необходимо войти в систему
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => window.location.href = '/auth'} className="w-full">
+                Войти
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

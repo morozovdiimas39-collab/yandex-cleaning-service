@@ -19,18 +19,18 @@ export default function WordstatParserPage() {
 
       <LandingHeader />
 
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-24">
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 py-24">
         <div className="absolute inset-0 bg-grid-slate-900/[0.02] bg-[size:40px_40px]" />
         <div className="max-w-7xl mx-auto px-6 relative">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <Icon name="Sparkles" size={16} />
               Автоматический сбор семантики
             </div>
             <h1 className="text-6xl font-bold text-slate-900 mb-6 leading-tight">
-              Парсер WordStat<br />
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Яндекс.Директ
+              Парсинг Wordstat<br />
+              <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                Яндекс
               </span>
             </h1>
             <p className="text-2xl text-slate-600 max-w-3xl mx-auto leading-relaxed mb-10">
@@ -40,7 +40,7 @@ export default function WordstatParserPage() {
               <Button 
                 size="lg" 
                 onClick={() => navigate('/auth')} 
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-lg px-8 py-6 shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/40 transition-all"
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-lg px-8 py-6 shadow-xl shadow-emerald-500/30 hover:shadow-2xl hover:shadow-emerald-500/40 transition-all"
               >
                 <Icon name="Rocket" size={20} className="mr-2" />
                 Начать бесплатно
@@ -57,16 +57,16 @@ export default function WordstatParserPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-16">
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-blue-100 shadow-lg">
-              <div className="text-4xl font-bold text-blue-600 mb-2">10 000+</div>
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-emerald-100 shadow-lg">
+              <div className="text-4xl font-bold text-emerald-600 mb-2">10 000+</div>
               <p className="text-slate-700 font-medium">Запросов за 30 минут</p>
             </div>
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-indigo-100 shadow-lg">
-              <div className="text-4xl font-bold text-indigo-600 mb-2">Без капчи</div>
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-teal-100 shadow-lg">
+              <div className="text-4xl font-bold text-teal-600 mb-2">Без капчи</div>
               <p className="text-slate-700 font-medium">Парсинг через API</p>
             </div>
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-purple-100 shadow-lg">
-              <div className="text-4xl font-bold text-purple-600 mb-2">Excel</div>
+            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-green-100 shadow-lg">
+              <div className="text-4xl font-bold text-green-600 mb-2">Excel</div>
               <p className="text-slate-700 font-medium">Готовая выгрузка</p>
             </div>
           </div>
@@ -136,42 +136,42 @@ export default function WordstatParserPage() {
               </ul>
             </div>
 
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-10 rounded-3xl border-2 border-blue-200 shadow-xl">
+            <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-10 rounded-3xl border-2 border-emerald-200 shadow-xl">
               <div className="flex items-start gap-4 mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <Icon name="CheckCircle2" size={32} className="text-blue-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <Icon name="CheckCircle2" size={32} className="text-emerald-600" />
                 </div>
                 <div>
-                  <h3 className="text-3xl font-bold mb-2 text-blue-700">С парсером WordStat</h3>
+                  <h3 className="text-3xl font-bold mb-2 text-emerald-700">С парсером Wordstat</h3>
                   <p className="text-slate-600">Автоматизация на 100%</p>
                 </div>
               </div>
               <ul className="space-y-4 text-slate-700">
                 <li className="flex items-start gap-3">
-                  <Icon name="Check" size={20} className="text-blue-500 flex-shrink-0 mt-1" />
+                  <Icon name="Check" size={20} className="text-emerald-500 flex-shrink-0 mt-1" />
                   <span className="text-lg">10 000 запросов за 30 минут</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Icon name="Check" size={20} className="text-blue-500 flex-shrink-0 mt-1" />
+                  <Icon name="Check" size={20} className="text-emerald-500 flex-shrink-0 mt-1" />
                   <span className="text-lg">Никаких капч — парсинг через API</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Icon name="Check" size={20} className="text-blue-500 flex-shrink-0 mt-1" />
+                  <Icon name="Check" size={20} className="text-emerald-500 flex-shrink-0 mt-1" />
                   <span className="text-lg">100% точность данных</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Icon name="Check" size={20} className="text-blue-500 flex-shrink-0 mt-1" />
+                  <Icon name="Check" size={20} className="text-emerald-500 flex-shrink-0 mt-1" />
                   <span className="text-lg">До 50 000 запросов за раз</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Icon name="Check" size={20} className="text-blue-500 flex-shrink-0 mt-1" />
+                  <Icon name="Check" size={20} className="text-emerald-500 flex-shrink-0 mt-1" />
                   <span className="text-lg">Автоматический экспорт в Excel</span>
                 </li>
               </ul>
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 p-12 rounded-3xl text-white shadow-2xl">
+          <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 p-12 rounded-3xl text-white shadow-2xl">
             <h3 className="text-4xl font-bold mb-8 text-center">Результаты наших пользователей</h3>
             <div className="grid md:grid-cols-4 gap-8 text-center">
               <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl">
@@ -205,12 +205,12 @@ export default function WordstatParserPage() {
           </div>
           
           <div className="grid md:grid-cols-3 gap-8 mb-16">
-            <Card className="border-2 border-blue-100 hover:border-blue-300 transition-all hover:shadow-xl">
+            <Card className="border-2 border-emerald-100 hover:border-emerald-300 transition-all hover:shadow-xl">
               <CardHeader>
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="FileText" size={32} className="text-blue-600" />
+                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4">
+                  <Icon name="FileText" size={32} className="text-emerald-600" />
                 </div>
-                <div className="text-4xl font-bold text-blue-600 mb-2">Шаг 1</div>
+                <div className="text-4xl font-bold text-emerald-600 mb-2">Шаг 1</div>
                 <CardTitle className="text-2xl mb-3">Добавьте запросы</CardTitle>
                 <CardDescription className="text-base leading-relaxed text-slate-700">
                   Введите базовые ключевые слова для парсинга WordStat. Можно добавить несколько запросов сразу — система соберёт всю связанную семантику автоматически с правой и левой колонки Вордстата.
@@ -218,12 +218,12 @@ export default function WordstatParserPage() {
               </CardHeader>
             </Card>
 
-            <Card className="border-2 border-indigo-100 hover:border-indigo-300 transition-all hover:shadow-xl">
+            <Card className="border-2 border-teal-100 hover:border-teal-300 transition-all hover:shadow-xl">
               <CardHeader>
-                <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="Settings" size={32} className="text-indigo-600" />
+                <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mb-4">
+                  <Icon name="Settings" size={32} className="text-teal-600" />
                 </div>
-                <div className="text-4xl font-bold text-indigo-600 mb-2">Шаг 2</div>
+                <div className="text-4xl font-bold text-teal-600 mb-2">Шаг 2</div>
                 <CardTitle className="text-2xl mb-3">Настройте параметры</CardTitle>
                 <CardDescription className="text-base leading-relaxed text-slate-700">
                   Выберите регион для парсинга (Россия, Москва, любой город), минимальную частотность запросов, глубину сбора. Фильтруйте минус-слова сразу при парсинге — экономьте время.
@@ -231,12 +231,12 @@ export default function WordstatParserPage() {
               </CardHeader>
             </Card>
 
-            <Card className="border-2 border-purple-100 hover:border-purple-300 transition-all hover:shadow-xl">
+            <Card className="border-2 border-green-100 hover:border-green-300 transition-all hover:shadow-xl">
               <CardHeader>
-                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="Download" size={32} className="text-purple-600" />
+                <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-4">
+                  <Icon name="Download" size={32} className="text-green-600" />
                 </div>
-                <div className="text-4xl font-bold text-purple-600 mb-2">Шаг 3</div>
+                <div className="text-4xl font-bold text-green-600 mb-2">Шаг 3</div>
                 <CardTitle className="text-2xl mb-3">Скачайте Excel</CardTitle>
                 <CardDescription className="text-base leading-relaxed text-slate-700">
                   Получите готовый файл Excel со всеми собранными запросами, частотностью и метриками. Сразу используйте для кластеризации, группировки или импорта в Яндекс.Директ.
@@ -247,7 +247,7 @@ export default function WordstatParserPage() {
 
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-12 rounded-3xl text-white shadow-2xl">
             <div className="flex items-start gap-6">
-              <div className="w-20 h-20 bg-blue-500 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <div className="w-20 h-20 bg-emerald-500 rounded-2xl flex items-center justify-center flex-shrink-0">
                 <Icon name="Zap" size={40} />
               </div>
               <div>
@@ -529,7 +529,7 @@ export default function WordstatParserPage() {
         </div>
       </section>
 
-      <section className="py-24 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 relative overflow-hidden">
+      <section className="py-24 bg-gradient-to-br from-emerald-600 via-teal-600 to-green-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:40px_40px]" />
         <div className="max-w-4xl mx-auto px-6 text-center relative">
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium mb-6">
@@ -546,7 +546,7 @@ export default function WordstatParserPage() {
             <Button 
               size="lg" 
               onClick={() => navigate('/auth')} 
-              className="bg-white text-blue-600 hover:bg-slate-50 text-xl px-10 py-7 shadow-2xl hover:shadow-3xl transition-all font-bold"
+              className="bg-white text-emerald-600 hover:bg-slate-50 text-xl px-10 py-7 shadow-2xl hover:shadow-3xl transition-all font-bold"
             >
               <Icon name="Sparkles" size={24} className="mr-2" />
               Начать бесплатно

@@ -2,10 +2,7 @@
 // Эти URL не меняются автоматически при билде
 
 const CUSTOM_FUNCTION_URLS = {
-  'rsya-scheduler': 'https://functions.yandexcloud.net/d4et4pke4rosupb0kahm',
-  'wordstat-parser': 'https://functions.yandexcloud.net/d4eplgobfovf52ln9bsv',
-  // Временно используем poehali.dev для subscription, пока не задеплоишь в Yandex Cloud
-  'subscription': 'https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c',
+  // Оставляем пустым - все URL берутся из func2url.json
 };
 
 // Импортируем автогенерируемый файл

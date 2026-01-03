@@ -196,7 +196,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     # Читаем сообщения из Message Queue
-    queue_url = 'https://message-queue.api.cloud.yandex.net/b1gtcrip05he61994ldo/dj600000007lh09q06il/rsyacleaner'
+    queue_url = 'https://message-queue.api.cloud.yandex.net/b1gga4kkbv0csaelq94p/dj60000000b1egur05em/rsyacleaner'
     access_key = os.environ.get('YANDEX_MQ_ACCESS_KEY_ID')
     secret_key = os.environ.get('YANDEX_MQ_SECRET_KEY')
     

@@ -324,7 +324,8 @@ export default function RSYAAgent() {
                                         (el as HTMLInputElement).id.replace('goal-', '')
                                       );
                                       if (selectedIds.length > 0) {
-                                        setInputMessage(`Выбрал цели: ${selectedIds.join(', ')}`);
+                                        // Отправляем в формате JSON который Gemini правильно поймёт
+                                        setInputMessage(`Выбрал цели с ID: [${selectedIds.join(', ')}]. Теперь спроси целевую цену конверсии.`);
                                       }
                                     }}
                                     className="mt-3 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"

@@ -30,6 +30,7 @@ export default function RSYAAgent() {
   const [isLoading, setIsLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [visualizationData, setVisualizationData] = useState<any>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -127,6 +128,17 @@ export default function RSYAAgent() {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Обновляем визуализацию если есть данные
+      if (data.actions && data.actions.length > 0) {
+        const campaignAction = data.actions.find((a: any) => a.function === 'get_campaigns' && a.data);
+        if (campaignAction) {
+          setVisualizationData({
+            type: 'campaigns',
+            data: campaignAction.data
+          });
+        }
+      }
 
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -193,7 +205,7 @@ export default function RSYAAgent() {
     <>
       <AppSidebar />
       <div className="min-h-screen bg-gradient-to-br from-purple-50/50 via-blue-50/30 to-indigo-50/50 ml-64">
-        <div className="h-screen flex flex-col">
+        <div className="h-screen flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -234,10 +246,13 @@ export default function RSYAAgent() {
             </div>
           </div>
 
-          {/* Chat Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div className="max-w-4xl mx-auto space-y-4">
-              {messages.map((message) => (
+          {/* Main Content: Chat + Visualization */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Chat Area (Left) */}
+            <div className="flex-1 flex flex-col border-r border-slate-200 bg-white">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="max-w-3xl mx-auto space-y-4 w-full">
+                {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -265,37 +280,7 @@ export default function RSYAAgent() {
                           </div>
                         )}
                       </div>
-                      {message.actions && message.actions.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-200">
-                          {message.actions.map((action, idx) => (
-                            <div key={idx}>
-                              {action.function === 'get_campaigns' && action.status === 'success' && action.data ? (
-                                <div className="space-y-2">
-                                  <p className="text-xs font-semibold text-slate-700">📊 Кампании ({action.data.length}):</p>
-                                  <div className="space-y-1 max-h-64 overflow-y-auto">
-                                    {action.data.map((campaign: any) => (
-                                      <div key={campaign.id} className="bg-white border border-slate-200 rounded p-2 text-xs">
-                                        <div className="font-medium text-slate-900">{campaign.name}</div>
-                                        <div className="flex gap-3 mt-1 text-slate-600">
-                                          <span>ID: {campaign.id}</span>
-                                          <span>Тип: {campaign.type}</span>
-                                          {campaign.clicks > 0 && <span>Клики: {campaign.clicks}</span>}
-                                          {campaign.cost > 0 && <span>Расход: {campaign.cost.toFixed(2)}₽</span>}
-                                          {campaign.conversions > 0 && <span>Конверсии: {campaign.conversions}</span>}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-xs bg-slate-50 p-2 rounded">
-                                  {action.message || JSON.stringify(action)}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+
                     </CardContent>
                   </Card>
                 </div>
@@ -320,37 +305,133 @@ export default function RSYAAgent() {
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          {/* Input Area */}
-          <div className="bg-white border-t border-slate-200 p-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Напиши что нужно сделать... (например: покажи площадки без конверсий)"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={isLoading}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={sendMessage}
-                  disabled={isLoading || !inputMessage.trim()}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                >
-                  {isLoading ? (
-                    <Icon name="Loader2" className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Icon name="Send" className="h-5 w-5" />
-                  )}
-                </Button>
+                <div ref={messagesEndRef} />
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                💡 Совет: Спроси "что ты умеешь?" чтобы узнать все возможности
-              </p>
+              
+              {/* Input Area */}
+              <div className="border-t border-slate-200 p-4 bg-slate-50">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Напиши что нужно... (например: покажи активные кампании)"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    disabled={isLoading}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={isLoading || !inputMessage.trim()}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    {isLoading ? (
+                      <Icon name="Loader2" className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Icon name="Send" className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  💡 Совет: Спроси "что ты умеешь?" чтобы узнать все возможности
+                </p>
+              </div>
+            </div>
+
+            {/* Visualization Panel (Right) */}
+            <div className="w-[600px] bg-white flex flex-col">
+              <div className="p-4 border-b border-slate-200">
+                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Icon name="BarChart3" className="h-5 w-5 text-purple-600" />
+                  Данные
+                </h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4">
+                {visualizationData ? (
+                  <div>
+                    {visualizationData.type === 'campaigns' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-slate-900">Кампании</h3>
+                          <span className="text-sm text-slate-600">
+                            Всего: {visualizationData.data.length}
+                          </span>
+                        </div>
+                        
+                        {/* Статистика сверху */}
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                          <Card>
+                            <CardContent className="p-3">
+                              <div className="text-xs text-slate-600">Общий расход</div>
+                              <div className="text-lg font-bold text-slate-900">
+                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.cost || 0), 0).toFixed(2)}₽
+                              </div>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="p-3">
+                              <div className="text-xs text-slate-600">Клики</div>
+                              <div className="text-lg font-bold text-slate-900">
+                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.clicks || 0), 0)}
+                              </div>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="p-3">
+                              <div className="text-xs text-slate-600">Конверсии</div>
+                              <div className="text-lg font-bold text-slate-900">
+                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.conversions || 0), 0)}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        {/* Список кампаний */}
+                        <div className="space-y-2">
+                          {visualizationData.data.map((campaign: any) => (
+                            <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+                              <CardContent className="p-4">
+                                <div className="font-medium text-slate-900 mb-2">{campaign.name}</div>
+                                <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+                                  <div>
+                                    <span className="text-xs">ID:</span> {campaign.id}
+                                  </div>
+                                  <div>
+                                    <span className="text-xs">Тип:</span> {campaign.type}
+                                  </div>
+                                  {campaign.clicks > 0 && (
+                                    <div>
+                                      <span className="text-xs">Клики:</span> {campaign.clicks}
+                                    </div>
+                                  )}
+                                  {campaign.cost > 0 && (
+                                    <div>
+                                      <span className="text-xs">Расход:</span> {campaign.cost.toFixed(2)}₽
+                                    </div>
+                                  )}
+                                  {campaign.conversions > 0 && (
+                                    <div className="col-span-2">
+                                      <span className="text-xs">Конверсии:</span> {campaign.conversions}
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <Icon name="BarChart3" className="h-16 w-16 text-slate-300 mb-4" />
+                    <p className="text-slate-600 font-medium mb-2">Данных пока нет</p>
+                    <p className="text-sm text-slate-500 max-w-xs">
+                      Запроси у Антона данные о кампаниях, площадках или статистике, и они появятся здесь
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

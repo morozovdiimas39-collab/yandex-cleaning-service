@@ -250,63 +250,62 @@ export default function RSYAAgent() {
           <div className="flex-1 flex overflow-hidden">
             {/* Chat Area (Left) */}
             <div className="flex-1 flex flex-col border-r border-slate-200 bg-white">
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="max-w-3xl mx-auto space-y-4 w-full">
-                {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <Card
-                    className={`max-w-[80%] ${
-                      message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white'
-                    }`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        {message.role === 'assistant' && (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                            <Icon name="Sparkles" className="h-4 w-4 text-white" />
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="max-w-3xl mx-auto space-y-4">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <Card
+                        className={`max-w-[80%] ${
+                          message.role === 'user'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white'
+                        }`}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            {message.role === 'assistant' && (
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                                <Icon name="Sparkles" className="h-4 w-4 text-white" />
+                              </div>
+                            )}
+                            <div className="flex-1 whitespace-pre-wrap text-sm">
+                              {message.content}
+                            </div>
+                            {message.role === 'user' && (
+                              <div className="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center flex-shrink-0">
+                                <Icon name="User" className="h-4 w-4 text-white" />
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="flex-1 whitespace-pre-wrap text-sm">
-                          {message.content}
-                        </div>
-                        {message.role === 'user' && (
-                          <div className="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center flex-shrink-0">
-                            <Icon name="User" className="h-4 w-4 text-white" />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ))}
+
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <Card className="bg-white">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                              <Icon name="Sparkles" className="h-4 w-4 text-white" />
+                            </div>
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
 
-                    </CardContent>
-                  </Card>
+                  <div ref={messagesEndRef} />
                 </div>
-              ))}
-
-              {isLoading && (
-                <div className="flex justify-start">
-                  <Card className="bg-white">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                          <Icon name="Sparkles" className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
-                <div ref={messagesEndRef} />
-              </div>
               </div>
               
               {/* Input Area */}

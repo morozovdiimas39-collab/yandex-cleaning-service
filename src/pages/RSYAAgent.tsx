@@ -132,10 +132,17 @@ export default function RSYAAgent() {
       // Обновляем визуализацию если есть данные
       if (data.actions && data.actions.length > 0) {
         const campaignAction = data.actions.find((a: any) => a.function === 'get_campaigns' && a.data);
+        const platformsAction = data.actions.find((a: any) => a.function === 'analyze_rsya_platforms' && a.data);
+        
         if (campaignAction) {
           setVisualizationData({
             type: 'campaigns',
             data: campaignAction.data
+          });
+        } else if (platformsAction) {
+          setVisualizationData({
+            type: 'platforms',
+            data: platformsAction.data
           });
         }
       }
@@ -419,6 +426,89 @@ export default function RSYAAgent() {
                             </Card>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {visualizationData.type === 'platforms' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-slate-900">🎯 Анализ площадок РСЯ</h3>
+                          <span className="text-sm text-slate-600">
+                            Всего: {visualizationData.data.total_analyzed}
+                          </span>
+                        </div>
+                        
+                        {/* Статистика экономии */}
+                        <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
+                          <CardContent className="p-4">
+                            <div className="text-sm text-red-700 font-medium mb-1">💰 Потенциальная экономия</div>
+                            <div className="text-2xl font-bold text-red-900">
+                              {visualizationData.data.total_savings.toFixed(2)}₽/неделя
+                            </div>
+                            <div className="text-xs text-red-600 mt-1">
+                              ≈ {(visualizationData.data.total_savings * 4.3).toFixed(0)}₽/месяц
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Площадки на блокировку */}
+                        {visualizationData.data.to_block.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-2">
+                              <Icon name="XCircle" className="h-4 w-4" />
+                              К блокировке ({visualizationData.data.to_block.length})
+                            </h4>
+                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                              {visualizationData.data.to_block.slice(0, 20).map((platform: any, idx: number) => (
+                                <Card key={idx} className="border-red-200 hover:shadow-md transition-shadow">
+                                  <CardContent className="p-3">
+                                    <div className="text-sm font-medium text-slate-900 mb-1 break-all">
+                                      {platform.domain}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-2">
+                                      <div>Расход: {platform.cost.toFixed(2)}₽</div>
+                                      <div>CTR: {platform.ctr}%</div>
+                                      <div>Клики: {platform.clicks}</div>
+                                      <div>Конверсии: {platform.conversions}</div>
+                                    </div>
+                                    <div className="text-xs text-red-600 font-medium">
+                                      {platform.reason}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Площадки в whitelist */}
+                        {visualizationData.data.to_keep.length > 0 && (
+                          <div className="mt-4">
+                            <h4 className="text-sm font-semibold text-green-700 mb-2 flex items-center gap-2">
+                              <Icon name="CheckCircle" className="h-4 w-4" />
+                              Оставляем ({visualizationData.data.to_keep.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {visualizationData.data.to_keep.slice(0, 10).map((platform: any, idx: number) => (
+                                <Card key={idx} className="border-green-200">
+                                  <CardContent className="p-3">
+                                    <div className="text-sm font-medium text-slate-900 mb-1">
+                                      {platform.domain}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-1">
+                                      <div>Расход: {platform.cost.toFixed(2)}₽</div>
+                                      <div>CTR: {platform.ctr}%</div>
+                                      <div className="col-span-2">Конверсии: {platform.conversions}</div>
+                                    </div>
+                                    <div className="text-xs text-green-600 font-medium">
+                                      ✓ {platform.reason}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -110,8 +110,19 @@ def build_system_prompt(project_id: Optional[int]) -> str:
 
 Доступные функции:
 - get_campaigns(status) — получить список кампаний (status: ACTIVE, DRAFT, ARCHIVED, SUSPENDED или ALL)
+- analyze_rsya_platforms(campaign_ids) — проанализировать площадки РСЯ за последние 7 дней, найти неэффективные для блокировки
 
-Отвечай кратко и по делу на русском языке."""
+ВАЖНО: Когда пользователь просит почистить площадки РСЯ:
+1. Вызови analyze_rsya_platforms() чтобы получить данные
+2. Красиво опиши что нашёл:
+   - Мусорные домены (.com, .dsp, .vvpn) — это 100% блок
+   - Неэффективные площадки (CTR < 0.5%, 0 конверсий)
+   - Сколько сэкономим денег
+   - Что оставишь в whitelist (avito, vk, ok)
+3. Спроси подтверждение: "Хочешь чтобы я блокировал такие площадки каждый день автоматически?"
+4. Если пользователь не согласен — обсуди с ним детали, объясни почему рекомендуешь блокировать
+
+Отвечай подробно, с эмодзи и структурированно на русском языке."""
 
     if project_id:
         prompt += f"\n\nТекущий проект ID: {project_id}"
@@ -328,6 +339,21 @@ def get_available_functions() -> List[Dict]:
                 },
                 "required": []
             }
+        },
+        {
+            "name": "analyze_rsya_platforms",
+            "description": "Анализировать площадки РСЯ и найти неэффективные для блокировки. Анализирует за сегодня, вчера и последние 7 дней. Автоматически исключает мусорные домены (.com, .dsp, .vvpn) кроме whitelist (avito, vk, ok)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "campaign_ids": {
+                        "type": "array",
+                        "description": "ID кампаний для анализа (опционально, если не указано - анализируются все активные)",
+                        "items": {"type": "string"}
+                    }
+                },
+                "required": []
+            }
         }
     ]
 
@@ -342,6 +368,8 @@ def execute_function(
     
     if function_name == 'get_campaigns':
         return get_campaigns_function(user_id, project_id, function_args)
+    elif function_name == 'analyze_rsya_platforms':
+        return analyze_rsya_platforms_function(user_id, project_id, function_args)
     
     return {
         'function': function_name,
@@ -505,6 +533,230 @@ def fetch_campaigns_from_direct(token: str, status_filter: str) -> List[Dict]:
         
     except Exception as e:
         raise Exception(f'Ошибка запроса к Reports API: {str(e)}')
+
+
+def analyze_rsya_platforms_function(user_id: str, project_id: Optional[int], args: Dict) -> Dict:
+    '''Анализирует площадки РСЯ и находит неэффективные для блокировки'''
+    
+    if not project_id:
+        return {
+            'function': 'analyze_rsya_platforms',
+            'status': 'error',
+            'message': 'Не выбран проект. Выбери проект слева чтобы я мог проанализировать площадки.'
+        }
+    
+    try:
+        import psycopg2
+        import psycopg2.extras
+        import datetime
+        
+        dsn = os.environ.get('DATABASE_URL')
+        conn = psycopg2.connect(dsn)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        schema = 't_p97630513_yandex_cleaning_serv'
+        
+        cursor.execute(f"""
+            SELECT yandex_token
+            FROM {schema}.rsya_projects
+            WHERE id = %s AND user_id = %s
+        """, (project_id, user_id))
+        
+        project = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not project or not project['yandex_token']:
+            return {
+                'function': 'analyze_rsya_platforms',
+                'status': 'error',
+                'message': 'Проект не подключён к Яндекс.Директ. Сначала авторизуйся в настройках проекта.'
+            }
+        
+        campaign_ids = args.get('campaign_ids', [])
+        
+        platforms_analysis = fetch_and_analyze_platforms(
+            token=project['yandex_token'],
+            campaign_ids=campaign_ids
+        )
+        
+        return {
+            'function': 'analyze_rsya_platforms',
+            'status': 'success',
+            'data': platforms_analysis,
+            'message': f'Проанализировано площадок: {platforms_analysis["total_analyzed"]}'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'analyze_rsya_platforms',
+            'status': 'error',
+            'message': f'Ошибка анализа площадок: {str(e)}'
+        }
+
+
+def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
+    '''Запрашивает статистику площадок через Reports API и анализирует'''
+    
+    import datetime
+    
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    week_ago = today - datetime.timedelta(days=7)
+    
+    whitelist_domains = [
+        'avito.ru', 'avito.com',
+        'vk.com', 'vk.ru',
+        'ok.ru', 'odnoklassniki.ru',
+        'yandex.ru', 'ya.ru',
+        'mail.ru',
+        'youtube.com', 'youtu.be'
+    ]
+    
+    bad_patterns = ['.com', '.dsp', '.vvpn', 'unknown']
+    
+    url = 'https://api.direct.yandex.com/json/v5/reports'
+    
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept-Language': 'ru',
+        'Content-Type': 'application/json',
+        'returnMoneyInMicros': 'false',
+        'skipReportHeader': 'true',
+        'skipReportSummary': 'true'
+    }
+    
+    selection_criteria = {
+        'DateFrom': week_ago.strftime('%Y-%m-%d'),
+        'DateTo': today.strftime('%Y-%m-%d')
+    }
+    
+    if campaign_ids:
+        selection_criteria['CampaignIds'] = campaign_ids
+    
+    payload = {
+        'params': {
+            'SelectionCriteria': selection_criteria,
+            'FieldNames': [
+                'CampaignId',
+                'CampaignName',
+                'Placement',
+                'Impressions',
+                'Clicks',
+                'Cost',
+                'Conversions'
+            ],
+            'ReportName': 'RSY Platforms Report',
+            'ReportType': 'PLACEMENT_PERFORMANCE_REPORT',
+            'DateRangeType': 'CUSTOM_DATE',
+            'Format': 'TSV',
+            'IncludeVAT': 'NO',
+            'IncludeDiscount': 'NO'
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        
+        if response.status_code != 200:
+            raise Exception(f'Yandex Reports API error: {response.status_code} - {response.text[:200]}')
+        
+        lines = response.text.strip().split('\n')
+        if len(lines) < 2:
+            return {
+                'total_analyzed': 0,
+                'to_block': [],
+                'to_keep': [],
+                'total_savings': 0
+            }
+        
+        platforms = {}
+        
+        for line in lines[1:]:
+            values = line.split('\t')
+            if len(values) < 7:
+                continue
+            
+            placement = values[2]
+            
+            if placement not in platforms:
+                platforms[placement] = {
+                    'domain': placement,
+                    'impressions': 0,
+                    'clicks': 0,
+                    'cost': 0.0,
+                    'conversions': 0,
+                    'campaigns': set()
+                }
+            
+            platforms[placement]['impressions'] += int(values[3]) if values[3] != '--' else 0
+            platforms[placement]['clicks'] += int(values[4]) if values[4] != '--' else 0
+            platforms[placement]['cost'] += float(values[5]) if values[5] != '--' else 0.0
+            platforms[placement]['conversions'] += int(values[6]) if values[6] != '--' else 0
+            platforms[placement]['campaigns'].add(values[0])
+        
+        to_block = []
+        to_keep = []
+        total_savings = 0
+        
+        for domain, stats in platforms.items():
+            ctr = (stats['clicks'] / stats['impressions'] * 100) if stats['impressions'] > 0 else 0
+            cpo = (stats['cost'] / stats['conversions']) if stats['conversions'] > 0 else 0
+            
+            is_whitelisted = any(wl in domain.lower() for wl in whitelist_domains)
+            is_bad_pattern = any(pattern in domain.lower() for pattern in bad_patterns)
+            
+            reason = []
+            should_block = False
+            
+            if is_whitelisted:
+                to_keep.append({
+                    'domain': domain,
+                    'cost': stats['cost'],
+                    'ctr': round(ctr, 2),
+                    'conversions': stats['conversions'],
+                    'reason': 'Whitelist (конверсионная площадка)'
+                })
+                continue
+            
+            if is_bad_pattern and not is_whitelisted:
+                should_block = True
+                reason.append('Мусорный домен')
+            
+            if ctr < 0.5 and stats['cost'] > 500:
+                should_block = True
+                reason.append(f'Низкий CTR {ctr:.2f}%')
+            
+            if stats['conversions'] == 0 and stats['cost'] > 500:
+                should_block = True
+                reason.append('0 конверсий при расходе > 500₽')
+            
+            if should_block:
+                to_block.append({
+                    'domain': domain,
+                    'cost': stats['cost'],
+                    'ctr': round(ctr, 2),
+                    'clicks': stats['clicks'],
+                    'conversions': stats['conversions'],
+                    'cpo': round(cpo, 2) if cpo > 0 else 0,
+                    'reason': ' | '.join(reason)
+                })
+                total_savings += stats['cost']
+        
+        to_block.sort(key=lambda x: x['cost'], reverse=True)
+        to_keep.sort(key=lambda x: x['cost'], reverse=True)
+        
+        return {
+            'total_analyzed': len(platforms),
+            'to_block': to_block[:50],
+            'to_keep': to_keep[:20],
+            'total_savings': round(total_savings, 2)
+        }
+        
+    except Exception as e:
+        raise Exception(f'Ошибка получения данных по площадкам: {str(e)}')
 
 
 def error_response(message: str) -> Dict:

@@ -44,7 +44,7 @@ export default function RSYAAgent() {
       {
         id: '1',
         role: 'assistant',
-        content: '👋 Привет! Я Антон, твой AI-помощник по Яндекс.Директ и чистке РСЯ. Гений в маркетинге! 🎯\n\nЧто я умею:\n• Получать статистику по ВСЕМ кампаниям (включая товарные и мастера)\n• Анализировать площадки РСЯ\n• Находить проблемные домены\n• Настраивать автоматическую чистку\n\nВыбери проект слева или создай новый, и давай начнём!',
+        content: '👋 Привет! Я Антон — твой ассистент по чистке РСЯ.\n\n**Что я делаю:**\n• Анализирую площадки РСЯ за последние 7 дней\n• Нахожу мусорные домены (.com, .dsp, .vvpn)\n• Определяю площадки с 0 конверсий\n• Показываю площадки с низким CTR\n\n**Объясняю ЧТО и ПОЧЕМУ блокируем**, чтобы ты понимал каждое решение.\n\nВыбери проект и напиши "проанализируй площадки" 🚀',
         timestamp: new Date()
       }
     ]);
@@ -253,10 +253,10 @@ export default function RSYAAgent() {
             </div>
           </div>
 
-          {/* Main Content: Chat + Visualization */}
+          {/* Main Content: Chat Only */}
           <div className="flex-1 flex overflow-hidden">
-            {/* Chat Area (Left) */}
-            <div className="flex-1 flex flex-col border-r border-slate-200 bg-white">
+            {/* Chat Area (Full Width) */}
+            <div className="flex-1 flex flex-col bg-white">
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="max-w-3xl mx-auto space-y-4">
                   {messages.map((message) => (
@@ -344,188 +344,8 @@ export default function RSYAAgent() {
                   </p>
                 ) : (
                   <p className="text-xs text-slate-500 mt-2">
-                    💡 Совет: Спроси "что ты умеешь?" чтобы узнать все возможности
+                    💡 Совет: Напиши "проанализируй площадки" или "покажи кампании"
                   </p>
-                )}
-              </div>
-            </div>
-
-            {/* Visualization Panel (Right) */}
-            <div className="w-[600px] bg-white flex flex-col">
-              <div className="p-4 border-b border-slate-200">
-                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <Icon name="BarChart3" className="h-5 w-5 text-purple-600" />
-                  Данные
-                </h2>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4">
-                {visualizationData ? (
-                  <div>
-                    {visualizationData.type === 'campaigns' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold text-slate-900">Кампании</h3>
-                          <span className="text-sm text-slate-600">
-                            Всего: {visualizationData.data.length}
-                          </span>
-                        </div>
-                        
-                        {/* Статистика сверху */}
-                        <div className="grid grid-cols-3 gap-3 mb-4">
-                          <Card>
-                            <CardContent className="p-3">
-                              <div className="text-xs text-slate-600">Общий расход</div>
-                              <div className="text-lg font-bold text-slate-900">
-                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.cost || 0), 0).toFixed(2)}₽
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardContent className="p-3">
-                              <div className="text-xs text-slate-600">Клики</div>
-                              <div className="text-lg font-bold text-slate-900">
-                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.clicks || 0), 0)}
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardContent className="p-3">
-                              <div className="text-xs text-slate-600">Конверсии</div>
-                              <div className="text-lg font-bold text-slate-900">
-                                {visualizationData.data.reduce((sum: number, c: any) => sum + (c.conversions || 0), 0)}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-
-                        {/* Список кампаний */}
-                        <div className="space-y-2">
-                          {visualizationData.data.map((campaign: any) => (
-                            <Card key={campaign.id} className="hover:shadow-md transition-shadow">
-                              <CardContent className="p-4">
-                                <div className="font-medium text-slate-900 mb-2">{campaign.name}</div>
-                                <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
-                                  <div>
-                                    <span className="text-xs">ID:</span> {campaign.id}
-                                  </div>
-                                  <div>
-                                    <span className="text-xs">Тип:</span> {campaign.type}
-                                  </div>
-                                  {campaign.clicks > 0 && (
-                                    <div>
-                                      <span className="text-xs">Клики:</span> {campaign.clicks}
-                                    </div>
-                                  )}
-                                  {campaign.cost > 0 && (
-                                    <div>
-                                      <span className="text-xs">Расход:</span> {campaign.cost.toFixed(2)}₽
-                                    </div>
-                                  )}
-                                  {campaign.conversions > 0 && (
-                                    <div className="col-span-2">
-                                      <span className="text-xs">Конверсии:</span> {campaign.conversions}
-                                    </div>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {visualizationData.type === 'platforms' && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold text-slate-900">🎯 Анализ площадок РСЯ</h3>
-                          <span className="text-sm text-slate-600">
-                            Всего: {visualizationData.data.total_analyzed}
-                          </span>
-                        </div>
-                        
-                        {/* Статистика экономии */}
-                        <Card className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200">
-                          <CardContent className="p-4">
-                            <div className="text-sm text-red-700 font-medium mb-1">💰 Потенциальная экономия</div>
-                            <div className="text-2xl font-bold text-red-900">
-                              {visualizationData.data.total_savings.toFixed(2)}₽/неделя
-                            </div>
-                            <div className="text-xs text-red-600 mt-1">
-                              ≈ {(visualizationData.data.total_savings * 4.3).toFixed(0)}₽/месяц
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        {/* Площадки на блокировку */}
-                        {visualizationData.data.to_block.length > 0 && (
-                          <div className="mt-4">
-                            <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-2">
-                              <Icon name="XCircle" className="h-4 w-4" />
-                              К блокировке ({visualizationData.data.to_block.length})
-                            </h4>
-                            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                              {visualizationData.data.to_block.map((platform: any, idx: number) => (
-                                <Card key={idx} className="border-red-200 hover:shadow-md transition-shadow">
-                                  <CardContent className="p-3">
-                                    <div className="text-sm font-medium text-slate-900 mb-1 break-all">
-                                      {platform.domain}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-2">
-                                      <div>Расход: {platform.cost.toFixed(2)}₽</div>
-                                      <div>CTR: {platform.ctr}%</div>
-                                      <div>Клики: {platform.clicks}</div>
-                                      <div>Конверсии: {platform.conversions}</div>
-                                    </div>
-                                    <div className="text-xs text-red-600 font-medium">
-                                      {platform.reason}
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Площадки в whitelist */}
-                        {visualizationData.data.to_keep.length > 0 && (
-                          <div className="mt-4">
-                            <h4 className="text-sm font-semibold text-green-700 mb-2 flex items-center gap-2">
-                              <Icon name="CheckCircle" className="h-4 w-4" />
-                              Оставляем ({visualizationData.data.to_keep.length})
-                            </h4>
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                              {visualizationData.data.to_keep.map((platform: any, idx: number) => (
-                                <Card key={idx} className="border-green-200">
-                                  <CardContent className="p-3">
-                                    <div className="text-sm font-medium text-slate-900 mb-1">
-                                      {platform.domain}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-1">
-                                      <div>Расход: {platform.cost.toFixed(2)}₽</div>
-                                      <div>CTR: {platform.ctr}%</div>
-                                      <div className="col-span-2">Конверсии: {platform.conversions}</div>
-                                    </div>
-                                    <div className="text-xs text-green-600 font-medium">
-                                      ✓ {platform.reason}
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <Icon name="BarChart3" className="h-16 w-16 text-slate-300 mb-4" />
-                    <p className="text-slate-600 font-medium mb-2">Данных пока нет</p>
-                    <p className="text-sm text-slate-500 max-w-xs">
-                      Запроси у Антона данные о кампаниях, площадках или статистике, и они появятся здесь
-                    </p>
-                  </div>
                 )}
               </div>
             </div>

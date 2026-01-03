@@ -464,8 +464,8 @@ export default function RSYAAgent() {
                               <Icon name="XCircle" className="h-4 w-4" />
                               К блокировке ({visualizationData.data.to_block.length})
                             </h4>
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                              {visualizationData.data.to_block.slice(0, 20).map((platform: any, idx: number) => (
+                            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                              {visualizationData.data.to_block.map((platform: any, idx: number) => (
                                 <Card key={idx} className="border-red-200 hover:shadow-md transition-shadow">
                                   <CardContent className="p-3">
                                     <div className="text-sm font-medium text-slate-900 mb-1 break-all">
@@ -494,8 +494,8 @@ export default function RSYAAgent() {
                               <Icon name="CheckCircle" className="h-4 w-4" />
                               Оставляем ({visualizationData.data.to_keep.length})
                             </h4>
-                            <div className="space-y-2">
-                              {visualizationData.data.to_keep.slice(0, 10).map((platform: any, idx: number) => (
+                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                              {visualizationData.data.to_keep.map((platform: any, idx: number) => (
                                 <Card key={idx} className="border-green-200">
                                   <CardContent className="p-3">
                                     <div className="text-sm font-medium text-slate-900 mb-1">

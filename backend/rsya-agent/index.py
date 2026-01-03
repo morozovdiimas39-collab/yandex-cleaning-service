@@ -76,6 +76,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     function_args=func_call['args']
                 )
                 actions.append(action_result)
+            
+            # КРИТИЧЕСКИ ВАЖНО: Отправляем результаты функций обратно в Gemini для анализа
+            print(f'🔄 Sending function results back to Gemini for analysis...')
+            
+            analysis_response = call_gemini_api(
+                api_key=gemini_api_key,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                conversation_history=conversation_history,
+                available_functions=available_functions,
+                function_results=actions  # Передаём результаты функций
+            )
+            
+            # Берём финальный ответ после анализа результатов
+            agent_message = analysis_response.get('text', agent_message)
         
         return {
             'statusCode': 200,
@@ -200,7 +215,8 @@ def call_gemini_api(
     system_prompt: str,
     user_message: str,
     conversation_history: List[Dict],
-    available_functions: List[Dict]
+    available_functions: List[Dict],
+    function_results: List[Dict] = None
 ) -> Dict:
     '''Вызывает Gemini 2.5 Flash API с function calling'''   
     
@@ -220,6 +236,26 @@ def call_gemini_api(
         "role": "user",
         "parts": [{"text": user_message}]
     })
+    
+    # Если есть результаты функций - добавляем их для анализа
+    if function_results:
+        function_responses = []
+        for result in function_results:
+            function_responses.append({
+                "functionResponse": {
+                    "name": result.get('function', 'unknown'),
+                    "response": {
+                        "status": result.get('status', 'success'),
+                        "data": result.get('data', {}),
+                        "message": result.get('message', '')
+                    }
+                }
+            })
+        
+        contents.append({
+            "role": "model",
+            "parts": function_responses
+        })
     
     # API endpoint для Gemini 2.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"

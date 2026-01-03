@@ -100,7 +100,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 def build_system_prompt(project_id: Optional[int]) -> str:
     '''Формирует system prompt для Gemini'''
     
-    prompt = """Ты — Демьян, AI-ассистент для управления рекламой в Яндекс.Директ и чистки РСЯ.
+    prompt = """Ты — Антон, AI-ассистент для управления рекламой в Яндекс.Директ и чистки РСЯ. Ты гений в маркетинге и помогаешь оптимизировать рекламу.
 
 Твоя задача: помочь пользователю:
 1. Получать информацию о кампаниях Директа
@@ -409,68 +409,102 @@ def get_campaigns_function(user_id: str, project_id: Optional[int], args: Dict) 
 
 
 def fetch_campaigns_from_direct(token: str, status_filter: str) -> List[Dict]:
-    '''Запрашивает кампании из Yandex Direct API'''
+    '''Запрашивает ВСЕ кампании через Reports API (включая товарные и мастера кампаний)'''
     
-    url = 'https://api.direct.yandex.com/json/v5/campaigns'
+    # Reports API — единственный способ получить товарные и мастера кампаний
+    url = 'https://api.direct.yandex.com/json/v5/reports'
     
     headers = {
         'Authorization': f'Bearer {token}',
         'Accept-Language': 'ru',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'returnMoneyInMicros': 'false',
+        'skipReportHeader': 'true',
+        'skipReportSummary': 'true'
     }
     
-    # Формируем фильтр по статусу
-    states_filter = []
-    if status_filter == 'ALL':
-        states_filter = ['ON', 'OFF', 'SUSPENDED', 'ARCHIVED', 'DRAFT']
-    elif status_filter == 'ACTIVE':
-        states_filter = ['ON']
-    elif status_filter == 'SUSPENDED':
-        states_filter = ['SUSPENDED']
-    elif status_filter == 'ARCHIVED':
-        states_filter = ['ARCHIVED']
-    elif status_filter == 'DRAFT':
-        states_filter = ['DRAFT']
+    # Фильтр для Reports API (если нужен)
+    # Reports API возвращает ВСЕ кампании включая SMARTBANNER и MCBANNER
+    
+    # Запрашиваем данные за последние 30 дней
+    import datetime
+    today = datetime.date.today()
+    date_from = (today - datetime.timedelta(days=30)).strftime('%Y-%m-%d')
+    date_to = today.strftime('%Y-%m-%d')
     
     payload = {
-        'method': 'get',
         'params': {
             'SelectionCriteria': {
-                'States': states_filter
+                'DateFrom': date_from,
+                'DateTo': date_to
             },
-            'FieldNames': ['Id', 'Name', 'State', 'Status', 'Type', 'StartDate', 'EndDate'],
-            'Page': {
-                'Limit': 1000
-            }
+            'FieldNames': [
+                'CampaignId',
+                'CampaignName',
+                'CampaignType',
+                'Impressions',
+                'Clicks',
+                'Cost',
+                'Conversions'
+            ],
+            'ReportName': 'Campaigns Report',
+            'ReportType': 'CAMPAIGN_PERFORMANCE_REPORT',
+            'DateRangeType': 'CUSTOM_DATE',
+            'Format': 'TSV',
+            'IncludeVAT': 'NO',
+            'IncludeDiscount': 'NO'
         }
     }
     
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
         
         if response.status_code != 200:
-            raise Exception(f'Yandex Direct API error: {response.status_code}')
+            raise Exception(f'Yandex Reports API error: {response.status_code} - {response.text[:200]}')
         
-        result = response.json()
+        # Парсим TSV ответ
+        lines = response.text.strip().split('\n')
+        if len(lines) < 2:
+            return []
         
-        if 'error' in result:
-            raise Exception(f"Direct API error: {result['error'].get('error_string', 'Unknown error')}")
+        # Первая строка — заголовки
+        headers_line = lines[0].split('\t')
         
-        campaigns = result.get('result', {}).get('Campaigns', [])
+        campaigns = []
+        seen_ids = set()
         
-        # Форматируем для агента
-        return [{
-            'id': c['Id'],
-            'name': c['Name'],
-            'state': c['State'],
-            'status': c.get('Status'),
-            'type': c['Type'],
-            'start_date': c.get('StartDate'),
-            'end_date': c.get('EndDate', 'Бессрочно')
-        } for c in campaigns]
+        # Парсим данные (группируем по CampaignId)
+        for line in lines[1:]:
+            values = line.split('\t')
+            if len(values) < len(headers_line):
+                continue
+                
+            campaign_id = values[0]
+            
+            # Пропускаем дубликаты (Reports API может вернуть несколько строк на кампанию)
+            if campaign_id in seen_ids:
+                continue
+            seen_ids.add(campaign_id)
+            
+            campaigns.append({
+                'id': campaign_id,
+                'name': values[1],
+                'type': values[2],
+                'impressions': int(values[3]) if values[3] != '--' else 0,
+                'clicks': int(values[4]) if values[4] != '--' else 0,
+                'cost': float(values[5]) if values[5] != '--' else 0.0,
+                'conversions': int(values[6]) if values[6] != '--' else 0
+            })
+        
+        # Фильтруем по статусу если нужно
+        if status_filter == 'ACTIVE':
+            # Считаем активными те что имели показы за последние 30 дней
+            campaigns = [c for c in campaigns if c['impressions'] > 0]
+        
+        return campaigns
         
     except Exception as e:
-        raise Exception(f'Ошибка запроса к Direct API: {str(e)}')
+        raise Exception(f'Ошибка запроса к Reports API: {str(e)}')
 
 
 def error_response(message: str) -> Dict:

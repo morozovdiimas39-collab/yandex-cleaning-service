@@ -43,7 +43,7 @@ export default function RSYAAgent() {
       {
         id: '1',
         role: 'assistant',
-        content: '👋 Привет! Я Демьян, твой AI-помощник по Яндекс.Директ и чистке РСЯ.\n\nЧто я умею:\n• Получать список кампаний (активные, черновики, архивные)\n• Анализировать площадки РСЯ\n• Находить проблемные домены\n• Настраивать автоматическую чистку\n\nВыбери проект слева или создай новый, и давай начнём!',
+        content: '👋 Привет! Я Антон, твой AI-помощник по Яндекс.Директ и чистке РСЯ. Гений в маркетинге! 🎯\n\nЧто я умею:\n• Получать статистику по ВСЕМ кампаниям (включая товарные и мастера)\n• Анализировать площадки РСЯ\n• Находить проблемные домены\n• Настраивать автоматическую чистку\n\nВыбери проект слева или создай новый, и давай начнём!',
         timestamp: new Date()
       }
     ]);
@@ -203,7 +203,7 @@ export default function RSYAAgent() {
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                   <Icon name="Sparkles" className="h-6 w-6 text-purple-500" />
-                  Демьян — AI-ассистент
+                  Антон — AI-маркетолог
                 </h1>
                 <p className="text-sm text-slate-600">
                   {selectedProject ? `Проект: ${selectedProject.name}` : 'Выбери проект или создай новый'}
@@ -267,10 +267,31 @@ export default function RSYAAgent() {
                       </div>
                       {message.actions && message.actions.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-slate-200">
-                          <p className="text-xs text-slate-600 mb-2">Действия:</p>
                           {message.actions.map((action, idx) => (
-                            <div key={idx} className="text-xs bg-slate-50 p-2 rounded">
-                              {JSON.stringify(action)}
+                            <div key={idx}>
+                              {action.function === 'get_campaigns' && action.status === 'success' && action.data ? (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-semibold text-slate-700">📊 Кампании ({action.data.length}):</p>
+                                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                                    {action.data.map((campaign: any) => (
+                                      <div key={campaign.id} className="bg-white border border-slate-200 rounded p-2 text-xs">
+                                        <div className="font-medium text-slate-900">{campaign.name}</div>
+                                        <div className="flex gap-3 mt-1 text-slate-600">
+                                          <span>ID: {campaign.id}</span>
+                                          <span>Тип: {campaign.type}</span>
+                                          {campaign.clicks > 0 && <span>Клики: {campaign.clicks}</span>}
+                                          {campaign.cost > 0 && <span>Расход: {campaign.cost.toFixed(2)}₽</span>}
+                                          {campaign.conversions > 0 && <span>Конверсии: {campaign.conversions}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs bg-slate-50 p-2 rounded">
+                                  {action.message || JSON.stringify(action)}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

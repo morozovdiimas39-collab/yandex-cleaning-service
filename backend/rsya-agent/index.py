@@ -1,8 +1,6 @@
 import json
 import os
 from typing import Dict, Any, List, Optional
-import psycopg2
-import psycopg2.extras
 import requests
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -40,30 +38,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Сообщение не может быть пустым'})
         }
     
-    # Подключение к БД
-    dsn = os.environ.get('DATABASE_URL')
     gemini_api_key = os.environ.get('GEMINI_API_KEY')
-    
-    if not dsn:
-        return error_response('DATABASE_URL not configured')
     
     if not gemini_api_key:
         return error_response('GEMINI_API_KEY not configured. Получите ключ на https://aistudio.google.com/apikey')
     
     try:
-        conn = psycopg2.connect(dsn)
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
-        # Получаем контекст проекта если указан
-        project_context = None
-        if project_id:
-            try:
-                project_context = get_project_context(cursor, project_id, user_id)
-            except Exception as e:
-                print(f'⚠️ Could not load project context: {str(e)}')
-        
-        # Формируем промпт для Gemini
-        system_prompt = build_system_prompt(project_context)
+        # Формируем промпт для Gemini (без предзагрузки данных из БД)
+        system_prompt = build_system_prompt(project_id)
         
         # Вызываем Gemini API
         gemini_response = call_gemini_api(
@@ -75,24 +57,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Парсим ответ агента
         agent_message = gemini_response.get('text', '')
-        function_calls = gemini_response.get('function_calls', [])
-        
-        # Если агент хочет выполнить функции
-        actions = []
-        if function_calls:
-            for func_call in function_calls:
-                action_result = execute_function(
-                    cursor=cursor,
-                    conn=conn,
-                    user_id=user_id,
-                    project_id=project_id,
-                    function_name=func_call['name'],
-                    function_args=func_call['args']
-                )
-                actions.append(action_result)
-        
-        cursor.close()
-        conn.close()
+        actions = []  # TODO: добавить function calling позже
         
         return {
             'statusCode': 200,
@@ -100,8 +65,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({
                 'success': True,
                 'message': agent_message,
-                'actions': actions,
-                'requires_confirmation': len(function_calls) > 0
+                'actions': actions
             }, ensure_ascii=False)
         }
         
@@ -112,98 +76,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return error_response(str(e))
 
 
-def get_project_context(cursor, project_id: int, user_id: str) -> Optional[Dict]:
-    '''Получает контекст проекта из БД'''
-    schema = 't_p97630513_yandex_cleaning_serv'
-    
-    cursor.execute(f"""
-        SELECT id, name, yandex_token, campaign_ids, counter_ids, created_at
-        FROM {schema}.rsya_projects
-        WHERE id = %s AND user_id = %s
-    """, (project_id, user_id))
-    
-    project = cursor.fetchone()
-    if not project:
-        return None
-    
-    # Получаем задачи проекта
-    cursor.execute(f"""
-        SELECT id, description, enabled, config
-        FROM {schema}.rsya_tasks
-        WHERE project_id = %s
-        ORDER BY created_at DESC
-        LIMIT 10
-    """, (project_id,))
-    
-    tasks = cursor.fetchall()
-    
-    # Получаем статистику площадок
-    cursor.execute(f"""
-        SELECT 
-            COUNT(DISTINCT domain) as total_platforms,
-            SUM(cost) as total_cost,
-            SUM(clicks) as total_clicks,
-            SUM(conversions) as total_conversions
-        FROM {schema}.rsya_platform_stats
-        WHERE project_id = %s
-    """, (project_id,))
-    
-    stats = cursor.fetchone()
-    
-    return {
-        'project': dict(project),
-        'tasks': [dict(t) for t in tasks],
-        'stats': dict(stats) if stats else {}
-    }
+# Убрал get_project_context — больше не грузим 230K строк при каждом запросе!
 
 
-def build_system_prompt(project_context: Optional[Dict]) -> str:
-    '''Формирует system prompt для Gemini с контекстом'''
+def build_system_prompt(project_id: Optional[int]) -> str:
+    '''Формирует system prompt для Gemini'''
     
-    base_prompt = """Ты — AI-ассистент для управления проектами чистки площадок РСЯ (Рекламная Сеть Яндекса).
+    prompt = """Ты — AI-ассистент для настройки автоматической чистки РСЯ (Рекламная Сеть Яндекса).
 
-Твоя задача: помогать пользователю управлять рекламными кампаниями через естественный язык.
-
-Что ты умеешь:
-1. Анализировать данные площадок РСЯ (домены, клики, расходы, конверсии)
-2. Создавать задачи автоматической блокировки по фильтрам
-3. Предлагать оптимизации на основе статистики
-4. Объяснять почему площадку стоит заблокировать
-
-Примеры запросов:
-- "Покажи площадки без конверсий"
-- "Заблокируй все .com домены с расходом больше 500₽"
-- "Создай задачу: блокировать площадки с CPA выше 1000₽"
-- "Почему так много расхода на игры?"
+Твоя задача: помочь пользователю:
+1. Подключить Яндекс.Директ через OAuth
+2. Настроить автоматическую чистку площадок
+3. Объяснить как работает система
 
 ВАЖНО:
-- Всегда анализируй РЕАЛЬНЫЕ данные из БД, не придумывай
-- Перед блокировкой площадок — спрашивай подтверждение
-- Объясняй свои рекомендации понятно и кратко
-- Используй рубли (₽) для стоимости
+- Пока ты НЕ можешь анализировать статистику (это будет добавлено позже)
+- Сейчас ты помогаешь только с настройкой и объяснениями
+- Отвечай кратко и по делу на русском языке
 
-Отвечай на русском языке, дружелюбно и по делу."""
+Если пользователь спросит про статистику — скажи что эта функция пока в разработке."""
 
-    if project_context:
-        project = project_context['project']
-        stats = project_context['stats']
-        tasks = project_context['tasks']
-        
-        context_info = f"""
-
-ТЕКУЩИЙ ПРОЕКТ: {project['name']} (ID: {project['id']})
-
-Статистика проекта:
-- Всего площадок: {stats.get('total_platforms', 0)}
-- Общий расход: {float(stats.get('total_cost', 0)):.2f}₽
-- Всего кликов: {stats.get('total_clicks', 0)}
-- Конверсий: {stats.get('total_conversions', 0)}
-
-Активных задач чистки: {len([t for t in tasks if t['enabled']])}
-"""
-        base_prompt += context_info
+    if project_id:
+        prompt += f"\n\nТекущий проект ID: {project_id}"
     
-    return base_prompt
+    return prompt
 
 
 def call_gemini_api(

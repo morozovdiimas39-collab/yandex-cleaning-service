@@ -388,9 +388,12 @@ def call_gemini_api(
     parts = content.get('parts', [])
     
     if not parts:
-        print(f'❌ No parts in content: {json.dumps(content, ensure_ascii=False)[:500]}')
-        print(f'Full candidate: {json.dumps(candidates[0], ensure_ascii=False)[:1000]}')
-        raise Exception("Gemini API returned empty response")
+        print(f'⚠️  No parts in content (finish reason: {candidates[0].get("finishReason")})')
+        # Если Gemini просто завершил без ответа - возвращаем пустой текст вместо ошибки
+        return {
+            'text': '',
+            'function_calls': []
+        }
     
     # Проверяем есть ли вызовы функций
     function_calls = []
@@ -1054,7 +1057,8 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
         payload = {'params': params_dict}
         
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            # Уменьшаем timeout до 15 секунд чтобы уложиться в лимит функции
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
             
             # 200 и 201 — оба успешные коды (201 = отчёт готов)
             if response.status_code not in [200, 201]:

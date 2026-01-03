@@ -1025,10 +1025,8 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
         if campaign_ids:
             selection_criteria['CampaignIds'] = campaign_ids
         
-        # Фильтруем конверсии только по выбранным целям
-        if selected_goal_ids:
-            # Преобразуем ID в int
-            selection_criteria['Goals'] = [int(gid) for gid in selected_goal_ids if gid.isdigit()]
+        # ПРИМЕЧАНИЕ: Goals не поддерживается в SelectionCriteria для CUSTOM_REPORT
+        # API вернёт все конверсии без фильтрации по целям
         
         payload = {
             'params': {

@@ -116,6 +116,11 @@ def build_system_prompt(project_id: Optional[int]) -> str:
 ТРИГГЕРЫ для get_campaigns() - вызывай НЕМЕДЛЕННО если пользователь написал:
 - "кампании", "покажи кампании", "список кампаний", "активные кампании"
 
+ТРИГГЕРЫ для audit_campaign(campaign_id) - вызывай НЕМЕДЛЕННО если пользователь написал:
+- "аудит кампании", "сделай аудит", "проверь кампанию", "что не так с кампанией"
+- "найди проблемы", "слабые места кампании", "проанализируй кампанию"
+- Пользователь должен указать ID кампании или ты получишь его из предыдущих сообщений
+
 ⚠️ ВАЖНО: НЕ ПИШИ ТЕКСТ ПЕРЕД ВЫЗОВОМ ФУНКЦИИ! 
 Если нужны данные - МОЛЧА вызови функцию, результат покажется автоматически.
 Пиши текст ТОЛЬКО ПОСЛЕ того как получишь результат функции.
@@ -414,6 +419,20 @@ def get_available_functions() -> List[Dict]:
                 },
                 "required": []
             }
+        },
+        {
+            "name": "audit_campaign",
+            "description": "Сделать полный аудит кампании - найти слабые места, проблемы, дать рекомендации",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {
+                        "type": "string",
+                        "description": "ID кампании для аудита"
+                    }
+                },
+                "required": ["campaign_id"]
+            }
         }
     ]
 
@@ -430,6 +449,8 @@ def execute_function(
         return get_campaigns_function(user_id, project_id, function_args)
     elif function_name == 'analyze_rsya_platforms':
         return analyze_rsya_platforms_function(user_id, project_id, function_args)
+    elif function_name == 'audit_campaign':
+        return audit_campaign_function(user_id, project_id, function_args)
     
     return {
         'function': function_name,
@@ -821,6 +842,225 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
         
     except Exception as e:
         raise Exception(f'Ошибка получения данных по площадкам: {str(e)}')
+
+
+def audit_campaign_function(user_id: str, project_id: Optional[int], args: Dict) -> Dict:
+    '''Делает аудит кампании - находит проблемы и даёт рекомендации'''
+    
+    if not project_id:
+        return {
+            'function': 'audit_campaign',
+            'status': 'error',
+            'message': 'Не выбран проект'
+        }
+    
+    campaign_id = args.get('campaign_id')
+    if not campaign_id:
+        return {
+            'function': 'audit_campaign',
+            'status': 'error',
+            'message': 'Не указан ID кампании'
+        }
+    
+    try:
+        import psycopg2
+        import psycopg2.extras
+        import datetime
+        
+        dsn = os.environ.get('DATABASE_URL')
+        conn = psycopg2.connect(dsn)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        schema = 't_p97630513_yandex_cleaning_serv'
+        
+        cursor.execute(f"""
+            SELECT yandex_token
+            FROM {schema}.rsya_projects
+            WHERE id = %s AND user_id = %s
+        """, (project_id, user_id))
+        
+        project = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not project or not project['yandex_token']:
+            return {
+                'function': 'audit_campaign',
+                'status': 'error',
+                'message': 'Проект не подключён к Яндекс.Директ'
+            }
+        
+        # Запрашиваем данные кампании через Reports API
+        audit_data = fetch_campaign_audit_data(project['yandex_token'], campaign_id)
+        
+        return {
+            'function': 'audit_campaign',
+            'status': 'success',
+            'data': audit_data,
+            'message': f'Аудит кампании {campaign_id} выполнен'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'audit_campaign',
+            'status': 'error',
+            'message': f'Ошибка аудита: {str(e)}'
+        }
+
+
+def fetch_campaign_audit_data(token: str, campaign_id: str) -> Dict:
+    '''Получает данные для аудита кампании'''
+    
+    import datetime
+    
+    today = datetime.date.today()
+    week_ago = today - datetime.timedelta(days=7)
+    month_ago = today - datetime.timedelta(days=30)
+    
+    url = 'https://api.direct.yandex.com/json/v5/reports'
+    
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept-Language': 'ru',
+        'Content-Type': 'application/json',
+        'returnMoneyInMicros': 'false',
+        'skipReportHeader': 'true',
+        'skipReportSummary': 'true'
+    }
+    
+    # Запрос статистики кампании за 7 и 30 дней
+    payload = {
+        'params': {
+            'SelectionCriteria': {
+                'DateFrom': month_ago.strftime('%Y-%m-%d'),
+                'DateTo': today.strftime('%Y-%m-%d'),
+                'CampaignIds': [campaign_id]
+            },
+            'FieldNames': [
+                'CampaignId',
+                'CampaignName',
+                'Date',
+                'Impressions',
+                'Clicks',
+                'Cost',
+                'Conversions',
+                'Ctr',
+                'AvgCpc'
+            ],
+            'ReportName': 'Campaign Audit Report',
+            'ReportType': 'CAMPAIGN_PERFORMANCE_REPORT',
+            'DateRangeType': 'CUSTOM_DATE',
+            'Format': 'TSV',
+            'IncludeVAT': 'NO',
+            'IncludeDiscount': 'NO'
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        
+        if response.status_code != 200:
+            raise Exception(f'Yandex Reports API error: {response.status_code} - {response.text[:200]}')
+        
+        lines = response.text.strip().split('\n')
+        if len(lines) < 2:
+            return {
+                'campaign_id': campaign_id,
+                'campaign_name': 'Неизвестно',
+                'problems': ['Нет данных по кампании'],
+                'stats_7d': {},
+                'stats_30d': {}
+            }
+        
+        # Парсим данные
+        campaign_name = ''
+        stats_7d = {'impressions': 0, 'clicks': 0, 'cost': 0.0, 'conversions': 0, 'ctr': 0.0, 'cpc': 0.0}
+        stats_30d = {'impressions': 0, 'clicks': 0, 'cost': 0.0, 'conversions': 0, 'ctr': 0.0, 'cpc': 0.0}
+        
+        for line in lines[1:]:
+            values = line.split('\t')
+            if len(values) < 9:
+                continue
+            
+            if not campaign_name:
+                campaign_name = values[1]
+            
+            date_str = values[2]
+            date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            impressions = int(values[3]) if values[3] != '--' else 0
+            clicks = int(values[4]) if values[4] != '--' else 0
+            cost = float(values[5]) if values[5] != '--' else 0.0
+            conversions = int(values[6]) if values[6] != '--' else 0
+            ctr = float(values[7]) if values[7] != '--' else 0.0
+            cpc = float(values[8]) if values[8] != '--' else 0.0
+            
+            # Добавляем в статистику за 30 дней
+            stats_30d['impressions'] += impressions
+            stats_30d['clicks'] += clicks
+            stats_30d['cost'] += cost
+            stats_30d['conversions'] += conversions
+            
+            # Если дата в последних 7 днях
+            if date_obj >= week_ago:
+                stats_7d['impressions'] += impressions
+                stats_7d['clicks'] += clicks
+                stats_7d['cost'] += cost
+                stats_7d['conversions'] += conversions
+        
+        # Считаем средние CTR и CPC
+        if stats_7d['impressions'] > 0:
+            stats_7d['ctr'] = round(stats_7d['clicks'] / stats_7d['impressions'] * 100, 2)
+        if stats_7d['clicks'] > 0:
+            stats_7d['cpc'] = round(stats_7d['cost'] / stats_7d['clicks'], 2)
+            
+        if stats_30d['impressions'] > 0:
+            stats_30d['ctr'] = round(stats_30d['clicks'] / stats_30d['impressions'] * 100, 2)
+        if stats_30d['clicks'] > 0:
+            stats_30d['cpc'] = round(stats_30d['cost'] / stats_30d['clicks'], 2)
+        
+        # Анализируем проблемы
+        problems = []
+        recommendations = []
+        
+        if stats_7d['conversions'] == 0 and stats_7d['cost'] > 1000:
+            problems.append('Нет конверсий за последние 7 дней при расходе > 1000₽')
+            recommendations.append('Проверь настройки целей в Метрике, возможно конверсии не передаются')
+        
+        if stats_7d['ctr'] < 1.0 and stats_7d['impressions'] > 1000:
+            problems.append(f'Низкий CTR {stats_7d["ctr"]}% (норма 2-5%)')
+            recommendations.append('Обнови объявления, добавь УТП, проверь релевантность запросов')
+        
+        if stats_7d['cpc'] > 50:
+            problems.append(f'Высокая цена клика {stats_7d["cpc"]}₽')
+            recommendations.append('Оптимизируй ставки, добавь минус-слова, улучши качество объявлений')
+        
+        cpo_7d = round(stats_7d['cost'] / stats_7d['conversions'], 2) if stats_7d['conversions'] > 0 else 0
+        cpo_30d = round(stats_30d['cost'] / stats_30d['conversions'], 2) if stats_30d['conversions'] > 0 else 0
+        
+        if stats_7d['cost'] > 0 and stats_7d['conversions'] == 0:
+            problems.append('Кампания тратит деньги но не приносит конверсий')
+            recommendations.append('Останови кампанию и сделай полную ревизию настроек')
+        
+        if len(problems) == 0:
+            problems.append('Серьёзных проблем не найдено')
+            recommendations.append('Кампания работает стабильно, продолжай мониторинг')
+        
+        return {
+            'campaign_id': campaign_id,
+            'campaign_name': campaign_name,
+            'stats_7d': stats_7d,
+            'stats_30d': stats_30d,
+            'cpo_7d': cpo_7d,
+            'cpo_30d': cpo_30d,
+            'problems': problems,
+            'recommendations': recommendations
+        }
+        
+    except Exception as e:
+        raise Exception(f'Ошибка получения данных кампании: {str(e)}')
 
 
 def error_response(message: str) -> Dict:

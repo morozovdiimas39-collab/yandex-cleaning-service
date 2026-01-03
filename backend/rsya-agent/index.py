@@ -117,63 +117,75 @@ def build_system_prompt(project_id: Optional[int]) -> str:
     
     prompt = """Ты — Антон, профессиональный ассистент по чистке РСЯ (Яндекс.Директ).
 
-🚨 ПРАВИЛО #1 - ДЕЙСТВУЙ БЕЗ ЛИШНИХ СЛОВ:
+🚨 WORKFLOW - СТРОГО ПО ШАГАМ:
 
-ТРИГГЕРЫ для analyze_rsya_platforms() - вызывай СРАЗУ если пользователь написал:
-- "площадки", "проанализируй площадки", "почисти РСЯ", "анализ", "чистка"
-- "давай площадки", "ТК", "товарной кампании", "покажи что блокировать"
+ШАГ 1: Пользователь пишет "проанализируй площадки"
+→ Ты СРАЗУ вызываешь get_conversion_goals()
+→ Показываешь цели с чекбоксами и спрашиваешь:
+  "Выбери важные цели для анализа (через запятую номера):"
 
-ТРИГГЕРЫ для get_campaigns() - вызывай СРАЗУ если пользователь написал:
-- "кампании", "покажи кампании", "список кампаний"
+ШАГ 2: Пользователь выбрал цели (например: "1, 3, 5")
+→ Ты спрашиваешь: "Какая целевая цена конверсии? (сколько рублей готов платить за лид)"
 
-⚠️ ВАЖНО: Не пиши "сейчас сделаю" или "понял" — СРАЗУ вызывай функцию!
+ШАГ 3: Пользователь указал цену (например: "500")
+→ Ты СРАЗУ вызываешь analyze_rsya_platforms() с:
+  - selected_goal_ids (ID выбранных целей)
+  - target_cpa (целевая цена)
 
-🎯 КРИТИЧЕСКИ ВАЖНО - ВСЕГДА ОБЪЯСНЯЙ ЧТО И ПОЧЕМУ:
+ШАГ 4: После получения результатов анализа
+→ Показываешь таблицу с площадками на блокировку
+→ Объясняешь ПОЧЕМУ каждая блокируется
+→ Спрашиваешь: "Заблокировать эти площадки?"
 
-После получения данных от analyze_rsya_platforms() ты ОБЯЗАН написать ПОНЯТНЫЙ АНАЛИЗ:
+ШАГ 5: Пользователь подтвердил
+→ Вызываешь create_blocking_task() с платформами из анализа
 
-📊 **1. КРАТКАЯ СВОДКА:**
-Проанализировал {total_analyzed} площадок за 7 дней.
-Нашёл {to_block_count} проблемных → экономия {total_savings}₽/неделю
+⚠️ ВАЖНО: НЕ пиши "сейчас сделаю" — СРАЗУ вызывай функции!
 
-🗑️ **2. ЧТО БЛОКИРУЕМ И ПОЧЕМУ (с примерами!):**
+🎯 ФОРМАТ ОТВЕТОВ:
 
-**Мусорные домены** ({blocked_by_reason.trash_domains} шт)
-Почему: .com/.dsp/.vvpn = боты и фродовый трафик
+При показе целей (get_conversion_goals):
+```
+📊 Найдено {N} целей конверсии:
 
-ТОП-5 самых дорогих:
-• домен1.com — 1500₽, CTR 0.1%, 0 конверсий
-• домен2.dsp — 1200₽, CTR 0.2%, 0 конверсий
-(выведи реальные домены из данных!)
+1. Заявка на консультацию (ID: 12345)
+2. Покупка товара (ID: 67890)
+3. Регистрация (ID: 11111)
 
-**Площадки без конверсий** ({blocked_by_reason.zero_conversions} шт)
-Почему: Потратили >500₽, получили 0 результата
+Напиши номера важных целей через запятую (например: 1, 2)
+```
 
-Примеры:
-• сайт1.ru — 800₽, 0 конверсий, CTR 0.8%
-  → Аудитория не целевая
-• сайт2.ru — 650₽, 0 конверсий, CTR 1.2%
-  → Площадка не приводит клиентов
-(выведи реальные примеры!)
+После analyze_rsya_platforms:
+```
+📊 АНАЛИЗ ПЛОЩАДОК ЗА 3 ПЕРИОДА
 
-**Низкий CTR** ({blocked_by_reason.low_ctr} шт)
-Почему: CTR <0.5% = аудитория не заинтересована
+Проанализировал {total} площадок (сегодня + вчера + 7 дней)
+Найдено {count} проблемных → экономия {savings}₽
 
-✅ **3. ЧТО ОСТАВЛЯЕМ:**
-• avito.ru, vk.com — whitelist, проверенные площадки
-• Площадки с конверсиями
-• Площадки с CTR >0.5%
+🗑️ ЧТО БЛОКИРУЕМ:
 
-💰 **4. ЭКОНОМИЯ:**
-{total_savings}₽/неделю ≈ {monthly}₽/месяц
+1. Мусорные домены ({N} шт):
+   • fraudbot.com — 1500₽, CTR 3%, 0 конв.
+     Причина: .com домен, ботовый трафик
+   
+2. Высокий CTR без конверсий ({N} шт):
+   • site1.ru — 800₽, CTR 5%, 0 конв.
+     Причина: Кликают но не покупают
+   
+3. Дорогой CPA ({N} шт):
+   • site2.ru — 2500₽, CPA 1200₽ > твой лимит 500₽
+     Причина: Неэффективно, переплата 140%
 
-**ВЫВОД:** Рекомендую заблокировать все {to_block_count} площадок.
+✅ ОСТАВЛЯЕМ:
+• com.vkontakte.android — whitelist
+• avito.ru — 5 конверсий, CPA 350₽
 
-❓ **Твоё решение:**
-1. Заблокировать эти {to_block_count} площадок сейчас?
-2. Настроить автоматическую ежедневную чистку?
+💰 ЭКОНОМИЯ: {savings}₽
 
-Отвечай ВСЕГДА развёрнуто, профессионально, с цифрами и примерами. Ты — эксперт-директолог."""
+Заблокировать эти площадки? (да/нет)
+```
+
+Ты — эксперт-директолог. Всегда объясняй ПОЧЕМУ блокируем."""
 
     if project_id:
         prompt += f"\n\nТекущий проект ID: {project_id}"
@@ -419,21 +431,53 @@ def get_available_functions() -> List[Dict]:
             }
         },
         {
+            "name": "get_conversion_goals",
+            "description": "Получить список целей конверсии из Метрики для выбора пользователем",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
             "name": "analyze_rsya_platforms",
-            "description": "Анализировать площадки РСЯ и найти неэффективные для блокировки. Анализирует за сегодня, вчера и последние 7 дней. Автоматически исключает мусорные домены (.com, .dsp, .vvpn) кроме whitelist (avito, vk, ok)",
+            "description": "Анализировать площадки РСЯ за 3 периода (сегодня, вчера, 7 дней) и найти неэффективные для блокировки. ТРЕБУЕТ: selected_goal_ids (массив ID целей), target_cpa (целевая цена конверсии)",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "campaign_ids": {
                         "type": "array",
-                        "description": "ID кампаний для анализа (опционально, если не указано - анализируются все активные)",
+                        "description": "ID кампаний для анализа",
                         "items": {"type": "string"}
+                    },
+                    "selected_goal_ids": {
+                        "type": "array",
+                        "description": "ID выбранных целей конверсии (ОБЯЗАТЕЛЬНО)",
+                        "items": {"type": "string"}
+                    },
+                    "target_cpa": {
+                        "type": "number",
+                        "description": "Целевая цена конверсии в рублях (ОБЯЗАТЕЛЬНО)"
                     }
                 },
-                "required": []
+                "required": ["selected_goal_ids", "target_cpa"]
             }
         },
-
+        {
+            "name": "create_blocking_task",
+            "description": "Создать задачу на блокировку площадок через Message Queue",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "platforms": {
+                        "type": "array",
+                        "description": "Список площадок для блокировки",
+                        "items": {"type": "object"}
+                    }
+                },
+                "required": ["platforms"]
+            }
+        }
     ]
 
 
@@ -447,8 +491,12 @@ def execute_function(
     
     if function_name == 'get_campaigns':
         return get_campaigns_function(user_id, project_id, function_args)
+    elif function_name == 'get_conversion_goals':
+        return get_conversion_goals_function(user_id, project_id, function_args)
     elif function_name == 'analyze_rsya_platforms':
         return analyze_rsya_platforms_function(user_id, project_id, function_args)
+    elif function_name == 'create_blocking_task':
+        return create_blocking_task_function(user_id, project_id, function_args)
     
     return {
         'function': function_name,
@@ -653,10 +701,28 @@ def analyze_rsya_platforms_function(user_id: str, project_id: Optional[int], arg
             }
         
         campaign_ids = args.get('campaign_ids', [])
+        selected_goal_ids = args.get('selected_goal_ids', [])
+        target_cpa = args.get('target_cpa', 0)
+        
+        if not selected_goal_ids:
+            return {
+                'function': 'analyze_rsya_platforms',
+                'status': 'error',
+                'message': 'Не выбраны цели конверсии. Сначала выбери цели через get_conversion_goals.'
+            }
+        
+        if not target_cpa or target_cpa <= 0:
+            return {
+                'function': 'analyze_rsya_platforms',
+                'status': 'error',
+                'message': 'Не указана целевая цена конверсии. Укажи сколько рублей ты готов платить за конверсию.'
+            }
         
         platforms_analysis = fetch_and_analyze_platforms(
             token=project['yandex_token'],
-            campaign_ids=campaign_ids
+            campaign_ids=campaign_ids,
+            selected_goal_ids=selected_goal_ids,
+            target_cpa=target_cpa
         )
         
         return {
@@ -676,8 +742,165 @@ def analyze_rsya_platforms_function(user_id: str, project_id: Optional[int], arg
         }
 
 
-def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
-    '''Запрашивает статистику площадок через Reports API и анализирует'''
+def get_conversion_goals_function(user_id: str, project_id: Optional[int], args: Dict) -> Dict:
+    '''Получает список целей конверсии из Яндекс.Метрики'''
+    
+    if not project_id:
+        return {
+            'function': 'get_conversion_goals',
+            'status': 'error',
+            'message': 'Не выбран проект'
+        }
+    
+    try:
+        import psycopg2
+        import psycopg2.extras
+        
+        dsn = os.environ.get('DATABASE_URL')
+        conn = psycopg2.connect(dsn)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        schema = 't_p97630513_yandex_cleaning_serv'
+        
+        cursor.execute(f"""
+            SELECT yandex_token, counter_ids
+            FROM {schema}.rsya_projects
+            WHERE id = %s AND user_id = %s
+        """, (project_id, user_id))
+        
+        project = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not project or not project['yandex_token']:
+            return {
+                'function': 'get_conversion_goals',
+                'status': 'error',
+                'message': 'Проект не подключён к Яндекс.Директ'
+            }
+        
+        if not project.get('counter_ids'):
+            return {
+                'function': 'get_conversion_goals',
+                'status': 'error',
+                'message': 'Не настроены счётчики Метрики в проекте'
+            }
+        
+        # Получаем цели из Метрики через Management API
+        counter_id = project['counter_ids'][0] if isinstance(project['counter_ids'], list) else project['counter_ids']
+        
+        url = f'https://api-metrika.yandex.net/management/v1/counter/{counter_id}/goals'
+        headers = {'Authorization': f'OAuth {project["yandex_token"]}'}
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code != 200:
+            raise Exception(f'Metrika API error: {response.status_code}')
+        
+        data = response.json()
+        goals = data.get('goals', [])
+        
+        # Форматируем цели для пользователя
+        formatted_goals = [
+            {
+                'id': str(goal['id']),
+                'name': goal['name'],
+                'type': goal.get('type', 'unknown')
+            }
+            for goal in goals
+        ]
+        
+        return {
+            'function': 'get_conversion_goals',
+            'status': 'success',
+            'data': formatted_goals,
+            'message': f'Найдено целей: {len(formatted_goals)}'
+        }
+        
+    except Exception as e:
+        return {
+            'function': 'get_conversion_goals',
+            'status': 'error',
+            'message': f'Ошибка получения целей: {str(e)}'
+        }
+
+
+def create_blocking_task_function(user_id: str, project_id: Optional[int], args: Dict) -> Dict:
+    '''Создаёт задачу на блокировку площадок через Message Queue'''
+    
+    if not project_id:
+        return {
+            'function': 'create_blocking_task',
+            'status': 'error',
+            'message': 'Не выбран проект'
+        }
+    
+    platforms = args.get('platforms', [])
+    
+    if not platforms:
+        return {
+            'function': 'create_blocking_task',
+            'status': 'error',
+            'message': 'Не указаны площадки для блокировки'
+        }
+    
+    try:
+        # Отправляем в Message Queue через Yandex Cloud
+        import boto3
+        
+        queue_url = os.environ.get('YMQ_QUEUE_URL')
+        aws_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+        aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        
+        if not all([queue_url, aws_key_id, aws_secret]):
+            raise Exception('Message Queue не настроен')
+        
+        sqs = boto3.client(
+            'sqs',
+            endpoint_url='https://message-queue.api.cloud.yandex.net',
+            region_name='ru-central1',
+            aws_access_key_id=aws_key_id,
+            aws_secret_access_key=aws_secret
+        )
+        
+        # Формируем сообщение для MQ
+        from datetime import datetime as dt
+        
+        message_body = json.dumps({
+            'project_id': project_id,
+            'user_id': user_id,
+            'platforms': platforms,
+            'action': 'block',
+            'created_at': dt.now().isoformat()
+        }, ensure_ascii=False)
+        
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=message_body
+        )
+        
+        return {
+            'function': 'create_blocking_task',
+            'status': 'success',
+            'data': {
+                'platforms_count': len(platforms),
+                'queue': 'rsya_blocking'
+            },
+            'message': f'Задача создана! Будет заблокировано {len(platforms)} площадок.'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'create_blocking_task',
+            'status': 'error',
+            'message': f'Ошибка создания задачи: {str(e)}'
+        }
+
+
+def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_goal_ids: List[str], target_cpa: float) -> Dict:
+    '''Запрашивает статистику площадок за 3 периода и анализирует с учётом целей'''
     
     import datetime
     
@@ -685,7 +908,13 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
     yesterday = today - datetime.timedelta(days=1)
     week_ago = today - datetime.timedelta(days=7)
     
-    whitelist_domains = [
+    # Whitelist - НЕ блокируем даже если .com
+    whitelist_exact = [
+        'com.avito.android',
+        'com.vkontakte.android',
+        'com.opera.browser',
+        'com.yandex.shedevrus',
+        'free.vpn.proxy.secure',
         'avito.ru', 'avito.com',
         'vk.com', 'vk.ru',
         'ok.ru', 'odnoklassniki.ru',
@@ -694,7 +923,17 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
         'youtube.com', 'youtu.be'
     ]
     
-    bad_patterns = ['.com', '.dsp', '.vvpn', 'unknown']
+    # Мусорные паттерны (блокируем если НЕ в whitelist)
+    trash_patterns = ['.com', '.dsp', '.vvpn', '.vpn', 'unknown', '.tk', '.ml', '.ga', '.cf']
+    
+    # Запрашиваем данные за 3 периода
+    periods = [
+        ('today', today, today),
+        ('yesterday', yesterday, yesterday),
+        ('week', week_ago, today)
+    ]
+    
+    all_platforms = {}  # Ключ: domain, Значение: агрегированные данные
     
     url = 'https://api.direct.yandex.com/json/v5/reports'
     
@@ -707,139 +946,165 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
         'skipReportSummary': 'true'
     }
     
-    selection_criteria = {
-        'DateFrom': week_ago.strftime('%Y-%m-%d'),
-        'DateTo': today.strftime('%Y-%m-%d')
-    }
-    
-    if campaign_ids:
-        selection_criteria['CampaignIds'] = campaign_ids
-    
-    payload = {
-        'params': {
-            'SelectionCriteria': selection_criteria,
-            'FieldNames': [
-                'CampaignId',
-                'Placement',
-                'Impressions',
-                'Clicks',
-                'Cost',
-                'Conversions'
-            ],
-            'ReportName': 'RSY Platforms Report',
-            'ReportType': 'CUSTOM_REPORT',
-            'DateRangeType': 'CUSTOM_DATE',
-            'Format': 'TSV',
-            'IncludeVAT': 'NO',
-            'IncludeDiscount': 'NO'
+    for period_name, date_from, date_to in periods:
+        print(f'📊 Fetching platforms for {period_name}: {date_from} - {date_to}')
+        
+        selection_criteria = {
+            'DateFrom': date_from.strftime('%Y-%m-%d'),
+            'DateTo': date_to.strftime('%Y-%m-%d')
         }
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
         
-        if response.status_code != 200:
-            raise Exception(f'Yandex Reports API error: {response.status_code} - {response.text[:200]}')
+        if campaign_ids:
+            selection_criteria['CampaignIds'] = campaign_ids
         
-        lines = response.text.strip().split('\n')
-        if len(lines) < 2:
-            return {
-                'total_analyzed': 0,
-                'to_block': [],
-                'to_keep': [],
-                'total_savings': 0
+        payload = {
+            'params': {
+                'SelectionCriteria': selection_criteria,
+                'FieldNames': [
+                    'CampaignId',
+                    'Placement',
+                    'Impressions',
+                    'Clicks',
+                    'Cost',
+                    'Conversions',
+                    'GoalId'
+                ],
+                'ReportName': f'RSY Platforms {period_name}',
+                'ReportType': 'CUSTOM_REPORT',
+                'DateRangeType': 'CUSTOM_DATE',
+                'Format': 'TSV',
+                'IncludeVAT': 'NO',
+                'IncludeDiscount': 'NO'
             }
+        }
         
-        platforms = {}
-        
-        for line in lines[1:]:
-            values = line.split('\t')
-            if len(values) < 6:
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            
+            if response.status_code != 200:
+                print(f'❌ API error for {period_name}: {response.status_code} - {response.text[:200]}')
                 continue
             
-            placement = values[1]
+            lines = response.text.strip().split('\n')
+            if len(lines) < 2:
+                continue
             
-            if placement not in platforms:
-                platforms[placement] = {
-                    'domain': placement,
-                    'impressions': 0,
-                    'clicks': 0,
-                    'cost': 0.0,
-                    'conversions': 0,
-                    'campaigns': set()
-                }
-            
-            platforms[placement]['impressions'] += int(values[2]) if values[2] != '--' else 0
-            platforms[placement]['clicks'] += int(values[3]) if values[3] != '--' else 0
-            platforms[placement]['cost'] += float(values[4]) if values[4] != '--' else 0.0
-            platforms[placement]['conversions'] += int(values[5]) if values[5] != '--' else 0
-            platforms[placement]['campaigns'].add(values[0])
+            # Парсим данные за период
+            for line in lines[1:]:
+                values = line.split('\t')
+                if len(values) < 7:
+                    continue
+                
+                placement = values[1]
+                goal_id = values[6]
+                
+                # Учитываем только выбранные цели
+                if goal_id not in selected_goal_ids and goal_id != '--':
+                    continue
+                
+                # Дедупликация: суммируем данные по домену
+                if placement not in all_platforms:
+                    all_platforms[placement] = {
+                        'domain': placement,
+                        'impressions': 0,
+                        'clicks': 0,
+                        'cost': 0.0,
+                        'conversions': 0,
+                        'campaigns': set()
+                    }
+                
+                all_platforms[placement]['impressions'] += int(values[2]) if values[2] != '--' else 0
+                all_platforms[placement]['clicks'] += int(values[3]) if values[3] != '--' else 0
+                all_platforms[placement]['cost'] += float(values[4]) if values[4] != '--' else 0.0
+                all_platforms[placement]['conversions'] += int(values[5]) if values[5] != '--' else 0
+                all_platforms[placement]['campaigns'].add(values[0])
         
-        to_block = []
-        to_keep = []
-        total_savings = 0
+        except Exception as e:
+            print(f'⚠️  Error fetching {period_name}: {str(e)}')
+            continue
+    
+    # Анализируем собранные данные
+    to_block = []
+    to_keep = []
+    total_savings = 0
+    
+    for domain, stats in all_platforms.items():
+        ctr = (stats['clicks'] / stats['impressions'] * 100) if stats['impressions'] > 0 else 0
+        cpa = (stats['cost'] / stats['conversions']) if stats['conversions'] > 0 else 0
         
-        for domain, stats in platforms.items():
-            ctr = (stats['clicks'] / stats['impressions'] * 100) if stats['impressions'] > 0 else 0
-            cpo = (stats['cost'] / stats['conversions']) if stats['conversions'] > 0 else 0
-            
-            is_whitelisted = any(wl in domain.lower() for wl in whitelist_domains)
-            is_bad_pattern = any(pattern in domain.lower() for pattern in bad_patterns)
-            
-            reason = []
-            should_block = False
-            
-            if is_whitelisted:
+        # Проверка на whitelist (точное совпадение)
+        is_whitelisted = domain.lower() in [wl.lower() for wl in whitelist_exact]
+        
+        # Проверка на мусорные паттерны
+        is_trash = any(pattern in domain.lower() for pattern in trash_patterns) and not is_whitelisted
+        
+        reasons = []
+        should_block = False
+        
+        # Whitelist - всегда оставляем
+        if is_whitelisted:
+            to_keep.append({
+                'domain': domain,
+                'cost': stats['cost'],
+                'ctr': round(ctr, 2),
+                'conversions': stats['conversions'],
+                'cpa': round(cpa, 2) if cpa > 0 else 0,
+                'reason': 'Whitelist'
+            })
+            continue
+        
+        # Правило 1: Мусорные домены
+        if is_trash:
+            should_block = True
+            reasons.append('Мусорный домен')
+        
+        # Правило 2: CTR > 2% но 0 конверсий
+        if ctr > 2.0 and stats['conversions'] == 0:
+            should_block = True
+            reasons.append(f'CTR {ctr:.2f}% но 0 конверсий')
+        
+        # Правило 3: CPA выше целевого
+        if stats['conversions'] > 0 and cpa > target_cpa:
+            should_block = True
+            reasons.append(f'CPA {cpa:.2f}₽ > целевой {target_cpa}₽')
+        
+        if should_block:
+            to_block.append({
+                'domain': domain,
+                'cost': stats['cost'],
+                'ctr': round(ctr, 2),
+                'clicks': stats['clicks'],
+                'conversions': stats['conversions'],
+                'cpa': round(cpa, 2) if cpa > 0 else 0,
+                'reason': ' | '.join(reasons)
+            })
+            total_savings += stats['cost']
+        else:
+            # Хорошие площадки
+            if stats['conversions'] > 0 or ctr > 1.0:
                 to_keep.append({
                     'domain': domain,
                     'cost': stats['cost'],
                     'ctr': round(ctr, 2),
                     'conversions': stats['conversions'],
-                    'reason': 'Whitelist (конверсионная площадка)'
+                    'cpa': round(cpa, 2) if cpa > 0 else 0,
+                    'reason': f'{stats["conversions"]} конв., CTR {ctr:.2f}%'
                 })
-                continue
-            
-            if is_bad_pattern and not is_whitelisted:
-                should_block = True
-                reason.append('Мусорный домен')
-            
-            if ctr < 0.5 and stats['cost'] > 500:
-                should_block = True
-                reason.append(f'Низкий CTR {ctr:.2f}%')
-            
-            if stats['conversions'] == 0 and stats['cost'] > 500:
-                should_block = True
-                reason.append('0 конверсий при расходе > 500₽')
-            
-            if should_block:
-                to_block.append({
-                    'domain': domain,
-                    'cost': stats['cost'],
-                    'ctr': round(ctr, 2),
-                    'clicks': stats['clicks'],
-                    'conversions': stats['conversions'],
-                    'cpo': round(cpo, 2) if cpo > 0 else 0,
-                    'reason': ' | '.join(reason)
-                })
-                total_savings += stats['cost']
-        
-        to_block.sort(key=lambda x: x['cost'], reverse=True)
-        to_keep.sort(key=lambda x: x['cost'], reverse=True)
-        
-        return {
-            'total_analyzed': len(platforms),
-            'to_block': to_block,
-            'to_keep': to_keep[:20],
-            'total_savings': round(total_savings, 2),
-            'blocked_by_reason': {
-                'trash_domains': len([p for p in to_block if 'Мусорный домен' in p['reason']]),
-                'zero_conversions': len([p for p in to_block if '0 конверсий' in p['reason']]),
-                'low_ctr': len([p for p in to_block if 'Низкий CTR' in p['reason']])
-            }
+    
+    to_block.sort(key=lambda x: x['cost'], reverse=True)
+    to_keep.sort(key=lambda x: x['cost'], reverse=True)
+    
+    return {
+        'total_analyzed': len(all_platforms),
+        'to_block': to_block,
+        'to_keep': to_keep[:20],
+        'total_savings': round(total_savings, 2),
+        'blocked_by_reason': {
+            'trash_domains': len([p for p in to_block if 'Мусорный домен' in p['reason']]),
+            'high_ctr_no_conv': len([p for p in to_block if 'CTR' in p['reason'] and '0 конверсий' in p['reason']]),
+            'high_cpa': len([p for p in to_block if 'CPA' in p['reason'] and '>' in p['reason']])
         }
-        
-    except Exception as e:
-        raise Exception(f'Ошибка получения данных по площадкам: {str(e)}')
+    }
 
 
 def error_response(message: str) -> Dict:

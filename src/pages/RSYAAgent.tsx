@@ -15,6 +15,10 @@ interface Message {
   timestamp: Date;
   actions?: any[];
   platformsData?: any;
+  goalsData?: any[];
+  needsGoalSelection?: boolean;
+  needsTargetCPA?: boolean;
+  needsConfirmation?: boolean;
 }
 
 const RSYA_AGENT_URL = BACKEND_URLS['rsya-agent'] || '';
@@ -120,8 +124,9 @@ export default function RSYAAgent() {
 
       const data = await response.json();
 
-      // Извлекаем данные площадок если есть
+      // Извлекаем данные из actions
       const platformsAction = data.actions?.find((a: any) => a.function === 'analyze_rsya_platforms' && a.data);
+      const goalsAction = data.actions?.find((a: any) => a.function === 'get_conversion_goals' && a.data);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -129,7 +134,10 @@ export default function RSYAAgent() {
         content: data.message,
         timestamp: new Date(),
         actions: data.actions,
-        platformsData: platformsAction?.data
+        platformsData: platformsAction?.data,
+        goalsData: goalsAction?.data,
+        needsGoalSelection: !!goalsAction,
+        needsConfirmation: !!(platformsAction && platformsAction.data?.to_block?.length > 0)
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -288,6 +296,44 @@ export default function RSYAAgent() {
                                 {message.content}
                               </div>
                               
+                              {/* Чекбоксы с целями */}
+                              {message.goalsData && message.goalsData.length > 0 && (
+                                <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50/50">
+                                  <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                                    <Icon name="Target" className="h-4 w-4 text-blue-600" />
+                                    Выбери важные цели для анализа:
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {message.goalsData.map((goal: any, idx: number) => (
+                                      <label key={goal.id} className="flex items-center gap-2 cursor-pointer hover:bg-blue-100/50 p-2 rounded">
+                                        <input 
+                                          type="checkbox" 
+                                          className="w-4 h-4 text-blue-600"
+                                          id={`goal-${goal.id}`}
+                                        />
+                                        <span className="text-sm text-slate-700">
+                                          {idx + 1}. {goal.name} <span className="text-slate-500">(ID: {goal.id})</span>
+                                        </span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const checked = document.querySelectorAll('input[type="checkbox"]:checked');
+                                      const selectedIds = Array.from(checked).map(el => 
+                                        (el as HTMLInputElement).id.replace('goal-', '')
+                                      );
+                                      if (selectedIds.length > 0) {
+                                        setInputMessage(`Выбрал цели: ${selectedIds.join(', ')}`);
+                                      }
+                                    }}
+                                    className="mt-3 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                                  >
+                                    Продолжить с выбранными целями
+                                  </button>
+                                </div>
+                              )}
+                              
                               {/* Таблица площадок если есть данные */}
                               {message.platformsData && (
                                 <div className="mt-4 space-y-4">
@@ -365,6 +411,31 @@ export default function RSYAAgent() {
                                           </tbody>
                                         </table>
                                       </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Кнопка подтверждения блокировки */}
+                                  {message.needsConfirmation && message.platformsData?.to_block && (
+                                    <div className="mt-4 flex gap-2">
+                                      <button
+                                        onClick={async () => {
+                                          setInputMessage('Да, заблокируй эти площадки');
+                                          setTimeout(() => sendMessage(), 100);
+                                        }}
+                                        className="flex-1 bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg hover:from-red-700 hover:to-orange-700 transition-all font-semibold flex items-center justify-center gap-2"
+                                      >
+                                        <Icon name="Ban" className="h-5 w-5" />
+                                        Заблокировать {message.platformsData.to_block.length} площадок
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setInputMessage('Нет, не блокируй');
+                                          setTimeout(() => sendMessage(), 100);
+                                        }}
+                                        className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-all font-semibold"
+                                      >
+                                        Отмена
+                                      </button>
                                     </div>
                                   )}
                                 </div>

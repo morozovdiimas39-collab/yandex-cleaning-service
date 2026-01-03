@@ -77,20 +77,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 )
                 actions.append(action_result)
             
-            # КРИТИЧЕСКИ ВАЖНО: Отправляем результаты функций обратно в Gemini для анализа
-            print(f'🔄 Sending function results back to Gemini for analysis...')
-            
-            analysis_response = call_gemini_api(
-                api_key=gemini_api_key,
-                system_prompt=system_prompt,
-                user_message=user_message,
-                conversation_history=conversation_history,
-                available_functions=available_functions,
-                function_results=actions  # Передаём результаты функций
-            )
-            
-            # Берём финальный ответ после анализа результатов
-            agent_message = analysis_response.get('text', agent_message)
+            # Генерируем ответ на основе результатов ЛОКАЛЬНО (без повторного запроса к Gemini)
+            # Это экономит 20+ секунд и укладываемся в 30 секунд таймаута
+            if any(a['function'] == 'analyze_rsya_platforms' for a in actions):
+                platform_data = next((a['data'] for a in actions if a['function'] == 'analyze_rsya_platforms' and a.get('data')), None)
+                if platform_data:
+                    agent_message = format_platform_analysis(platform_data)
+            elif any(a['function'] == 'get_conversion_goals' for a in actions):
+                goals_data = next((a['data'] for a in actions if a['function'] == 'get_conversion_goals' and a.get('data')), None)
+                if goals_data:
+                    agent_message = format_goals_list(goals_data)
         
         return {
             'statusCode': 200,
@@ -1191,6 +1187,46 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
             'high_cpa': len([p for p in to_block if 'CPA' in p['reason'] and '>' in p['reason']])
         }
     }
+
+
+def format_platform_analysis(data: Dict) -> str:
+    '''Форматирует результаты анализа площадок в текстовый ответ'''
+    to_block = data.get('to_block', [])
+    total = data.get('total_analyzed', 0)
+    savings = data.get('total_savings', 0)
+    reasons = data.get('blocked_by_reason', {})
+    
+    msg = f"📊 АНАЛИЗ ПЛОЩАДОК ЗА 2 ДНЯ\n\n"
+    msg += f"Проанализировал {total} площадок\n"
+    msg += f"Найдено {len(to_block)} проблемных → экономия {savings:.2f}₽\n\n"
+    
+    if to_block:
+        msg += "🗑️ ЧТО БЛОКИРУЕМ:\n\n"
+        
+        if reasons.get('trash_domains', 0) > 0:
+            msg += f"1. Мусорные домены ({reasons['trash_domains']} шт)\n"
+        if reasons.get('high_ctr_no_conv', 0) > 0:
+            msg += f"2. Высокий CTR без конверсий ({reasons['high_ctr_no_conv']} шт)\n"
+        if reasons.get('high_cpa', 0) > 0:
+            msg += f"3. Дорогой CPA ({reasons['high_cpa']} шт)\n"
+        
+        msg += f"\n💰 ЭКОНОМИЯ: {savings:.2f}₽\n\n"
+        msg += "Заблокировать эти площадки? (да/нет)"
+    else:
+        msg += "✅ Все площадки в порядке! Нечего блокировать."
+    
+    return msg
+
+
+def format_goals_list(goals: List[Dict]) -> str:
+    '''Форматирует список целей конверсии'''
+    msg = f"📊 Найдено {len(goals)} целей конверсии:\n\n"
+    
+    for idx, goal in enumerate(goals, 1):
+        msg += f"{idx}. {goal['name']} (ID: {goal['id']})\n"
+    
+    msg += "\nНапиши ID важных целей через запятую (например: 453018296, 453018297)"
+    return msg
 
 
 def error_response(message: str) -> Dict:

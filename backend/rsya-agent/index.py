@@ -1025,6 +1025,11 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
         if campaign_ids:
             selection_criteria['CampaignIds'] = campaign_ids
         
+        # Фильтруем конверсии только по выбранным целям
+        if selected_goal_ids:
+            # Преобразуем ID в int
+            selection_criteria['Goals'] = [int(gid) for gid in selected_goal_ids if gid.isdigit()]
+        
         payload = {
             'params': {
                 'SelectionCriteria': selection_criteria,
@@ -1034,8 +1039,7 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
                     'Impressions',
                     'Clicks',
                     'Cost',
-                    'Conversions',
-                    'GoalId'
+                    'Conversions'
                 ],
                 'ReportName': f'RSY Platforms {period_name}',
                 'ReportType': 'CUSTOM_REPORT',
@@ -1060,15 +1064,10 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
             # Парсим данные за период
             for line in lines[1:]:
                 values = line.split('\t')
-                if len(values) < 7:
+                if len(values) < 6:  # Теперь только 6 полей (без GoalId)
                     continue
                 
                 placement = values[1]
-                goal_id = values[6]
-                
-                # Учитываем только выбранные цели
-                if goal_id not in selected_goal_ids and goal_id != '--':
-                    continue
                 
                 # Дедупликация: суммируем данные по домену
                 if placement not in all_platforms:

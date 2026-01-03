@@ -111,9 +111,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def get_project_context(cursor, project_id: int, user_id: str) -> Optional[Dict]:
     '''Получает контекст проекта из БД'''
-    cursor.execute("""
+    schema = os.environ.get('MAIN_DB_SCHEMA', 'public')
+    
+    cursor.execute(f"""
         SELECT id, name, yandex_token, campaign_ids, counter_ids, created_at
-        FROM t_p97630513_yandex_cleaning_serv.rsya_projects
+        FROM {schema}.rsya_projects
         WHERE id = %s AND user_id = %s
     """, (project_id, user_id))
     
@@ -122,9 +124,9 @@ def get_project_context(cursor, project_id: int, user_id: str) -> Optional[Dict]
         return None
     
     # Получаем задачи проекта
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT id, description, enabled, config
-        FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
+        FROM {schema}.rsya_tasks
         WHERE project_id = %s
         ORDER BY created_at DESC
         LIMIT 10
@@ -133,13 +135,13 @@ def get_project_context(cursor, project_id: int, user_id: str) -> Optional[Dict]
     tasks = cursor.fetchall()
     
     # Получаем статистику площадок
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT 
             COUNT(DISTINCT domain) as total_platforms,
             SUM(cost) as total_cost,
             SUM(clicks) as total_clicks,
             SUM(conversions) as total_conversions
-        FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats
+        FROM {schema}.rsya_platform_stats
         WHERE project_id = %s
     """, (project_id,))
     
@@ -240,43 +242,105 @@ def call_gemini_api(
         }
     }
     
-    # Пробуем прямой запрос, если не работает — выдаём инструкцию
+    # Проверяем есть ли прокси
+    proxy_url = os.environ.get('OPENAI_PROXY_URL')
+    proxies = None
+    
+    if proxy_url:
+        proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+        print(f'🔒 Using proxy: {proxy_url[:20]}...')
+    
+    # Пробуем с прокси (если есть) или без
     try:
-        response = requests.post(url, json=payload, timeout=15)
+        response = requests.post(url, json=payload, timeout=30, proxies=proxies)
         
         if response.status_code != 200:
             error_text = response.text
+            print(f'❌ Gemini API error: {response.status_code}')
+            print(f'Error text: {error_text[:500]}')
+            
             # Если геоблокировка — даём понятную инструкцию
             if 'not supported' in error_text.lower() or 'failed_precondition' in error_text.lower():
-                return {
-                    'text': '''❌ Gemini API недоступен из России.
+                if proxy_url:
+                    return {
+                        'text': f'''❌ Gemini API недоступен даже через прокси.
+
+**Проблема:** Запрос заблокирован (геоблокировка)
+**Прокси:** {proxy_url[:30]}...
 
 **Решение:**
-1. Используй VPN (любой)
-2. Получи API ключ Gemini: https://aistudio.google.com/apikey
-3. Добавь его в секреты проекта
-4. Попробуй снова
+1. Проверь что прокси работает (попробуй через браузер)
+2. Используй VPN-прокси (не HTTP-прокси)
+3. Или получи ключ через VPN и используй напрямую
 
-Или напиши в чат поддержки — помогу настроить через прокси.''',
-                    'function_calls': []
-                }
-            raise Exception(f"Gemini API error: {response.status_code} - {error_text}")
+Технические детали: {error_text[:200]}''',
+                        'function_calls': []
+                    }
+                else:
+                    return {
+                        'text': '''❌ Gemini API недоступен из России.
+
+**Решение:**
+1. Добавь рабочий HTTP/HTTPS прокси в секрет `OPENAI_PROXY_URL`
+   Формат: `http://user:pass@host:port`
+2. Или используй VPN при создании ключа
+3. Получи ключ: https://aistudio.google.com/apikey
+
+Попробуй снова после добавления прокси.''',
+                        'function_calls': []
+                    }
+            
+            raise Exception(f"Gemini API error: {response.status_code} - {error_text[:300]}")
         
-    except requests.exceptions.ConnectionError:
+    except requests.exceptions.ProxyError as e:
+        print(f'❌ Proxy error: {str(e)}')
         return {
-            'text': '''❌ Не удалось подключиться к Gemini API.
+            'text': f'''❌ Ошибка подключения к прокси.
 
-**Возможные причины:**
-1. Gemini API заблокирован в России
-2. Проблемы с сетью
+**Проблема:** Прокси не отвечает или недоступен
+**Прокси:** {proxy_url[:50] if proxy_url else 'не настроен'}...
 
 **Решение:**
-- Используй VPN при настройке API ключа
-- Или напиши в поддержку для настройки через прокси
+1. Проверь что прокси работает
+2. Формат должен быть: `http://user:pass@host:port`
+3. Или используй другой прокси сервер
 
-Пока агент не работает без доступа к Gemini API.''',
+Технические детали: {str(e)[:200]}''',
             'function_calls': []
         }
+        
+    except requests.exceptions.ConnectionError as e:
+        print(f'❌ Connection error: {str(e)}')
+        if proxy_url:
+            return {
+                'text': f'''❌ Не удалось подключиться через прокси.
+
+**Прокси:** {proxy_url[:50]}...
+
+**Решение:**
+1. Проверь что прокси доступен
+2. Попробуй другой прокси
+3. Или убери `OPENAI_PROXY_URL` и используй VPN
+
+Технические детали: {str(e)[:200]}''',
+                'function_calls': []
+            }
+        else:
+            return {
+                'text': '''❌ Не удалось подключиться к Gemini API.
+
+**Причина:** Gemini API заблокирован в России
+
+**Решение:**
+1. Добавь рабочий прокси в секрет `OPENAI_PROXY_URL`
+2. Или используй VPN
+
+Агент работает только с доступом к Gemini API.''',
+                'function_calls': []
+            }
     
     result = response.json()
     

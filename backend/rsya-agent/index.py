@@ -356,15 +356,21 @@ def call_gemini_api(
     
     result = response.json()
     
+    # Логируем полный ответ для отладки
+    print(f'📥 Gemini response: {json.dumps(result, ensure_ascii=False)[:1000]}...')
+    
     # Парсим ответ
     candidates = result.get('candidates', [])
     if not candidates:
+        print(f'❌ No candidates in response: {json.dumps(result, ensure_ascii=False)[:500]}')
         raise Exception("Gemini API returned no candidates")
     
     content = candidates[0].get('content', {})
     parts = content.get('parts', [])
     
     if not parts:
+        print(f'❌ No parts in content: {json.dumps(content, ensure_ascii=False)[:500]}')
+        print(f'Full candidate: {json.dumps(candidates[0], ensure_ascii=False)[:1000]}')
         raise Exception("Gemini API returned empty response")
     
     # Проверяем есть ли вызовы функций

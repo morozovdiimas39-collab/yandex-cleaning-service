@@ -111,7 +111,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def get_project_context(cursor, project_id: int, user_id: str) -> Optional[Dict]:
     '''Получает контекст проекта из БД'''
-    schema = os.environ.get('MAIN_DB_SCHEMA', 'public')
+    schema = 't_p97630513_yandex_cleaning_serv'
     
     cursor.execute(f"""
         SELECT id, name, yandex_token, campaign_ids, counter_ids, created_at

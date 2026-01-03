@@ -319,12 +319,12 @@ export default function RSYAAgent() {
               <div className="border-t border-slate-200 p-4 bg-slate-50">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Напиши что нужно... (например: покажи активные кампании)"
+                    placeholder={isLoading ? "⏳ Антон думает..." : "Напиши что нужно... (например: покажи активные кампании)"}
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     disabled={isLoading}
-                    className="flex-1"
+                    className={`flex-1 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
                   <Button
                     onClick={sendMessage}
@@ -338,9 +338,15 @@ export default function RSYAAgent() {
                     )}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
-                  💡 Совет: Спроси "что ты умеешь?" чтобы узнать все возможности
-                </p>
+                {isLoading ? (
+                  <p className="text-xs text-purple-600 mt-2 font-medium animate-pulse">
+                    ⚡ Антон анализирует данные, это может занять 10-30 секунд...
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-2">
+                    💡 Совет: Спроси "что ты умеешь?" чтобы узнать все возможности
+                  </p>
+                )}
               </div>
             </div>
 

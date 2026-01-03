@@ -641,7 +641,6 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
             'SelectionCriteria': selection_criteria,
             'FieldNames': [
                 'CampaignId',
-                'CampaignName',
                 'Placement',
                 'Impressions',
                 'Clicks',
@@ -649,7 +648,7 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
                 'Conversions'
             ],
             'ReportName': 'RSY Platforms Report',
-            'ReportType': 'PLACEMENT_PERFORMANCE_REPORT',
+            'ReportType': 'CUSTOM_REPORT',
             'DateRangeType': 'CUSTOM_DATE',
             'Format': 'TSV',
             'IncludeVAT': 'NO',
@@ -676,10 +675,10 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
         
         for line in lines[1:]:
             values = line.split('\t')
-            if len(values) < 7:
+            if len(values) < 6:
                 continue
             
-            placement = values[2]
+            placement = values[1]
             
             if placement not in platforms:
                 platforms[placement] = {
@@ -691,10 +690,10 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str]) -> Dict:
                     'campaigns': set()
                 }
             
-            platforms[placement]['impressions'] += int(values[3]) if values[3] != '--' else 0
-            platforms[placement]['clicks'] += int(values[4]) if values[4] != '--' else 0
-            platforms[placement]['cost'] += float(values[5]) if values[5] != '--' else 0.0
-            platforms[placement]['conversions'] += int(values[6]) if values[6] != '--' else 0
+            platforms[placement]['impressions'] += int(values[2]) if values[2] != '--' else 0
+            platforms[placement]['clicks'] += int(values[3]) if values[3] != '--' else 0
+            platforms[placement]['cost'] += float(values[4]) if values[4] != '--' else 0.0
+            platforms[placement]['conversions'] += int(values[5]) if values[5] != '--' else 0
             platforms[placement]['campaigns'].add(values[0])
         
         to_block = []

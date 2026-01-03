@@ -772,7 +772,7 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         
         project = cursor.fetchone()
         
-        print(f'📊 Project data: token={bool(project and project.get("yandex_token"))}, counter_ids={project.get("counter_ids") if project else None}')
+        print(f'📊 Project data: token={bool(project and project.get("yandex_token"))}, counter_ids={project.get("counter_ids") if project else None}, type={type(project.get("counter_ids"))}')
         
         if not project or not project['yandex_token']:
             cursor.close()
@@ -785,8 +785,21 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         
         # Если counter_ids пустой или None → получаем список счётчиков
         counter_id = None
-        if project.get('counter_ids') and len(project['counter_ids']) > 0:
-            counter_id = project['counter_ids'][0]
+        counter_ids_raw = project.get('counter_ids')
+        
+        # Проверяем тип данных (может быть list или string из JSON)
+        if counter_ids_raw:
+            if isinstance(counter_ids_raw, list) and len(counter_ids_raw) > 0:
+                counter_id = counter_ids_raw[0]
+            elif isinstance(counter_ids_raw, str):
+                # Если строка - пробуем распарсить JSON
+                try:
+                    import json as json_lib
+                    parsed = json_lib.loads(counter_ids_raw)
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        counter_id = parsed[0]
+                except:
+                    pass
         
         if not counter_id:
             print('🔍 counter_ids is empty, fetching counters from Metrika...')

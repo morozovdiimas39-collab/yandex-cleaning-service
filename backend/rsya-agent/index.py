@@ -141,8 +141,8 @@ def call_gemini_api(
         }
     }
     
-    # Проверяем есть ли прокси
-    proxy_url = os.environ.get('OPENAI_PROXY_URL')
+    # Проверяем есть ли прокси (сначала GEMINI_PROXY_URL, потом fallback на OPENAI_PROXY_URL)
+    proxy_url = os.environ.get('GEMINI_PROXY_URL') or os.environ.get('OPENAI_PROXY_URL')
     proxies = None
     
     if proxy_url:
@@ -183,7 +183,7 @@ def call_gemini_api(
                         'text': '''❌ Gemini API недоступен из России.
 
 **Решение:**
-1. Добавь рабочий HTTP/HTTPS прокси в секрет `OPENAI_PROXY_URL`
+1. Добавь рабочий HTTP/HTTPS прокси в секрет `GEMINI_PROXY_URL`
    Формат: `http://user:pass@host:port`
 2. Или используй VPN при создании ключа
 3. Получи ключ: https://aistudio.google.com/apikey
@@ -234,7 +234,7 @@ def call_gemini_api(
 **Причина:** Gemini API заблокирован в России
 
 **Решение:**
-1. Добавь рабочий прокси в секрет `OPENAI_PROXY_URL`
+1. Добавь рабочий прокси в секрет `GEMINI_PROXY_URL`
 2. Или используй VPN
 
 Агент работает только с доступом к Gemini API.''',

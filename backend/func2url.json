@@ -1,4 +1,5 @@
 {
+  "rsya-agent": "https://functions.poehali.dev/2ac648db-465b-4ed2-b120-18f83ddc0170",
   "wordstat-parser": "https://functions.poehali.dev/17c36e7b-bb48-4fea-83d1-690d1b0b8802",
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",
   "rsya-batch-worker": "https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81",

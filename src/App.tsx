@@ -42,6 +42,7 @@ import CasesPage from "./pages/CasesPage";
 import RSYACleaningDashboard from "./pages/RSYACleaningDashboard";
 import RSYATestCleaning from "./pages/RSYATestCleaning";
 import RSYAWorkersMonitoring from "./pages/RSYAWorkersMonitoring";
+import RSYAAgent from "./pages/RSYAAgent";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,7 @@ const App = () => (
           <Route path="/clustering" element={<ProtectedRoute><ClusteringProjects /></ProtectedRoute>} />
           <Route path="/clustering/:id" element={<ProtectedRoute><TestClustering /></ProtectedRoute>} />
           <Route path="/rsya" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
+          <Route path="/rsya-agent" element={<ProtectedRoute><RSYAAgent /></ProtectedRoute>} />
           <Route path="/rsya/:id" element={<ProtectedRoute><RSYAProject /></ProtectedRoute>} />
           <Route path="/rsya/:id/auth" element={<ProtectedRoute><RSYAAuth /></ProtectedRoute>} />
           <Route path="/rsya/:id/setup" element={<ProtectedRoute><RSYASetup /></ProtectedRoute>} />

@@ -1,0 +1,17 @@
+{
+  "tests": [
+    {
+      "name": "Test agent health check",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-User-Id": "1"
+      },
+      "body": {
+        "message": "Привет"
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

@@ -197,7 +197,7 @@ def call_gemini_api(
     conversation_history: List[Dict],
     available_functions: List[Dict]
 ) -> Dict:
-    '''Вызывает Gemini 2.0 Flash API с function calling'''   
+    '''Вызывает Gemini 2.5 Flash API с function calling'''   
     
     # Формируем историю для Gemini
     contents = []
@@ -216,8 +216,8 @@ def call_gemini_api(
         "parts": [{"text": user_message}]
     })
     
-    # API endpoint для Gemini 2.0 Flash (экспериментальная версия)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={api_key}"
+    # API endpoint для Gemini 2.5 Flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     
     payload = {
         "contents": contents,

@@ -1056,7 +1056,8 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=60)
             
-            if response.status_code != 200:
+            # 200 и 201 — оба успешные коды (201 = отчёт готов)
+            if response.status_code not in [200, 201]:
                 print(f'❌ API error for {period_name}: {response.status_code} - {response.text[:200]}')
                 continue
             

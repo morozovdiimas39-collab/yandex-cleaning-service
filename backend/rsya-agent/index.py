@@ -771,28 +771,69 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         """, (project_id, user_id))
         
         project = cursor.fetchone()
-        cursor.close()
-        conn.close()
         
         print(f'📊 Project data: token={bool(project and project.get("yandex_token"))}, counter_ids={project.get("counter_ids") if project else None}')
         
         if not project or not project['yandex_token']:
+            cursor.close()
+            conn.close()
             return {
                 'function': 'get_conversion_goals',
                 'status': 'error',
                 'message': 'Проект не подключён к Яндекс.Директ'
             }
         
-        if not project.get('counter_ids'):
-            return {
-                'function': 'get_conversion_goals',
-                'status': 'error',
-                'message': 'Не настроены счётчики Метрики в проекте'
-            }
+        # Если counter_ids пустой или None → получаем список счётчиков
+        counter_id = None
+        if project.get('counter_ids') and len(project['counter_ids']) > 0:
+            counter_id = project['counter_ids'][0]
+        
+        if not counter_id:
+            print('🔍 counter_ids is empty, fetching counters from Metrika...')
+            
+            # Получаем список счётчиков пользователя
+            counters_url = 'https://api-metrika.yandex.net/management/v1/counters'
+            headers = {'Authorization': f'OAuth {project["yandex_token"]}'}
+            
+            counters_response = requests.get(counters_url, headers=headers, timeout=30)
+            
+            if counters_response.status_code != 200:
+                cursor.close()
+                conn.close()
+                print(f'❌ Counters API error: {counters_response.text[:500]}')
+                raise Exception(f'Не удалось получить счётчики Метрики: {counters_response.status_code}')
+            
+            counters_data = counters_response.json()
+            counters = counters_data.get('counters', [])
+            
+            print(f'📊 Found {len(counters)} counters')
+            
+            if not counters:
+                cursor.close()
+                conn.close()
+                return {
+                    'function': 'get_conversion_goals',
+                    'status': 'error',
+                    'message': 'У этого аккаунта нет счётчиков Метрики. Создай счётчик на metrika.yandex.ru'
+                }
+            
+            # Берём первый счётчик
+            counter_id = counters[0]['id']
+            print(f'✅ Using first counter: {counter_id} ({counters[0].get("name", "Unnamed")})')
+            
+            # Сохраняем в БД для следующих раз
+            cursor.execute(f"""
+                UPDATE {schema}.rsya_projects
+                SET counter_ids = %s
+                WHERE id = %s
+            """, ([counter_id], project_id))
+            conn.commit()
+            print(f'💾 Saved counter_id to database')
+        
+        cursor.close()
+        conn.close()
         
         # Получаем цели из Метрики через Management API
-        counter_id = project['counter_ids'][0] if isinstance(project['counter_ids'], list) else project['counter_ids']
-        
         print(f'🔍 Fetching goals from Metrika counter_id={counter_id}')
         
         url = f'https://api-metrika.yandex.net/management/v1/counter/{counter_id}/goals'

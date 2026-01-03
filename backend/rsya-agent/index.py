@@ -973,12 +973,13 @@ def fetch_campaign_audit_data(token: str, campaign_id: str) -> Dict:
     }
     
     # Запрос статистики кампании за 7 и 30 дней
+    # ВАЖНО: CAMPAIGN_PERFORMANCE_REPORT не поддерживает CampaignIds в SelectionCriteria
+    # Получаем все кампании и фильтруем по ID после
     payload = {
         'params': {
             'SelectionCriteria': {
                 'DateFrom': month_ago.strftime('%Y-%m-%d'),
-                'DateTo': today.strftime('%Y-%m-%d'),
-                'CampaignIds': [campaign_id]
+                'DateTo': today.strftime('%Y-%m-%d')
             },
             'FieldNames': [
                 'CampaignId',
@@ -1024,6 +1025,11 @@ def fetch_campaign_audit_data(token: str, campaign_id: str) -> Dict:
         for line in lines[1:]:
             values = line.split('\t')
             if len(values) < 9:
+                continue
+            
+            # Фильтруем только нужную кампанию
+            current_campaign_id = values[0]
+            if current_campaign_id != campaign_id:
                 continue
             
             if not campaign_name:

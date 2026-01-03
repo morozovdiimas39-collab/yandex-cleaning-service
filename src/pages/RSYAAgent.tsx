@@ -14,6 +14,7 @@ interface Message {
   content: string;
   timestamp: Date;
   actions?: any[];
+  platformsData?: any;
 }
 
 const RSYA_AGENT_URL = BACKEND_URLS['rsya-agent'] || '';
@@ -119,12 +120,16 @@ export default function RSYAAgent() {
 
       const data = await response.json();
 
+      // Извлекаем данные площадок если есть
+      const platformsAction = data.actions?.find((a: any) => a.function === 'analyze_rsya_platforms' && a.data);
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.message,
         timestamp: new Date(),
-        actions: data.actions
+        actions: data.actions,
+        platformsData: platformsAction?.data
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -265,7 +270,7 @@ export default function RSYAAgent() {
                       className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <Card
-                        className={`max-w-[80%] ${
+                        className={`${message.platformsData ? 'w-full' : 'max-w-[80%]'} ${
                           message.role === 'user'
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white'
@@ -278,8 +283,92 @@ export default function RSYAAgent() {
                                 <Icon name="Sparkles" className="h-4 w-4 text-white" />
                               </div>
                             )}
-                            <div className="flex-1 whitespace-pre-wrap text-sm">
-                              {message.content}
+                            <div className="flex-1">
+                              <div className="whitespace-pre-wrap text-sm">
+                                {message.content}
+                              </div>
+                              
+                              {/* Таблица площадок если есть данные */}
+                              {message.platformsData && (
+                                <div className="mt-4 space-y-4">
+                                  {/* Площадки на блокировку */}
+                                  {message.platformsData.to_block && message.platformsData.to_block.length > 0 && (
+                                    <div className="border border-red-200 rounded-lg overflow-hidden">
+                                      <div className="bg-red-50 px-4 py-2 border-b border-red-200">
+                                        <h4 className="font-semibold text-red-900 flex items-center gap-2">
+                                          <Icon name="Ban" className="h-4 w-4" />
+                                          Площадки на блокировку ({message.platformsData.to_block.length})
+                                        </h4>
+                                      </div>
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                          <thead className="bg-red-50/50">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium text-slate-700">Площадка</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">Расход</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">CTR</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">Конверсии</th>
+                                              <th className="px-3 py-2 text-left font-medium text-slate-700">Причина</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-100">
+                                            {message.platformsData.to_block.slice(0, 10).map((platform: any, idx: number) => (
+                                              <tr key={idx} className="hover:bg-red-50/30">
+                                                <td className="px-3 py-2 text-slate-900 font-mono text-xs">{platform.domain}</td>
+                                                <td className="px-3 py-2 text-right text-red-600 font-semibold">{platform.cost.toFixed(2)}₽</td>
+                                                <td className="px-3 py-2 text-right text-slate-600">{platform.ctr}%</td>
+                                                <td className="px-3 py-2 text-right text-slate-600">{platform.conversions}</td>
+                                                <td className="px-3 py-2 text-slate-600 text-xs">{platform.reason}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                      {message.platformsData.to_block.length > 10 && (
+                                        <div className="bg-red-50 px-4 py-2 text-xs text-slate-600 border-t border-red-200">
+                                          + ещё {message.platformsData.to_block.length - 10} площадок
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  {/* Площадки которые оставляем */}
+                                  {message.platformsData.to_keep && message.platformsData.to_keep.length > 0 && (
+                                    <div className="border border-green-200 rounded-lg overflow-hidden">
+                                      <div className="bg-green-50 px-4 py-2 border-b border-green-200">
+                                        <h4 className="font-semibold text-green-900 flex items-center gap-2">
+                                          <Icon name="CheckCircle" className="h-4 w-4" />
+                                          Площадки которые оставляем (топ-5)
+                                        </h4>
+                                      </div>
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                          <thead className="bg-green-50/50">
+                                            <tr>
+                                              <th className="px-3 py-2 text-left font-medium text-slate-700">Площадка</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">Расход</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">CTR</th>
+                                              <th className="px-3 py-2 text-right font-medium text-slate-700">Конверсии</th>
+                                              <th className="px-3 py-2 text-left font-medium text-slate-700">Причина</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-slate-100">
+                                            {message.platformsData.to_keep.slice(0, 5).map((platform: any, idx: number) => (
+                                              <tr key={idx} className="hover:bg-green-50/30">
+                                                <td className="px-3 py-2 text-slate-900 font-mono text-xs">{platform.domain}</td>
+                                                <td className="px-3 py-2 text-right text-green-600 font-semibold">{platform.cost.toFixed(2)}₽</td>
+                                                <td className="px-3 py-2 text-right text-slate-600">{platform.ctr}%</td>
+                                                <td className="px-3 py-2 text-right text-slate-600">{platform.conversions}</td>
+                                                <td className="px-3 py-2 text-slate-600 text-xs">{platform.reason}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             {message.role === 'user' && (
                               <div className="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center flex-shrink-0">

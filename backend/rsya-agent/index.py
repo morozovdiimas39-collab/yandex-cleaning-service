@@ -1001,11 +1001,9 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
     # Мусорные паттерны (блокируем если НЕ в whitelist)
     trash_patterns = ['.com', '.dsp', '.vvpn', '.vpn', 'unknown', '.tk', '.ml', '.ga', '.cf']
     
-    # Запрашиваем данные за 2 периода (сегодня + вчера) чтобы уложиться в 30 секунд
-    # Убрал период "неделя" т.к. Yandex Direct API отвечает медленно
+    # ОДИН запрос за последние 2 дня (вместо двух отдельных) чтобы уложиться в таймаут
     periods = [
-        ('today', today, today),
-        ('yesterday', yesterday, yesterday)
+        ('last_2_days', yesterday, today)
     ]
     
     all_platforms = {}  # Ключ: domain, Значение: агрегированные данные

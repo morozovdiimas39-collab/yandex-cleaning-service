@@ -57,7 +57,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Получаем контекст проекта если указан
         project_context = None
         if project_id:
-            project_context = get_project_context(cursor, project_id, user_id)
+            try:
+                project_context = get_project_context(cursor, project_id, user_id)
+            except Exception as e:
+                print(f'⚠️ Could not load project context: {str(e)}')
         
         # Формируем промпт для Gemini
         system_prompt = build_system_prompt(project_context)

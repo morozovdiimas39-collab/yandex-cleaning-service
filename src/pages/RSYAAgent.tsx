@@ -307,6 +307,7 @@ export default function RSYAAgent() {
 
                 <div ref={messagesEndRef} />
               </div>
+              </div>
               
               {/* Input Area */}
               <div className="border-t border-slate-200 p-4 bg-slate-50">

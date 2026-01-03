@@ -756,6 +756,8 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         import psycopg2
         import psycopg2.extras
         
+        print(f'🎯 Getting goals for project_id={project_id}, user_id={user_id}')
+        
         dsn = os.environ.get('DATABASE_URL')
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -771,6 +773,8 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         project = cursor.fetchone()
         cursor.close()
         conn.close()
+        
+        print(f'📊 Project data: token={bool(project and project.get("yandex_token"))}, counter_ids={project.get("counter_ids") if project else None}')
         
         if not project or not project['yandex_token']:
             return {
@@ -789,16 +793,23 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         # Получаем цели из Метрики через Management API
         counter_id = project['counter_ids'][0] if isinstance(project['counter_ids'], list) else project['counter_ids']
         
+        print(f'🔍 Fetching goals from Metrika counter_id={counter_id}')
+        
         url = f'https://api-metrika.yandex.net/management/v1/counter/{counter_id}/goals'
         headers = {'Authorization': f'OAuth {project["yandex_token"]}'}
         
         response = requests.get(url, headers=headers, timeout=30)
         
+        print(f'📥 Metrika API response: status={response.status_code}')
+        
         if response.status_code != 200:
-            raise Exception(f'Metrika API error: {response.status_code}')
+            print(f'❌ Metrika API error: {response.text[:500]}')
+            raise Exception(f'Metrika API error: {response.status_code} - {response.text[:200]}')
         
         data = response.json()
         goals = data.get('goals', [])
+        
+        print(f'✅ Found {len(goals)} goals')
         
         # Форматируем цели для пользователя
         formatted_goals = [
@@ -818,6 +829,9 @@ def get_conversion_goals_function(user_id: str, project_id: Optional[int], args:
         }
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f'❌ Error in get_conversion_goals: {str(e)}')
         return {
             'function': 'get_conversion_goals',
             'status': 'error',

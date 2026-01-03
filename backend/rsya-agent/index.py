@@ -49,17 +49,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Формируем промпт для Gemini (без предзагрузки данных из БД)
         system_prompt = build_system_prompt(project_id)
         
+        # Определяем доступные функции для агента
+        available_functions = get_available_functions()
+        
         # Вызываем Gemini API
         gemini_response = call_gemini_api(
             api_key=gemini_api_key,
             system_prompt=system_prompt,
             user_message=user_message,
-            conversation_history=conversation_history
+            conversation_history=conversation_history,
+            available_functions=available_functions
         )
         
         # Парсим ответ агента
         agent_message = gemini_response.get('text', '')
-        actions = []  # TODO: добавить function calling позже
+        function_calls = gemini_response.get('function_calls', [])
+        
+        # Если агент хочет выполнить функции
+        actions = []
+        if function_calls:
+            for func_call in function_calls:
+                action_result = execute_function(
+                    user_id=user_id,
+                    project_id=project_id,
+                    function_name=func_call['name'],
+                    function_args=func_call['args']
+                )
+                actions.append(action_result)
         
         return {
             'statusCode': 200,
@@ -84,19 +100,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 def build_system_prompt(project_id: Optional[int]) -> str:
     '''Формирует system prompt для Gemini'''
     
-    prompt = """Ты — AI-ассистент для настройки автоматической чистки РСЯ (Рекламная Сеть Яндекса).
+    prompt = """Ты — Демьян, AI-ассистент для управления рекламой в Яндекс.Директ и чистки РСЯ.
 
 Твоя задача: помочь пользователю:
-1. Подключить Яндекс.Директ через OAuth
-2. Настроить автоматическую чистку площадок
-3. Объяснить как работает система
+1. Получать информацию о кампаниях Директа
+2. Анализировать статистику площадок РСЯ
+3. Настраивать автоматическую чистку площадок
+4. Объяснять что происходит в рекламе
 
-ВАЖНО:
-- Пока ты НЕ можешь анализировать статистику (это будет добавлено позже)
-- Сейчас ты помогаешь только с настройкой и объяснениями
-- Отвечай кратко и по делу на русском языке
+Доступные функции:
+- get_campaigns(status) — получить список кампаний (status: ACTIVE, DRAFT, ARCHIVED, SUSPENDED или ALL)
 
-Если пользователь спросит про статистику — скажи что эта функция пока в разработке."""
+Отвечай кратко и по делу на русском языке."""
 
     if project_id:
         prompt += f"\n\nТекущий проект ID: {project_id}"
@@ -108,9 +123,10 @@ def call_gemini_api(
     api_key: str,
     system_prompt: str,
     user_message: str,
-    conversation_history: List[Dict]
+    conversation_history: List[Dict],
+    available_functions: List[Dict]
 ) -> Dict:
-    '''Вызывает Gemini 2.0 Flash API (экспериментальный)'''
+    '''Вызывает Gemini 2.0 Flash API с function calling'''   
     
     # Формируем историю для Gemini
     contents = []
@@ -137,6 +153,9 @@ def call_gemini_api(
         "systemInstruction": {
             "parts": [{"text": system_prompt}]
         },
+        "tools": [{
+            "functionDeclarations": available_functions
+        }],
         "generationConfig": {
             "temperature": 0.7,
             "maxOutputTokens": 2048
@@ -272,30 +291,186 @@ def call_gemini_api(
     if not parts:
         raise Exception("Gemini API returned empty response")
     
-    text = parts[0].get('text', '')
+    # Проверяем есть ли вызовы функций
+    function_calls = []
+    text = ''
+    
+    for part in parts:
+        if 'text' in part:
+            text = part['text']
+        elif 'functionCall' in part:
+            func_call = part['functionCall']
+            function_calls.append({
+                'name': func_call['name'],
+                'args': func_call.get('args', {})
+            })
     
     return {
         'text': text,
-        'function_calls': []  # TODO: Добавить function calling позже
+        'function_calls': function_calls
     }
 
 
+def get_available_functions() -> List[Dict]:
+    '''Возвращает список функций доступных агенту'''
+    return [
+        {
+            "name": "get_campaigns",
+            "description": "Получить список рекламных кампаний из Яндекс.Директ",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Статус кампаний: ACTIVE (активные), DRAFT (черновики), ARCHIVED (архивные), SUSPENDED (приостановленные), ALL (все)",
+                        "enum": ["ACTIVE", "DRAFT", "ARCHIVED", "SUSPENDED", "ALL"]
+                    }
+                },
+                "required": []
+            }
+        }
+    ]
+
+
 def execute_function(
-    cursor,
-    conn,
     user_id: str,
     project_id: Optional[int],
     function_name: str,
     function_args: Dict
 ) -> Dict:
     '''Выполняет функцию, запрошенную агентом'''
-    # TODO: Реализовать function calling для действий
-    # Например: block_platforms, create_task, get_platforms_stats
+    
+    if function_name == 'get_campaigns':
+        return get_campaigns_function(user_id, project_id, function_args)
+    
     return {
         'function': function_name,
-        'status': 'not_implemented',
-        'message': 'Function calling будет добавлен в следующей версии'
+        'status': 'error',
+        'message': f'Функция {function_name} не найдена'
     }
+
+
+def get_campaigns_function(user_id: str, project_id: Optional[int], args: Dict) -> Dict:
+    '''Получает кампании из Яндекс.Директ через API'''
+    
+    if not project_id:
+        return {
+            'function': 'get_campaigns',
+            'status': 'error',
+            'message': 'Не выбран проект. Выбери проект слева чтобы я мог получить данные.'
+        }
+    
+    try:
+        import psycopg2
+        import psycopg2.extras
+        
+        # Подключаемся к БД чтобы получить токен
+        dsn = os.environ.get('DATABASE_URL')
+        conn = psycopg2.connect(dsn)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        schema = 't_p97630513_yandex_cleaning_serv'
+        
+        # Получаем токен проекта
+        cursor.execute(f"""
+            SELECT yandex_token
+            FROM {schema}.rsya_projects
+            WHERE id = %s AND user_id = %s
+        """, (project_id, user_id))
+        
+        project = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not project or not project['yandex_token']:
+            return {
+                'function': 'get_campaigns',
+                'status': 'error',
+                'message': 'Проект не подключён к Яндекс.Директ. Сначала авторизуйся в настройках проекта.'
+            }
+        
+        # Вызываем Yandex Direct API
+        status_filter = args.get('status', 'ACTIVE')
+        campaigns = fetch_campaigns_from_direct(project['yandex_token'], status_filter)
+        
+        return {
+            'function': 'get_campaigns',
+            'status': 'success',
+            'data': campaigns,
+            'message': f'Найдено кампаний: {len(campaigns)}'
+        }
+        
+    except Exception as e:
+        return {
+            'function': 'get_campaigns',
+            'status': 'error',
+            'message': f'Ошибка получения кампаний: {str(e)}'
+        }
+
+
+def fetch_campaigns_from_direct(token: str, status_filter: str) -> List[Dict]:
+    '''Запрашивает кампании из Yandex Direct API'''
+    
+    url = 'https://api.direct.yandex.com/json/v5/campaigns'
+    
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept-Language': 'ru',
+        'Content-Type': 'application/json'
+    }
+    
+    # Формируем фильтр по статусу
+    states_filter = []
+    if status_filter == 'ALL':
+        states_filter = ['ON', 'OFF', 'SUSPENDED', 'ARCHIVED', 'DRAFT']
+    elif status_filter == 'ACTIVE':
+        states_filter = ['ON']
+    elif status_filter == 'SUSPENDED':
+        states_filter = ['SUSPENDED']
+    elif status_filter == 'ARCHIVED':
+        states_filter = ['ARCHIVED']
+    elif status_filter == 'DRAFT':
+        states_filter = ['DRAFT']
+    
+    payload = {
+        'method': 'get',
+        'params': {
+            'SelectionCriteria': {
+                'States': states_filter
+            },
+            'FieldNames': ['Id', 'Name', 'State', 'Status', 'Type', 'StartDate', 'EndDate'],
+            'Page': {
+                'Limit': 1000
+            }
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        if response.status_code != 200:
+            raise Exception(f'Yandex Direct API error: {response.status_code}')
+        
+        result = response.json()
+        
+        if 'error' in result:
+            raise Exception(f"Direct API error: {result['error'].get('error_string', 'Unknown error')}")
+        
+        campaigns = result.get('result', {}).get('Campaigns', [])
+        
+        # Форматируем для агента
+        return [{
+            'id': c['Id'],
+            'name': c['Name'],
+            'state': c['State'],
+            'status': c.get('Status'),
+            'type': c['Type'],
+            'start_date': c.get('StartDate'),
+            'end_date': c.get('EndDate', 'Бессрочно')
+        } for c in campaigns]
+        
+    except Exception as e:
+        raise Exception(f'Ошибка запроса к Direct API: {str(e)}')
 
 
 def error_response(message: str) -> Dict:

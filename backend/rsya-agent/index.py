@@ -1025,28 +1025,33 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
         if campaign_ids:
             selection_criteria['CampaignIds'] = campaign_ids
         
-        # ПРИМЕЧАНИЕ: Goals не поддерживается в SelectionCriteria для CUSTOM_REPORT
-        # API вернёт все конверсии без фильтрации по целям
-        
-        payload = {
-            'params': {
-                'SelectionCriteria': selection_criteria,
-                'FieldNames': [
-                    'CampaignId',
-                    'Placement',
-                    'Impressions',
-                    'Clicks',
-                    'Cost',
-                    'Conversions'
-                ],
-                'ReportName': f'RSY Platforms {period_name}',
-                'ReportType': 'CUSTOM_REPORT',
-                'DateRangeType': 'CUSTOM_DATE',
-                'Format': 'TSV',
-                'IncludeVAT': 'NO',
-                'IncludeDiscount': 'NO'
-            }
+        # Goals указывается на уровне params (не в SelectionCriteria!)
+        # При указании Goals поле Conversions заменится на Conversions_<goal_id>_LSC
+        params_dict = {
+            'SelectionCriteria': selection_criteria,
+            'FieldNames': [
+                'CampaignId',
+                'Placement',
+                'Impressions',
+                'Clicks',
+                'Cost',
+                'Conversions'
+            ],
+            'ReportName': f'RSY Platforms {period_name}',
+            'ReportType': 'CUSTOM_REPORT',
+            'DateRangeType': 'CUSTOM_DATE',
+            'Format': 'TSV',
+            'IncludeVAT': 'NO',
+            'IncludeDiscount': 'NO'
         }
+        
+        # Добавляем Goals на уровне params если выбраны цели
+        if selected_goal_ids:
+            params_dict['Goals'] = [int(gid) for gid in selected_goal_ids if gid.isdigit()]
+            params_dict['AttributionModels'] = ['LSC']  # Last Significant Click
+            print(f'🎯 Filtering by goals: {params_dict["Goals"]}')
+        
+        payload = {'params': params_dict}
         
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=60)
@@ -1060,9 +1065,10 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
                 continue
             
             # Парсим данные за период
+            # Если указаны Goals, то полей будет больше (Conversions_<goal_id>_LSC для каждой цели)
             for line in lines[1:]:
                 values = line.split('\t')
-                if len(values) < 6:  # Теперь только 6 полей (без GoalId)
+                if len(values) < 6:
                     continue
                 
                 placement = values[1]
@@ -1081,7 +1087,15 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
                 all_platforms[placement]['impressions'] += int(values[2]) if values[2] != '--' else 0
                 all_platforms[placement]['clicks'] += int(values[3]) if values[3] != '--' else 0
                 all_platforms[placement]['cost'] += float(values[4]) if values[4] != '--' else 0.0
-                all_platforms[placement]['conversions'] += int(values[5]) if values[5] != '--' else 0
+                
+                # Конверсии: если Goals указан, суммируем все поля Conversions_<goal_id>_LSC (начиная с индекса 5)
+                # Если Goals не указан, то просто values[5] = Conversions
+                conversions_sum = 0
+                for conv_value in values[5:]:
+                    if conv_value != '--':
+                        conversions_sum += int(conv_value)
+                
+                all_platforms[placement]['conversions'] += conversions_sum
                 all_platforms[placement]['campaigns'].add(values[0])
         
         except Exception as e:

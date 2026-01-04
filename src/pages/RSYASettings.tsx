@@ -194,6 +194,19 @@ export default function RSYASettings() {
     try {
       setSaving(true);
       
+      // Если выбраны счетчики, но цели еще не загружены - загружаем их
+      if (selectedCounters.size > 0 && goals.length === 0) {
+        const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
+          headers: { 'X-User-Id': userId }
+        });
+        const projectData = await projectResponse.json();
+        const token = projectData.project.yandex_token;
+        
+        if (token) {
+          await loadGoals(token, Array.from(selectedCounters));
+        }
+      }
+      
       const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'PUT',
         headers: {

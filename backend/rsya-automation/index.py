@@ -402,18 +402,19 @@ def save_pending_report(project_id: int, task_id: int, campaign_ids: List[int], 
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor()
         
-        for campaign_id in campaign_ids:
-            cursor.execute("""
-                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_async_reports 
-                (project_id, campaign_id, report_name, date_from, date_to, status)
-                VALUES (%s, %s, %s, %s, %s, 'pending')
-            """, (
-                project_id,
-                str(campaign_id),
-                report_name,
-                date_from,
-                date_to
-            ))
+        cursor.execute("""
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
+            (project_id, task_id, campaign_ids, date_from, date_to, report_name, status)
+            VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+            ON CONFLICT DO NOTHING
+        """, (
+            project_id,
+            task_id,
+            json.dumps([str(cid) for cid in campaign_ids]),
+            date_from,
+            date_to,
+            report_name
+        ))
         
         conn.commit()
         cursor.close()

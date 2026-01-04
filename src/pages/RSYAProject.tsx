@@ -63,7 +63,6 @@ export default function RSYAProject() {
     
     if (projectId) {
       loadProject(uid);
-      loadTasks(uid);
     }
   }, [projectId]);
 
@@ -81,7 +80,14 @@ export default function RSYAProject() {
       }
       
       const data = await response.json();
+      console.log('📋 Project data:', data.project);
       setProject(data.project);
+      
+      // Задачи приходят в project.tasks
+      if (data.project.tasks) {
+        console.log('📋 Tasks loaded:', data.project.tasks);
+        setTasks(data.project.tasks);
+      }
       
       if (!data.project.yandex_token) {
         navigate(`/rsya/${projectId}/auth`);
@@ -95,24 +101,9 @@ export default function RSYAProject() {
     }
   };
 
-  const loadTasks = async (uid: string) => {
-    try {
-      const response = await fetch(`${AUTOMATION_URL}?action=list_tasks&project_id=${projectId}`, {
-        headers: { 'X-User-Id': uid }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTasks(data.tasks || []);
-      }
-    } catch (error) {
-      console.error('Failed to load tasks:', error);
-    }
-  };
-
   const toggleTask = async (taskId: number, currentEnabled: boolean) => {
     try {
-      const response = await fetch(AUTOMATION_URL, {
+      const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,12 +113,15 @@ export default function RSYAProject() {
           action: 'toggle_task',
           project_id: parseInt(projectId || '0'),
           task_id: taskId,
-          is_enabled: !currentEnabled
+          enabled: !currentEnabled
         })
       });
 
       if (response.ok) {
-        await loadTasks(userId);
+        const data = await response.json();
+        if (data.tasks) {
+          setTasks(data.tasks);
+        }
         toast({ title: currentEnabled ? 'Задача остановлена' : 'Задача запущена' });
       } else {
         toast({ title: 'Ошибка', description: 'Не удалось изменить статус задачи', variant: 'destructive' });
@@ -141,7 +135,7 @@ export default function RSYAProject() {
     if (!confirm('Удалить задачу?')) return;
 
     try {
-      const response = await fetch(AUTOMATION_URL, {
+      const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,7 +149,10 @@ export default function RSYAProject() {
       });
 
       if (response.ok) {
-        await loadTasks(userId);
+        const data = await response.json();
+        if (data.tasks) {
+          setTasks(data.tasks);
+        }
         toast({ title: 'Задача удалена' });
       } else {
         toast({ title: 'Ошибка', description: 'Не удалось удалить задачу', variant: 'destructive' });

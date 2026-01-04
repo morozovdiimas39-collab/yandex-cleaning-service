@@ -512,14 +512,15 @@ def block_placements_batch(
         print(f'⛔ Campaign {campaign_id}: LIMIT REACHED')
         return {'processed': len(placements), 'blocked': 0, 'failed': len(placements)}
     
-    # Фильтруем домены которых еще нет
-    current_excluded_set = set(current_excluded)
+    # Фильтруем домены которых еще нет (КРИТИЧНО: lowercase для дедупликации)
+    current_excluded_normalized = [d.lower() for d in current_excluded]
+    current_excluded_set = set(current_excluded_normalized)
     domains_to_add_set = set()
     
     for placement in placements:
-        domain = placement['domain']
-        if domain not in current_excluded_set:
-            domains_to_add_set.add(domain)
+        domain_normalized = placement['domain'].lower()
+        if domain_normalized not in current_excluded_set:
+            domains_to_add_set.add(domain_normalized)
     
     domains_to_add = list(domains_to_add_set)
     
@@ -538,8 +539,8 @@ def block_placements_batch(
     # Ограничиваем
     domains_to_add = domains_to_add[:available_slots]
     
-    # Добавляем новые домены (используем set чтобы гарантировать уникальность)
-    new_excluded_list = list(set(list(current_excluded_set) + domains_to_add))
+    # Добавляем новые домены (дедуплицируем через set, все lowercase)
+    new_excluded_list = list(set(current_excluded_normalized + domains_to_add))
     
     print(f'📝 New excluded list size: {len(new_excluded_list)} (current: {len(current_excluded)}, adding: {len(domains_to_add)})')
     

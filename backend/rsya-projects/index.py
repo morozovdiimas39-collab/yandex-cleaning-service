@@ -1136,33 +1136,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 (project_id,)
             )
             
-            # 6. Удаляем блокировки кампаний
-            cursor.execute(
-                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s",
-                (project_id,)
-            )
-            
-            # 7. Удаляем статистику площадок
+            # 6. Удаляем статистику площадок
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats WHERE project_id = %s",
                 (project_id,)
             )
             
-            # 8. Удаляем кампании проекта
+            # 7. Удаляем кампании проекта
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaigns WHERE project_id = %s",
                 (project_id,)
             )
             
-            # 9. Удаляем цели проекта
+            # 8. Удаляем цели проекта
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s",
                 (project_id,)
             )
             
-            # 10. Удаляем расписание проекта
+            # 9. Удаляем расписание проекта
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 10. Удаляем pending reports
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_pending_reports WHERE project_id = %s",
                 (project_id,)
             )
             

@@ -222,6 +222,7 @@ export default function RSYAProject() {
       if (formData.max_ctr) config.max_ctr = parseFloat(formData.max_ctr);
       if (formData.min_cpa) config.min_cpa = parseFloat(formData.min_cpa);
       if (formData.max_cpa) config.max_cpa = parseFloat(formData.max_cpa);
+      if (formData.min_conversions) config.min_conversions = parseInt(formData.min_conversions);
     }
 
     try {
@@ -260,7 +261,8 @@ export default function RSYAProject() {
           min_ctr: '',
           max_ctr: '',
           min_cpa: '',
-          max_cpa: ''
+          max_cpa: '',
+          min_conversions: ''
         });
       } else {
         toast({ title: 'Ошибка', description: 'Не удалось создать задачу', variant: 'destructive' });

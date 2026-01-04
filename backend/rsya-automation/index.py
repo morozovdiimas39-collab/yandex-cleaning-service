@@ -637,11 +637,13 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
             continue
         
         # 4-13. Фильтры по метрикам (блокируем если НЕ в диапазоне)
-        # CPC: блокируем если НИЖЕ min или ВЫШЕ max
+        # CPC: блокируем если НИЖЕ min (дешевые площадки) или ВЫШЕ max (дорогие площадки)
         if min_cpc is not None and cpc < min_cpc:
-            continue
-        if max_cpc is not None and cpc > max_cpc:
-            continue
+            pass  # Дешевые площадки (CPC < min) - блокируем
+        elif max_cpc is not None and cpc > max_cpc:
+            pass  # Дорогие площадки (CPC > max) - блокируем
+        elif min_cpc is not None or max_cpc is not None:
+            continue  # CPC в допустимом диапазоне - НЕ блокируем
         
         # CTR: блокируем если НИЖЕ min или ВЫШЕ max
         if min_ctr is not None and ctr < min_ctr:
@@ -668,9 +670,11 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
         if max_clicks is not None and clicks > max_clicks:
             continue
         
-        # Conversions: блокируем если НИЖЕ минимума
-        if min_conversions is not None and conversions < min_conversions:
-            continue
+        # Conversions: блокируем площадки С конверсиями (если указан min_conversions)
+        if min_conversions is not None:
+            if conversions < min_conversions:
+                continue  # Мало конверсий - НЕ блокируем
+            # conversions >= min_conversions - блокируем площадки С конверсиями
         
         # Все проверки пройдены — площадка подходит для блокировки
         placement['priority'] = int(cost)

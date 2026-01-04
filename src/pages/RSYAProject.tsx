@@ -203,32 +203,34 @@ export default function RSYAProject() {
       <AppSidebar />
       
       <div className="flex-1 overflow-auto">
-        <div className="p-4 md:p-8 max-w-6xl mx-auto w-full">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Задачи</h1>
-            <p className="text-gray-500">Автоматическое управление трафиком и ставками</p>
-          </div>
+        <div className="p-4 md:p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="max-w-6xl mx-auto">
+              {/* Header */}
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Задачи</h1>
+                <p className="text-gray-500">Автоматическое управление трафиком и ставками</p>
+              </div>
 
-          {/* Search and Create */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Icon name="Search" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Поиск задач..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white"
-              />
-            </div>
-            <Button className="bg-green-600 hover:bg-green-700 text-white gap-2">
-              <Icon name="Plus" className="h-4 w-4" />
-              Создать
-            </Button>
-          </div>
+              {/* Search and Create */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex-1 relative">
+                  <Icon name="Search" className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    placeholder="Поиск задач..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-white"
+                  />
+                </div>
+                <Button className="bg-green-600 hover:bg-green-700 text-white gap-2">
+                  <Icon name="Plus" className="h-4 w-4" />
+                  Создать
+                </Button>
+              </div>
 
-          {/* Tasks List */}
-          <div className="space-y-4">
+              {/* Tasks List */}
+              <div className="space-y-4">
             {filteredTasks.map((task) => {
               const status = getTaskStatusLabel(task);
               const icon = getTaskIcon(task);
@@ -354,16 +356,18 @@ export default function RSYAProject() {
               );
             })}
 
-            {filteredTasks.length === 0 && (
-              <Card className="border-2 border-dashed">
-                <CardContent className="p-12 text-center">
-                  <Icon name="Inbox" className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">
-                    {searchQuery ? 'Ничего не найдено' : 'Создайте первую задачу'}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+              {filteredTasks.length === 0 && (
+                <Card className="border-2 border-dashed">
+                  <CardContent className="p-12 text-center">
+                    <Icon name="Inbox" className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      {searchQuery ? 'Ничего не найдено' : 'Создайте первую задачу'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

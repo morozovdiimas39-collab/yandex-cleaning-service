@@ -627,8 +627,22 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
                 continue
         
         # 2. KEYWORDS: если указаны ключевые слова, домен должен содержать хотя бы одно
+        # ВАЖНО: если keyword содержит точку - проверяем что домен НАЧИНАЕТСЯ с него
+        # Например: "com." должен блокировать "com.example.app", но НЕ "gazeta45.com"
         if keywords:
-            has_keyword = any(keyword in domain for keyword in keywords)
+            has_keyword = False
+            for keyword in keywords:
+                if '.' in keyword:
+                    # Keyword с точкой - проверяем что домен начинается с него
+                    if domain.startswith(keyword):
+                        has_keyword = True
+                        break
+                else:
+                    # Keyword без точки - проверяем вхождение подстроки (старая логика)
+                    if keyword in domain:
+                        has_keyword = True
+                        break
+            
             if not has_keyword:
                 continue
         

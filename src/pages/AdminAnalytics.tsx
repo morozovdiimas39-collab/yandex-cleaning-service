@@ -93,6 +93,32 @@ export default function AdminAnalytics() {
             <p className="text-muted-foreground">Полная статистика по всем процессам</p>
           </div>
 
+          <Tabs defaultValue="rsya" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="rsya">Чистка РССЯ</TabsTrigger>
+              <TabsTrigger value="wordstat">Сбор ключей</TabsTrigger>
+              <TabsTrigger value="cleanup">Очистка данных</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="cleanup" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon name="Trash2" size={20} className="text-red-500" />
+                    Очистка данных
+                  </CardTitle>
+                  <CardDescription>
+                    Удаление старых и неактуальных записей из базы данных
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <CleanupSection title="Удалить старые pending батчи" action="delete_old_batches" />
+                  <CleanupSection title="Удалить все pending батчи" action="delete_all_pending_batches" />
+                  <CleanupSection title="Очистить campaign locks" action="clean_campaign_locks" />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
           {analytics && (
             <>
               {/* Общие метрики */}
@@ -157,13 +183,6 @@ export default function AdminAnalytics() {
                   </CardContent>
                 </Card>
               </div>
-
-              <Tabs defaultValue="rsya" className="space-y-6">
-                <TabsList>
-                  <TabsTrigger value="rsya">Чистка РССЯ</TabsTrigger>
-                  <TabsTrigger value="wordstat">Сбор ключей</TabsTrigger>
-                  <TabsTrigger value="cleanup">Очистка данных</TabsTrigger>
-                </TabsList>
 
                 <TabsContent value="rsya" className="space-y-6">
                   <div className="grid md:grid-cols-3 gap-6">
@@ -277,25 +296,6 @@ export default function AdminAnalytics() {
                       </CardContent>
                     </Card>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="cleanup" className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Icon name="Trash2" size={20} className="text-red-500" />
-                        Очистка данных
-                      </CardTitle>
-                      <CardDescription>
-                        Удаление старых и неактуальных записей из базы данных
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <CleanupSection title="Удалить старые pending батчи" action="delete_old_batches" />
-                      <CleanupSection title="Удалить все pending батчи" action="delete_all_pending_batches" />
-                      <CleanupSection title="Очистить campaign locks" action="clean_campaign_locks" />
-                    </CardContent>
-                  </Card>
                 </TabsContent>
               </Tabs>
             </>

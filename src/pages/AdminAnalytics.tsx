@@ -381,7 +381,7 @@ export default function AdminAnalytics() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {dashboardStats.recent_activity.map((activity: any) => (
+                        {dashboardStats.recent_activity && dashboardStats.recent_activity.map((activity: any) => (
                           <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -421,7 +421,7 @@ export default function AdminAnalytics() {
                     </CardContent>
                   </Card>
 
-                  {dashboardStats.problematic_projects.length > 0 && (
+                  {dashboardStats.problematic_projects && dashboardStats.problematic_projects.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -452,7 +452,7 @@ export default function AdminAnalytics() {
                     </Card>
                   )}
 
-                  {dashboardStats.stale_tasks.length > 0 && (
+                  {dashboardStats.stale_tasks && dashboardStats.stale_tasks.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -510,7 +510,7 @@ export default function AdminAnalytics() {
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-4 gap-4">
-                        {workersHealth.queue_status.map((status: any) => (
+                        {workersHealth.queue_status && workersHealth.queue_status.map((status: any) => (
                           <div key={status.status} className="p-4 border rounded-lg">
                             <div className="text-2xl font-bold">{status.count}</div>
                             <div className="text-sm text-muted-foreground capitalize">{status.status}</div>
@@ -525,7 +525,7 @@ export default function AdminAnalytics() {
                     </CardContent>
                   </Card>
 
-                  {workersHealth.recent_errors.length > 0 && (
+                  {workersHealth.recent_errors && workersHealth.recent_errors.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -576,7 +576,7 @@ export default function AdminAnalytics() {
                     </Card>
                   )}
 
-                  {workersHealth.problematic_queue.length > 0 && (
+                  {workersHealth.problematic_queue && workersHealth.problematic_queue.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">

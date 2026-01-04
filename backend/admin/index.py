@@ -1503,9 +1503,11 @@ def delete_all_projects(cur, conn):
         'blocking_logs': 0,
         'block_queue': 0,
         'campaign_batches': 0,
-        'campaign_locks': 0
+        'campaign_locks': 0,
+        'task_processing_status': 0
     }
     
+    # Удаляем в правильном порядке (от зависимых к главным)
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs")
     stats['blocking_logs'] = cur.rowcount
     
@@ -1521,6 +1523,9 @@ def delete_all_projects(cur, conn):
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks")
     stats['campaign_locks'] = cur.rowcount
     
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.task_processing_status")
+    stats['task_processing_status'] = cur.rowcount
+    
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks")
     stats['tasks'] = cur.rowcount
     
@@ -1531,6 +1536,6 @@ def delete_all_projects(cur, conn):
     
     return {
         'success': True,
-        'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}',
+        'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}, Статусов задач: {stats["task_processing_status"]}',
         'deleted': stats
     }

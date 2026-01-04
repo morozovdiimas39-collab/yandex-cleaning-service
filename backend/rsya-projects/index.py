@@ -578,12 +578,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
             print(f'🗑️  Deleted pending batches for project {project_id}')
             
-            # 4. Удаляем блокировки кампаний
-            cursor.execute(
-                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s",
-                (project_id,)
-            )
-            print(f'🔓 Deleted campaign locks for project {project_id}')
+            # 4. Удаляем блокировки кампаний (если таблица доступна)
+            try:
+                cursor.execute(
+                    "DELETE FROM rsya_campaign_locks WHERE project_id = %s",
+                    (project_id,)
+                )
+                print(f'🔓 Deleted campaign locks for project {project_id}')
+            except Exception as lock_error:
+                print(f'⚠️  Could not delete campaign locks: {str(lock_error)}')
             
             # 5. Удаляем саму задачу
             cursor.execute(

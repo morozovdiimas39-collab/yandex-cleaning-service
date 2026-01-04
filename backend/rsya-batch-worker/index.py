@@ -399,7 +399,7 @@ def process_from_database() -> Dict[str, Any]:
         # ОЧИСТКА МЕРТВЫХ ЛОКОВ (старше 5 минут)
         cursor.execute("""
             DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks 
-            WHERE locked_until < NOW()
+            WHERE expires_at < NOW()
         """)
         deleted_locks = cursor.rowcount
         conn.commit()

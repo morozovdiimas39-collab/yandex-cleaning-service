@@ -199,8 +199,7 @@ export default function RSYAProjects() {
                 {projects.map((project) => (
                   <Card 
                     key={project.id}
-                    className="hover:shadow-lg transition-all cursor-pointer group border hover:border-green-200 bg-white relative"
-                    onClick={() => navigate(`/rsya/${project.id}`)}
+                    className="hover:shadow-lg transition-all group border hover:border-green-200 bg-white relative"
                   >
                     <CardHeader>
                       <div className="flex items-start justify-between mb-2">

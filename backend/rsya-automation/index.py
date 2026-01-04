@@ -636,45 +636,41 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
         if protect_conversions and conversions > 0:
             continue
         
-        # 4-13. Фильтры по метрикам
-        # CPC ЛОГИКА: min_cpc=10 → блокируем CPC>10 (дорогие), max_cpc=50 → блокируем CPC<50 (дешевые боты)
-        if min_cpc is not None and cpc > min_cpc:
-            pass  # CPC выше min - блокируем дорогие
-        elif max_cpc is not None and cpc < max_cpc:
-            pass  # CPC ниже max - блокируем дешевые
-        elif min_cpc is not None or max_cpc is not None:
-            continue  # CPC в допустимом диапазоне - НЕ блокируем
+        # 4-13. Фильтры по метрикам (ALL filters work as AND — площадка должна пройти ВСЕ проверки)
+        # CPC: блокируем если В ДИАПАЗОНЕ (min_cpc <= CPC <= max_cpc)
+        if min_cpc is not None and cpc < min_cpc:
+            continue  # CPC ниже порога - НЕ блокируем
+        if max_cpc is not None and cpc > max_cpc:
+            continue  # CPC выше порога - НЕ блокируем
         
-        # CTR: блокируем если НИЖЕ min или ВЫШЕ max
+        # CTR: блокируем если В ДИАПАЗОНЕ
         if min_ctr is not None and ctr < min_ctr:
             continue
         if max_ctr is not None and ctr > max_ctr:
             continue
         
-        # CPA: блокируем если НИЖЕ min или ВЫШЕ max (только если есть конверсии)
+        # CPA: блокируем если В ДИАПАЗОНЕ (только если есть конверсии)
         if conversions > 0:
             if min_cpa is not None and cpa < min_cpa:
                 continue
             if max_cpa is not None and cpa > max_cpa:
                 continue
         
-        # Impressions: блокируем если НЕ в диапазоне
+        # Impressions: блокируем если В ДИАПАЗОНЕ
         if min_impressions is not None and impressions < min_impressions:
             continue
         if max_impressions is not None and impressions > max_impressions:
             continue
         
-        # Clicks: блокируем если НЕ в диапазоне
+        # Clicks: блокируем если В ДИАПАЗОНЕ
         if min_clicks is not None and clicks < min_clicks:
             continue
         if max_clicks is not None and clicks > max_clicks:
             continue
         
-        # Conversions: блокируем площадки С конверсиями (если указан min_conversions)
-        if min_conversions is not None:
-            if conversions < min_conversions:
-                continue  # Мало конверсий - НЕ блокируем
-            # conversions >= min_conversions - блокируем площадки С конверсиями
+        # Conversions: блокируем если >= min_conversions
+        if min_conversions is not None and conversions < min_conversions:
+            continue  # Мало конверсий - НЕ блокируем
         
         # Все проверки пройдены — площадка подходит для блокировки
         placement['priority'] = int(cost)

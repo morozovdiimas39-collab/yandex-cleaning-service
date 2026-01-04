@@ -555,21 +555,37 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Project not found'})
                 }
             
-            # 1. Удаляем pending батчи для этого проекта из БД
+            # 1. Удаляем записи из block_queue для этой задачи
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE task_id = %s",
+                (task_id,)
+            )
+            deleted_queue = cursor.rowcount
+            print(f'🗑️  Deleted {deleted_queue} items from block_queue for task {task_id}')
+            
+            # 2. Удаляем логи выполнения задачи
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE task_id = %s",
+                (task_id,)
+            )
+            deleted_logs = cursor.rowcount
+            print(f'🗑️  Deleted {deleted_logs} execution logs for task {task_id}')
+            
+            # 3. Удаляем pending батчи для этого проекта
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE project_id = %s AND status IN ('pending', 'processing')",
                 (project_id,)
             )
             print(f'🗑️  Deleted pending batches for project {project_id}')
             
-            # 2. Удаляем блокировки кампаний
+            # 4. Удаляем блокировки кампаний
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s",
                 (project_id,)
             )
             print(f'🔓 Deleted campaign locks for project {project_id}')
             
-            # 3. Удаляем саму задачу
+            # 5. Удаляем саму задачу
             cursor.execute(
                 "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s AND project_id = %s",
                 (task_id, project_id)

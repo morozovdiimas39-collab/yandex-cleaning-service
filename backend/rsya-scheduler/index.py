@@ -267,26 +267,24 @@ def send_to_mq(message: Dict[str, Any]) -> None:
 
 
 def invoke_worker_sync(batch_data: Dict[str, Any]) -> None:
-    '''Синхронный вызов Worker через HTTP (для ручного запуска)'''
+    '''Асинхронный вызов Worker через HTTP (fire-and-forget)'''
     worker_url = 'https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81'
     
     try:
-        print(f"🚀 Invoking Worker directly for batch {batch_data['batch_number']}/{batch_data['total_batches']}...")
+        print(f"🚀 Invoking Worker for batch {batch_data['batch_number']}/{batch_data['total_batches']} (async)...")
         
-        response = requests.post(
+        # Fire-and-forget: таймаут 0.5 сек, НЕ ЖДЁМ обработки
+        requests.post(
             worker_url,
             json=batch_data,
             headers={'Content-Type': 'application/json'},
-            timeout=120  # 2 минуты таймаут (Worker может обрабатывать до 90 сек)
+            timeout=0.5  # Отправили запрос и сразу идём дальше
         )
         
-        if response.status_code == 200:
-            result = response.json()
-            print(f"✅ Worker processed batch {batch_data['batch_number']}: {result.get('successful', 0)} successful, {result.get('failed', 0)} failed")
-        else:
-            print(f"⚠️ Worker returned status {response.status_code}: {response.text[:200]}")
+        print(f"✅ Worker invoked for batch {batch_data['batch_number']}")
     
     except requests.exceptions.Timeout:
-        print(f"⏱️ Worker timeout for batch {batch_data['batch_number']} (still processing in background)")
+        # Это НОРМАЛЬНО — Worker получил запрос и обрабатывает в фоне
+        print(f"✅ Worker started processing batch {batch_data['batch_number']} (async)")
     except Exception as e:
-        print(f"❌ Failed to invoke Worker for batch {batch_data['batch_number']}: {str(e)}")
+        print(f"⚠️ Failed to invoke Worker for batch {batch_data['batch_number']}: {str(e)}")

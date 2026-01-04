@@ -79,7 +79,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Генерируем ответ на основе результатов ЛОКАЛЬНО (без повторного запроса к Gemini)
             # Это экономит 20+ секунд и укладываемся в 30 секунд таймаута
-            if any(a['function'] == 'analyze_rsya_platforms' for a in actions):
+            
+            # Проверяем есть ли ошибки в действиях
+            errors = [a for a in actions if a.get('status') == 'error']
+            if errors:
+                # Показываем первую ошибку
+                agent_message = f"❌ Ошибка: {errors[0].get('message', 'Неизвестная ошибка')}"
+            elif any(a['function'] == 'analyze_rsya_platforms' for a in actions):
                 platform_data = next((a['data'] for a in actions if a['function'] == 'analyze_rsya_platforms' and a.get('data')), None)
                 if platform_data:
                     agent_message = format_platform_analysis(platform_data)
@@ -87,6 +93,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 goals_data = next((a['data'] for a in actions if a['function'] == 'get_conversion_goals' and a.get('data')), None)
                 if goals_data:
                     agent_message = format_goals_list(goals_data)
+            elif any(a['function'] == 'read_google_sheet' for a in actions):
+                sheet_data = next((a['data'] for a in actions if a['function'] == 'read_google_sheet' and a.get('data')), None)
+                if sheet_data:
+                    agent_message = f"📊 Прочитал таблицу!\n\nНайдено строк: {sheet_data['total_rows']}\nКолонка 'Дата': {chr(65 + sheet_data['date_column'])}\nКолонка 'Директ': {chr(65 + sheet_data['direct_column'])}\n\nСейчас получу статистику из Директа и заполню пустые ячейки..."
         
         return {
             'statusCode': 200,

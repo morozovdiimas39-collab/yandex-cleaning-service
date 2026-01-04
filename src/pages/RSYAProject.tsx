@@ -479,49 +479,72 @@ export default function RSYAProject() {
         {/* Create Task Dialog */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Создать задачу</DialogTitle>
+            <DialogHeader className="space-y-0 pb-4">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                  <Icon name="Plus" className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-2xl font-bold">Создать задачу</DialogTitle>
+                  <p className="text-sm text-gray-500 mt-1">Настройте автоматическую чистку площадок</p>
+                </div>
+              </div>
             </DialogHeader>
 
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="description">Название задачи</Label>
+                <Label htmlFor="description" className="text-base font-semibold">Название задачи</Label>
                 <Input
                   id="description"
                   placeholder="Например: Блокировка дорогих площадок"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="h-11"
                 />
               </div>
 
               <Tabs value={createMode} onValueChange={(v) => setCreateMode(v as 'smart' | 'expert')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="smart">Умная очистка</TabsTrigger>
-                  <TabsTrigger value="expert">Режим эксперта</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 h-12 bg-gray-100">
+                  <TabsTrigger value="smart" className="flex items-center gap-2 data-[state=active]:bg-white">
+                    <Icon name="Sparkles" className="h-4 w-4" />
+                    <span>Умная очистка</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="expert" className="flex items-center gap-2 data-[state=active]:bg-white">
+                    <Icon name="Settings" className="h-4 w-4" />
+                    <span>Режим эксперта</span>
+                  </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="smart" className="space-y-4 mt-4">
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-start gap-3">
-                      <Icon name="Sparkles" className="h-5 w-5 text-blue-600 mt-0.5" />
+                <TabsContent value="smart" className="space-y-4 mt-6">
+                  <div className="relative p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200 rounded-full -mr-16 -mt-16 opacity-50"></div>
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-200 rounded-full -ml-12 -mb-12 opacity-50"></div>
+                    <div className="relative flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                        <Icon name="Sparkles" className="h-6 w-6 text-white" />
+                      </div>
                       <div>
-                        <h4 className="font-semibold text-blue-900 mb-1">Автоматическая оптимизация</h4>
-                        <p className="text-sm text-blue-700">
-                          Система автоматически заблокирует площадки с низкой эффективностью на основе машинного обучения
+                        <h4 className="font-bold text-blue-900 text-lg mb-2">Автоматическая оптимизация</h4>
+                        <p className="text-sm text-blue-700 leading-relaxed">
+                          Система автоматически заблокирует площадки с низкой эффективностью на основе машинного обучения. 
+                          Вам не нужно настраивать параметры вручную.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="goal_id_smart">Цель оптимизации</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Icon name="Target" className="h-5 w-5 text-purple-500" />
+                      <Label htmlFor="goal_id_smart" className="text-base font-semibold">Цель оптимизации</Label>
+                    </div>
                     <select
                       id="goal_id_smart"
                       value={formData.goal_id}
                       onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full h-11 px-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
                     >
-                      <option value="all">Все конверсии</option>
+                      <option value="all">🎯 Все конверсии</option>
                       {project?.goals?.map((goal) => (
                         <option key={goal.id} value={goal.id}>
                           {goal.name} (ID: {goal.id})

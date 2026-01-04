@@ -69,6 +69,7 @@ export default function RSYAProject() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'smart' | 'expert'>('smart');
+  const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   
   const [formData, setFormData] = useState({
     description: '',
@@ -84,7 +85,8 @@ export default function RSYAProject() {
     min_ctr: '',
     max_ctr: '',
     min_cpa: '',
-    max_cpa: ''
+    max_cpa: '',
+    min_conversions: ''
   });
 
   useEffect(() => {
@@ -572,177 +574,380 @@ export default function RSYAProject() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="expert" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Icon name="ShieldOff" className="h-4 w-4 text-red-500" />
-                        <Label htmlFor="keywords">Вхождения для блокировки</Label>
-                      </div>
-                      <Textarea
-                        id="keywords"
-                        placeholder="Через запятую: com, dsp, vpn"
-                        value={formData.keywords}
-                        onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="col-span-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Icon name="ShieldCheck" className="h-4 w-4 text-green-500" />
-                        <Label htmlFor="exceptions">Исключения (не блокировать)</Label>
-                      </div>
-                      <Textarea
-                        id="exceptions"
-                        placeholder="Через запятую: ozon, yandex"
-                        value={formData.exceptions}
-                        onChange={(e) => setFormData({ ...formData, exceptions: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
-
-                    <div className="col-span-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Icon name="Eye" className="h-4 w-4 text-blue-500" />
-                        <Label className="text-base font-semibold">Показы и клики</Label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="min_impressions" className="text-sm">Мин. показов</Label>
-                          <Input
-                            id="min_impressions"
-                            type="number"
-                            value={formData.min_impressions}
-                            onChange={(e) => setFormData({ ...formData, min_impressions: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="max_impressions" className="text-sm">Макс. показов</Label>
-                          <Input
-                            id="max_impressions"
-                            type="number"
-                            value={formData.max_impressions}
-                            onChange={(e) => setFormData({ ...formData, max_impressions: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min_clicks" className="text-sm">Мин. кликов</Label>
-                          <Input
-                            id="min_clicks"
-                            type="number"
-                            value={formData.min_clicks}
-                            onChange={(e) => setFormData({ ...formData, min_clicks: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="max_clicks" className="text-sm">Макс. кликов</Label>
-                          <Input
-                            id="max_clicks"
-                            type="number"
-                            value={formData.max_clicks}
-                            onChange={(e) => setFormData({ ...formData, max_clicks: e.target.value })}
-                          />
-                        </div>
+                <TabsContent value="expert" className="space-y-6 mt-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 pb-3 border-b">
+                      <Icon name="Blocks" className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Модули условий</h3>
+                        <p className="text-sm text-gray-500">Добавьте условия блокировки — они суммируются</p>
                       </div>
                     </div>
 
-                    <div className="col-span-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Icon name="DollarSign" className="h-4 w-4 text-green-500" />
-                        <Label className="text-base font-semibold">Цена и эффективность</Label>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="min_cpc" className="text-sm">Мин. цена клика (₽)</Label>
-                          <Input
-                            id="min_cpc"
-                            type="number"
-                            step="0.01"
-                            value={formData.min_cpc}
-                            onChange={(e) => setFormData({ ...formData, min_cpc: e.target.value })}
-                          />
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModules = new Set(activeModules);
+                          if (newModules.has('keywords')) newModules.delete('keywords');
+                          else newModules.add('keywords');
+                          setActiveModules(newModules);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          activeModules.has('keywords')
+                            ? 'border-red-400 bg-red-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            activeModules.has('keywords') ? 'bg-red-500' : 'bg-gray-100'
+                          }`}>
+                            <Icon name="ShieldOff" className={`h-5 w-5 ${
+                              activeModules.has('keywords') ? 'text-white' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Блокировка</div>
+                            <div className="text-xs text-gray-500">По вхождениям в URL</div>
+                          </div>
+                          <Icon name={activeModules.has('keywords') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
+                            activeModules.has('keywords') ? 'text-red-500' : 'text-gray-400'
+                          }`} />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="max_cpc" className="text-sm">Макс. цена клика (₽)</Label>
-                          <Input
-                            id="max_cpc"
-                            type="number"
-                            step="0.01"
-                            value={formData.max_cpc}
-                            onChange={(e) => setFormData({ ...formData, max_cpc: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min_ctr" className="text-sm">Мин. CTR (%)</Label>
-                          <Input
-                            id="min_ctr"
-                            type="number"
-                            step="0.01"
-                            value={formData.min_ctr}
-                            onChange={(e) => setFormData({ ...formData, min_ctr: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="max_ctr" className="text-sm">Макс. CTR (%)</Label>
-                          <Input
-                            id="max_ctr"
-                            type="number"
-                            step="0.01"
-                            value={formData.max_ctr}
-                            onChange={(e) => setFormData({ ...formData, max_ctr: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min_cpa" className="text-sm">Мин. CPA (₽)</Label>
-                          <Input
-                            id="min_cpa"
-                            type="number"
-                            step="0.01"
-                            value={formData.min_cpa}
-                            onChange={(e) => setFormData({ ...formData, min_cpa: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="max_cpa" className="text-sm">Макс. CPA (₽)</Label>
-                          <Input
-                            id="max_cpa"
-                            type="number"
-                            step="0.01"
-                            value={formData.max_cpa}
-                            onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                      </button>
 
-                    <div className="col-span-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Icon name="Target" className="h-4 w-4 text-purple-500" />
-                        <Label htmlFor="goal_id_expert">Цель конверсии</Label>
-                      </div>
-                      {(!project?.goals || project.goals.length === 0) ? (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-sm text-yellow-800">
-                            ⚠️ Сначала настройте счетчики Метрики в настройках проекта
-                          </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModules = new Set(activeModules);
+                          if (newModules.has('metrics')) newModules.delete('metrics');
+                          else newModules.add('metrics');
+                          setActiveModules(newModules);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          activeModules.has('metrics')
+                            ? 'border-blue-400 bg-blue-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            activeModules.has('metrics') ? 'bg-blue-500' : 'bg-gray-100'
+                          }`}>
+                            <Icon name="BarChart3" className={`h-5 w-5 ${
+                              activeModules.has('metrics') ? 'text-white' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Метрики</div>
+                            <div className="text-xs text-gray-500">CTR, CPC, показы, клики</div>
+                          </div>
+                          <Icon name={activeModules.has('metrics') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
+                            activeModules.has('metrics') ? 'text-blue-500' : 'text-gray-400'
+                          }`} />
                         </div>
-                      ) : (
-                        <select
-                          id="goal_id_expert"
-                          value={formData.goal_id}
-                          onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                        >
-                          <option value="all">Все конверсии</option>
-                          {project.goals.map((goal) => (
-                            <option key={goal.id} value={goal.id}>
-                              {goal.name} (ID: {goal.id})
-                            </option>
-                          ))}
-                        </select>
-                      )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModules = new Set(activeModules);
+                          if (newModules.has('conversions')) newModules.delete('conversions');
+                          else newModules.add('conversions');
+                          setActiveModules(newModules);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          activeModules.has('conversions')
+                            ? 'border-purple-400 bg-purple-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            activeModules.has('conversions') ? 'bg-purple-500' : 'bg-gray-100'
+                          }`}>
+                            <Icon name="Target" className={`h-5 w-5 ${
+                              activeModules.has('conversions') ? 'text-white' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Конверсии</div>
+                            <div className="text-xs text-gray-500">CPA и цели</div>
+                          </div>
+                          <Icon name={activeModules.has('conversions') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
+                            activeModules.has('conversions') ? 'text-purple-500' : 'text-gray-400'
+                          }`} />
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModules = new Set(activeModules);
+                          if (newModules.has('exceptions')) newModules.delete('exceptions');
+                          else newModules.add('exceptions');
+                          setActiveModules(newModules);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          activeModules.has('exceptions')
+                            ? 'border-green-400 bg-green-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            activeModules.has('exceptions') ? 'bg-green-500' : 'bg-gray-100'
+                          }`}>
+                            <Icon name="ShieldCheck" className={`h-5 w-5 ${
+                              activeModules.has('exceptions') ? 'text-white' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Исключения</div>
+                            <div className="text-xs text-gray-500">Никогда не блокировать</div>
+                          </div>
+                          <Icon name={activeModules.has('exceptions') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
+                            activeModules.has('exceptions') ? 'text-green-500' : 'text-gray-400'
+                          }`} />
+                        </div>
+                      </button>
                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {activeModules.has('keywords') && (
+                      <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50/50">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center">
+                            <Icon name="ShieldOff" className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-red-900">Блокировка по вхождениям</h4>
+                            <p className="text-sm text-red-700">Площадки с этими словами будут заблокированы</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newModules = new Set(activeModules);
+                              newModules.delete('keywords');
+                              setActiveModules(newModules);
+                            }}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Icon name="X" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <Textarea
+                          placeholder="Через запятую: dsp, bot, click, vpn, ads"
+                          value={formData.keywords}
+                          onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
+                          rows={3}
+                          className="bg-white border-red-200 focus:border-red-400"
+                        />
+                      </div>
+                    )}
+
+                    {activeModules.has('metrics') && (
+                      <div className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50/50">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                            <Icon name="BarChart3" className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-blue-900">Метрики эффективности</h4>
+                            <p className="text-sm text-blue-700">Блокировать при отклонении от пороговых значений</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newModules = new Set(activeModules);
+                              newModules.delete('metrics');
+                              setActiveModules(newModules);
+                            }}
+                            className="text-blue-500 hover:text-blue-700"
+                          >
+                            <Icon name="X" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm text-blue-900">Мин. показов</Label>
+                            <Input
+                              type="number"
+                              placeholder="1000"
+                              value={formData.min_impressions}
+                              onChange={(e) => setFormData({ ...formData, min_impressions: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm text-blue-900">Макс. показов</Label>
+                            <Input
+                              type="number"
+                              placeholder="50000"
+                              value={formData.max_impressions}
+                              onChange={(e) => setFormData({ ...formData, max_impressions: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm text-blue-900">Мин. кликов</Label>
+                            <Input
+                              type="number"
+                              placeholder="10"
+                              value={formData.min_clicks}
+                              onChange={(e) => setFormData({ ...formData, min_clicks: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm text-blue-900">Макс. кликов</Label>
+                            <Input
+                              type="number"
+                              placeholder="1000"
+                              value={formData.max_clicks}
+                              onChange={(e) => setFormData({ ...formData, max_clicks: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm text-blue-900">Мин. CTR (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.5"
+                              value={formData.min_ctr}
+                              onChange={(e) => setFormData({ ...formData, min_ctr: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm text-blue-900">Макс. CPC (₽)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="50"
+                              value={formData.max_cpc}
+                              onChange={(e) => setFormData({ ...formData, max_cpc: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeModules.has('conversions') && (
+                      <div className="p-4 rounded-xl border-2 border-purple-200 bg-purple-50/50">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center">
+                            <Icon name="Target" className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-purple-900">Конверсии и CPA</h4>
+                            <p className="text-sm text-purple-700">Блокировать неэффективные площадки по целям</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newModules = new Set(activeModules);
+                              newModules.delete('conversions');
+                              setActiveModules(newModules);
+                            }}
+                            className="text-purple-500 hover:text-purple-700"
+                          >
+                            <Icon name="X" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-sm text-purple-900">Цель оптимизации</Label>
+                            {(!project?.goals || project.goals.length === 0) ? (
+                              <div className="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <p className="text-sm text-yellow-800">
+                                  ⚠️ Настройте счетчики Метрики в настройках
+                                </p>
+                              </div>
+                            ) : (
+                              <select
+                                value={formData.goal_id}
+                                onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
+                                className="mt-1 w-full px-3 py-2 bg-white border-2 border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+                              >
+                                <option value="all">🎯 Все конверсии</option>
+                                {project.goals.map((goal) => (
+                                  <option key={goal.id} value={goal.id}>
+                                    {goal.name} (ID: {goal.id})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="500"
+                                value={formData.max_cpa}
+                                onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
+                                className="mt-1 bg-white border-purple-200"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm text-purple-900">Мин. конверсий</Label>
+                              <Input
+                                type="number"
+                                placeholder="1"
+                                value={formData.min_conversions || ''}
+                                onChange={(e) => setFormData({ ...formData, min_conversions: e.target.value })}
+                                className="mt-1 bg-white border-purple-200"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeModules.has('exceptions') && (
+                      <div className="p-4 rounded-xl border-2 border-green-200 bg-green-50/50">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
+                            <Icon name="ShieldCheck" className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-green-900">Исключения</h4>
+                            <p className="text-sm text-green-700">Эти площадки никогда не будут заблокированы</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newModules = new Set(activeModules);
+                              newModules.delete('exceptions');
+                              setActiveModules(newModules);
+                            }}
+                            className="text-green-500 hover:text-green-700"
+                          >
+                            <Icon name="X" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <Textarea
+                          placeholder="Через запятую: ozon, yandex, mail, avito"
+                          value={formData.exceptions}
+                          onChange={(e) => setFormData({ ...formData, exceptions: e.target.value })}
+                          rows={3}
+                          className="bg-white border-green-200 focus:border-green-400"
+                        />
+                      </div>
+                    )}
+
+                    {activeModules.size === 0 && (
+                      <div className="text-center py-8 text-gray-400">
+                        <Icon name="Blocks" className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm">Выберите модули условий выше</p>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
               </Tabs>

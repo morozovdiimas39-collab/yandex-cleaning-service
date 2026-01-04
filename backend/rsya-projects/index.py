@@ -489,10 +489,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Project not found'})
                 }
             
-            # Создаём задачу с config
+            # Создаём задачу с config (сериализуем в JSON)
             cursor.execute(
                 "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
-                (project_id, description, config)
+                (project_id, description, json.dumps(config) if config else '{}')
             )
             task_id = cursor.fetchone()[0]
             conn.commit()

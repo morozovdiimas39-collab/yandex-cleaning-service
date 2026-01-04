@@ -808,3 +808,5 @@ def send_to_message_queue(placements: List[Dict], project_id: int):
         print(f'❌❌❌ ERROR sending to Message Queue: {type(e).__name__}: {str(e)}')
         import traceback
         print(f'❌ Traceback: {traceback.format_exc()}')
+        # КРИТИЧНО: Прокидываем исключение наверх, чтобы увидеть ошибку
+        raise

@@ -618,35 +618,37 @@ export default function AdminAnalytics() {
                     </Card>
                   )}
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Icon name="BarChart" size={20} className="text-green-500" />
-                        Типы выполнений (24ч)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {workersHealth.execution_types_24h.map((type: any) => (
-                          <div key={type.execution_type} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div>
-                              <div className="font-semibold">{type.execution_type}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {type.count} выполнений • {type.total_blocked} заблокировано
+                  {workersHealth.execution_types_24h && workersHealth.execution_types_24h.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="BarChart" size={20} className="text-green-500" />
+                          Типы выполнений (24ч)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {workersHealth.execution_types_24h.map((type: any) => (
+                            <div key={type.execution_type} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div>
+                                <div className="font-semibold">{type.execution_type}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {type.count} выполнений • {type.total_blocked} заблокировано
+                                </div>
+                              </div>
+                              <div className="text-right text-sm">
+                                <div className="text-green-600">{type.completed} успешных</div>
+                                <div className="text-red-600">{type.errors} ошибок</div>
+                                <div className="text-muted-foreground">
+                                  ~{type.avg_duration_seconds.toFixed(1)}s
+                                </div>
                               </div>
                             </div>
-                            <div className="text-right text-sm">
-                              <div className="text-green-600">{type.completed} успешных</div>
-                              <div className="text-red-600">{type.errors} ошибок</div>
-                              <div className="text-muted-foreground">
-                                ~{type.avg_duration_seconds.toFixed(1)}s
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               ) : (
                 <div className="text-center py-8">

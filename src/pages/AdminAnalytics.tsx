@@ -31,41 +31,114 @@ interface Analytics {
   };
 }
 
+interface Project {
+  id: number;
+  name: string;
+  user_id: string;
+  client_login: string;
+  is_configured: boolean;
+  tasks_count: number;
+  active_tasks_count: number;
+  total_executions: number;
+  total_blocked: number;
+  last_execution_at: string;
+}
+
+interface DashboardStats {
+  kpi: any;
+  activity_chart: any[];
+  recent_activity: any[];
+  problematic_projects: any[];
+  stale_tasks: any[];
+}
+
+interface WorkersHealth {
+  queue_status: any[];
+  problematic_queue: any[];
+  old_pending: any[];
+  execution_types_24h: any[];
+  hourly_activity: any[];
+  recent_errors: any[];
+}
+
 export default function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [workersHealth, setWorkersHealth] = useState<WorkersHealth | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState('overview');
 
   useEffect(() => {
     loadAnalytics();
   }, []);
 
+  useEffect(() => {
+    if (selectedTab === 'projects') {
+      loadProjects();
+    } else if (selectedTab === 'dashboard') {
+      loadDashboardStats();
+    } else if (selectedTab === 'workers') {
+      loadWorkersHealth();
+    }
+  }, [selectedTab]);
+
   const loadAnalytics = async () => {
-    console.log('🔄 Loading admin analytics...');
     setLoading(true);
     try {
-      const url = `${BACKEND_URLS.admin}?action=analytics`;
-      console.log('📡 Fetching from:', url);
-      
-      const response = await fetch(url, {
-        headers: {
-          'X-Admin-Key': 'directkit_admin_2024'
-        }
+      const response = await fetch(`${BACKEND_URLS.admin}?action=analytics`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
       });
-
-      console.log('📊 Response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Analytics data loaded:', data);
         setAnalytics(data);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Error response:', response.status, errorText);
       }
     } catch (error) {
-      console.error('❌ Failed to load analytics:', error);
+      console.error('Failed to load analytics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_projects`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data.projects || []);
+      }
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
+  };
+
+  const loadDashboardStats = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardStats(data);
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+    }
+  };
+
+  const loadWorkersHealth = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_workers_health`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setWorkersHealth(data);
+      }
+    } catch (error) {
+      console.error('Failed to load workers health:', error);
     }
   };
 
@@ -90,80 +163,498 @@ export default function AdminAnalytics() {
         <div className="max-w-7xl mx-auto p-6">
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Аналитика системы</h1>
-            <p className="text-muted-foreground">Полная статистика по всем процессам</p>
+            <p className="text-muted-foreground">Полная информация по проектам, задачам и воркерам</p>
           </div>
 
-          {/* Общие метрики */}
           {analytics && (
             <div className="grid md:grid-cols-4 gap-6 mb-8">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <Icon name="Folder" size={16} className="text-blue-500" />
-                      Проекты
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{analytics.overview.totalProjects}</div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {analytics.overview.activeProjects} активных
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Icon name="Folder" size={16} className="text-blue-500" />
+                    Проекты
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.overview.totalProjects}</div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {analytics.overview.activeProjects} активных
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <Icon name="CheckSquare" size={16} className="text-green-500" />
-                      Задачи РССЯ
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{analytics.overview.totalTasks}</div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {analytics.overview.activeTasks} активных
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Icon name="CheckSquare" size={16} className="text-green-500" />
+                    Задачи РССЯ
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.overview.totalTasks}</div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {analytics.overview.activeTasks} активных
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <Icon name="Users" size={16} className="text-purple-500" />
-                      Пользователи
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{analytics.overview.totalUsers}</div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Всего зарегистрировано
-                    </p>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Icon name="Play" size={16} className="text-purple-500" />
+                    Выполнений
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.rsya.totalExecutions}</div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {analytics.rsya.successfulExecutions} успешных
+                  </p>
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                      <Icon name="ListTree" size={16} className="text-orange-500" />
-                      Очередь блокировок
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{analytics.overview.totalBlockQueue}</div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Площадок в очереди
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Icon name="Ban" size={16} className="text-red-500" />
+                    Заблокировано
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{analytics.rsya.totalBlocked}</div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    площадок всего
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
-          <Tabs defaultValue="rsya" className="space-y-6">
+          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
             <TabsList>
-              <TabsTrigger value="rsya">Чистка РССЯ</TabsTrigger>
-              <TabsTrigger value="wordstat">Сбор ключей</TabsTrigger>
-              <TabsTrigger value="cleanup">Очистка данных</TabsTrigger>
+              <TabsTrigger value="overview">Обзор</TabsTrigger>
+              <TabsTrigger value="projects">Проекты</TabsTrigger>
+              <TabsTrigger value="dashboard">Дашборд</TabsTrigger>
+              <TabsTrigger value="workers">Воркеры</TabsTrigger>
+              <TabsTrigger value="cleanup">Очистка</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
+              {analytics && (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Статистика РССЯ</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Всего выполнений:</span>
+                        <span className="font-semibold">{analytics.rsya.totalExecutions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Успешных:</span>
+                        <span className="font-semibold text-green-600">{analytics.rsya.successfulExecutions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">С ошибками:</span>
+                        <span className="font-semibold text-red-600">{analytics.rsya.failedExecutions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Заблокировано площадок:</span>
+                        <span className="font-semibold">{analytics.rsya.totalBlocked}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Среднее за запуск:</span>
+                        <span className="font-semibold">{analytics.rsya.avgBlockedPerExecution.toFixed(1)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Статистика Wordstat</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">В ожидании:</span>
+                        <span className="font-semibold">{analytics.wordstat.pending}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">В работе:</span>
+                        <span className="font-semibold text-blue-600">{analytics.wordstat.processing}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Выполнено:</span>
+                        <span className="font-semibold text-green-600">{analytics.wordstat.completed}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">С ошибками:</span>
+                        <span className="font-semibold text-red-600">{analytics.wordstat.failed}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Всего ключей:</span>
+                        <span className="font-semibold">{analytics.wordstat.totalKeywords}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="projects" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon name="Folder" size={20} className="text-blue-500" />
+                    Все проекты ({projects.length})
+                  </CardTitle>
+                  <CardDescription>
+                    Полный список проектов с ID, задачами и статистикой
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {projects.length === 0 ? (
+                    <p className="text-muted-foreground">Загрузка проектов...</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {projects.map((project) => (
+                        <div key={project.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg">{project.name}</h3>
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                  ID: {project.id}
+                                </span>
+                                {project.is_configured && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                    Настроен
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                User ID: {project.user_id} • Login: {project.client_login || 'Не указан'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Задач:</span>
+                              <span className="ml-2 font-semibold">{project.tasks_count}</span>
+                              <span className="text-green-600 ml-1">({project.active_tasks_count} активных)</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Выполнений:</span>
+                              <span className="ml-2 font-semibold">{project.total_executions}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Заблокировано:</span>
+                              <span className="ml-2 font-semibold">{project.total_blocked}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Последний запуск:</span>
+                              <span className="ml-2 font-semibold">
+                                {project.last_execution_at 
+                                  ? new Date(project.last_execution_at).toLocaleString('ru-RU')
+                                  : 'Никогда'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="dashboard" className="space-y-6">
+              {dashboardStats ? (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="Activity" size={20} className="text-purple-500" />
+                        Последняя активность
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {dashboardStats.recent_activity.map((activity: any) => (
+                          <div key={activity.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">Execution #{activity.id}</span>
+                                <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  Project #{activity.project_id}
+                                </span>
+                                {activity.task_id && (
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                    Task #{activity.task_id}
+                                  </span>
+                                )}
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  activity.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {activity.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {activity.project_name} • {activity.task_description || 'Без описания'}
+                              </p>
+                            </div>
+                            <div className="text-right text-sm">
+                              <div className="font-semibold">{activity.placements_blocked || 0} заблокировано</div>
+                              <div className="text-muted-foreground">
+                                {new Date(activity.started_at).toLocaleString('ru-RU')}
+                              </div>
+                              {activity.duration_seconds && (
+                                <div className="text-xs text-muted-foreground">
+                                  {activity.duration_seconds.toFixed(1)}s
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {dashboardStats.problematic_projects.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="AlertTriangle" size={20} className="text-red-500" />
+                          Проблемные проекты
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {dashboardStats.problematic_projects.map((proj: any) => (
+                            <div key={proj.id} className="flex items-center justify-between p-3 border border-red-200 rounded-lg bg-red-50">
+                              <div>
+                                <div className="font-semibold">{proj.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Project ID: {proj.id} • User ID: {proj.user_id}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold text-red-600">{proj.errors} ошибок</div>
+                                <div className="text-sm text-muted-foreground">
+                                  из {proj.total_executions} выполнений
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {dashboardStats.stale_tasks.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="Clock" size={20} className="text-orange-500" />
+                          Задачи без выполнений
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {dashboardStats.stale_tasks.map((task: any) => (
+                            <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold">{task.description}</span>
+                                  <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                    Task ID: {task.id}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  Проект: {task.project_name} (ID: {task.project_id})
+                                </div>
+                              </div>
+                              <div className="text-right text-sm">
+                                <div className="text-orange-600 font-semibold">
+                                  {Math.floor(task.hours_since_execution)} часов назад
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {new Date(task.last_executed_at).toLocaleString('ru-RU')}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-muted-foreground">Загрузка статистики...</p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="workers" className="space-y-6">
+              {workersHealth ? (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="ListTree" size={20} className="text-blue-500" />
+                        Статус очереди
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-4">
+                        {workersHealth.queue_status.map((status: any) => (
+                          <div key={status.status} className="p-4 border rounded-lg">
+                            <div className="text-2xl font-bold">{status.count}</div>
+                            <div className="text-sm text-muted-foreground capitalize">{status.status}</div>
+                            {status.total_cost > 0 && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                ₽{status.total_cost.toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {workersHealth.recent_errors.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="XCircle" size={20} className="text-red-500" />
+                          Последние ошибки (24ч)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {workersHealth.recent_errors.map((error: any) => (
+                            <div key={error.id} className="p-3 border border-red-200 rounded-lg bg-red-50">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold">Execution #{error.id}</span>
+                                  <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                    {error.execution_type}
+                                  </span>
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                    Project #{error.project_id}
+                                  </span>
+                                  {error.task_id && (
+                                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                                      Task #{error.task_id}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {new Date(error.started_at).toLocaleString('ru-RU')}
+                                </div>
+                              </div>
+                              <div className="text-sm">
+                                <div className="text-muted-foreground mb-1">
+                                  {error.project_name} • {error.task_description || 'Без описания'}
+                                </div>
+                                <div className="font-mono text-xs bg-white p-2 rounded border">
+                                  {error.error_message}
+                                </div>
+                                {error.request_id && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Request ID: {error.request_id}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {workersHealth.problematic_queue.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Icon name="AlertCircle" size={20} className="text-orange-500" />
+                          Проблемные записи в очереди (3+ попыток)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {workersHealth.problematic_queue.map((item: any) => (
+                            <div key={item.id} className="p-3 border border-orange-200 rounded-lg bg-orange-50">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-semibold">{item.domain}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Project: {item.project_name} (ID: {item.project_id})
+                                    {item.task_description && ` • Task: ${item.task_description}`}
+                                  </div>
+                                  <div className="text-xs font-mono mt-1 text-red-600">
+                                    {item.error_message}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-semibold text-orange-600">
+                                    {item.attempts} попыток
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {item.status}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    ₽{item.cost} • {item.clicks} кликов
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Icon name="BarChart" size={20} className="text-green-500" />
+                        Типы выполнений (24ч)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {workersHealth.execution_types_24h.map((type: any) => (
+                          <div key={type.execution_type} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <div className="font-semibold">{type.execution_type}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {type.count} выполнений • {type.total_blocked} заблокировано
+                              </div>
+                            </div>
+                            <div className="text-right text-sm">
+                              <div className="text-green-600">{type.completed} успешных</div>
+                              <div className="text-red-600">{type.errors} ошибок</div>
+                              <div className="text-muted-foreground">
+                                ~{type.avg_duration_seconds.toFixed(1)}s
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-muted-foreground">Загрузка данных о воркерах...</p>
+                </div>
+              )}
+            </TabsContent>
 
             <TabsContent value="cleanup" className="space-y-6">
               <Card>
@@ -177,130 +668,12 @@ export default function AdminAnalytics() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <CleanupSection title="Удалить старые pending батчи" action="delete_old_batches" />
+                  <CleanupSection title="Удалить старые pending батчи (>24ч)" action="delete_old_batches" />
                   <CleanupSection title="Удалить все pending батчи" action="delete_all_pending_batches" />
                   <CleanupSection title="Очистить campaign locks" action="clean_campaign_locks" />
                 </CardContent>
               </Card>
             </TabsContent>
-
-            {analytics && (
-              <>
-                <TabsContent value="rsya" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="Play" size={20} className="text-blue-500" />
-                          Выполнено запусков
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold">{analytics.rsya.totalExecutions}</div>
-                        <div className="flex gap-4 mt-4 text-sm">
-                          <div>
-                            <span className="text-green-600 font-semibold">{analytics.rsya.successfulExecutions}</span>
-                            <span className="text-muted-foreground ml-1">успешных</span>
-                          </div>
-                          <div>
-                            <span className="text-red-600 font-semibold">{analytics.rsya.failedExecutions}</span>
-                            <span className="text-muted-foreground ml-1">с ошибками</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="Ban" size={20} className="text-red-500" />
-                          Заблокировано площадок
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-red-600">{analytics.rsya.totalBlocked}</div>
-                        <p className="text-sm text-muted-foreground mt-4">
-                          Всего площадок заблокировано
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="TrendingUp" size={20} className="text-orange-500" />
-                          Среднее за запуск
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-orange-600">
-                          {analytics.rsya.avgBlockedPerExecution.toFixed(1)}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-4">
-                          Площадок блокируется в среднем
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="wordstat" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="ListChecks" size={20} className="text-blue-500" />
-                          Всего задач
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold">{analytics.overview.totalWordstatTasks}</div>
-                        <div className="space-y-2 mt-4 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">В ожидании:</span>
-                            <span className="font-semibold">{analytics.wordstat.pending}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">В работе:</span>
-                            <span className="font-semibold text-blue-600">{analytics.wordstat.processing}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="CheckCircle2" size={20} className="text-green-500" />
-                          Выполнено
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-green-600">{analytics.wordstat.completed}</div>
-                        <p className="text-sm text-muted-foreground mt-4">
-                          Успешно завершённых задач
-                        </p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Icon name="XCircle" size={20} className="text-red-500" />
-                          С ошибками
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-4xl font-bold text-red-600">{analytics.wordstat.failed}</div>
-                        <p className="text-sm text-muted-foreground mt-4">
-                          Задач завершилось с ошибкой
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-              </>
-            )}
           </Tabs>
         </div>
       </div>

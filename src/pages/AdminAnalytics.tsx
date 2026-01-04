@@ -431,7 +431,7 @@ export default function AdminAnalytics() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {dashboardStats.problematic_projects.map((proj: any) => (
+                          {dashboardStats.problematic_projects && dashboardStats.problematic_projects.map((proj: any) => (
                             <div key={proj.id} className="flex items-center justify-between p-3 border border-red-200 rounded-lg bg-red-50">
                               <div>
                                 <div className="font-semibold">{proj.name}</div>
@@ -462,7 +462,7 @@ export default function AdminAnalytics() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {dashboardStats.stale_tasks.map((task: any) => (
+                          {dashboardStats.stale_tasks && dashboardStats.stale_tasks.map((task: any) => (
                             <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
                               <div>
                                 <div className="flex items-center gap-2">
@@ -535,7 +535,7 @@ export default function AdminAnalytics() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {workersHealth.recent_errors.map((error: any) => (
+                          {workersHealth.recent_errors && workersHealth.recent_errors.map((error: any) => (
                             <div key={error.id} className="p-3 border border-red-200 rounded-lg bg-red-50">
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
@@ -586,7 +586,7 @@ export default function AdminAnalytics() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {workersHealth.problematic_queue.map((item: any) => (
+                          {workersHealth.problematic_queue && workersHealth.problematic_queue.map((item: any) => (
                             <div key={item.id} className="p-3 border border-orange-200 rounded-lg bg-orange-50">
                               <div className="flex items-center justify-between">
                                 <div>
@@ -628,7 +628,7 @@ export default function AdminAnalytics() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {workersHealth.execution_types_24h.map((type: any) => (
+                          {workersHealth.execution_types_24h && workersHealth.execution_types_24h.map((type: any) => (
                             <div key={type.execution_type} className="flex items-center justify-between p-3 border rounded-lg">
                               <div>
                                 <div className="font-semibold">{type.execution_type}</div>

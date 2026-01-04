@@ -156,7 +156,6 @@ export default function AdminAnalytics() {
                   </CardContent>
                 </Card>
               </div>
-            </div>
           )}
 
           <Tabs defaultValue="rsya" className="space-y-6">

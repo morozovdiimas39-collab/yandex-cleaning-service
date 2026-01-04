@@ -7,9 +7,9 @@ import psycopg2.extras
 import boto3
 
 # Константы для расчёта батчей
-AVG_TIME_PER_CAMPAIGN = 15  # секунд на обработку 1 кампании
-SAFE_TIMEOUT = 210  # 70% от 300 сек (Cloud Function timeout с запасом)
-BATCH_SIZE = int(SAFE_TIMEOUT / AVG_TIME_PER_CAMPAIGN)  # ≈14 кампаний
+AVG_TIME_PER_CAMPAIGN = 2  # секунд на обработку 1 кампании
+SAFE_TIMEOUT = 20  # 70% от 30 сек (Cloud Function timeout с запасом)
+BATCH_SIZE = int(SAFE_TIMEOUT / AVG_TIME_PER_CAMPAIGN)  # ≈10 кампаний
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -154,6 +154,15 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
     if not campaign_ids:
         print(f"⚠️ Project {project_id} has no campaigns")
         return 0
+    
+    # Удаляем старые pending батчи (если застряли)
+    cursor.execute("""
+        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches 
+        WHERE project_id = %s AND status = 'pending' AND created_at < NOW() - INTERVAL '10 minutes'
+    """, (project_id,))
+    deleted = cursor.rowcount
+    if deleted > 0:
+        print(f"🗑️ Deleted {deleted} stale pending batches for project {project_id}")
     
     # Проверяем, что батчи не созданы недавно (защита от дублей)
     cursor.execute("""

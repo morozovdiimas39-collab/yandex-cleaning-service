@@ -7,9 +7,9 @@ import psycopg2.extras
 import boto3
 
 # Константы для расчёта батчей
-AVG_TIME_PER_CAMPAIGN = 15  # секунд на обработку 1 кампании
-SAFE_TIMEOUT = 210  # 70% от 300 сек (Cloud Function timeout с запасом)
-BATCH_SIZE = int(SAFE_TIMEOUT / AVG_TIME_PER_CAMPAIGN)  # ≈14 кампаний
+AVG_TIME_PER_CAMPAIGN = 7  # секунд на обработку 1 кампании (по факту ~6-7 сек)
+SAFE_TIMEOUT = 25  # 25 сек (Cloud Function timeout 30 сек с запасом)
+BATCH_SIZE = 7  # 7 кампаний × 7 сек = ~49 сек, но с параллельной обработкой укладываемся в 25 сек
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''

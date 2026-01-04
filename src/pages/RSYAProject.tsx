@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
@@ -55,6 +59,25 @@ export default function RSYAProject() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<'smart' | 'expert'>('smart');
+  
+  const [formData, setFormData] = useState({
+    description: '',
+    keywords: '',
+    exceptions: '',
+    goal_id: 'all',
+    min_impressions: '',
+    max_impressions: '',
+    min_clicks: '',
+    max_clicks: '',
+    min_cpc: '',
+    max_cpc: '',
+    min_ctr: '',
+    max_ctr: '',
+    min_cpa: '',
+    max_cpa: ''
+  });
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -162,6 +185,81 @@ export default function RSYAProject() {
     }
   };
 
+  const createTask = async () => {
+    if (!formData.description.trim()) {
+      toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
+      return;
+    }
+
+    const config: any = {
+      goal_id: formData.goal_id
+    };
+
+    if (createMode === 'expert') {
+      if (formData.keywords.trim()) {
+        config.keywords = formData.keywords.split(',').map(k => k.trim()).filter(Boolean);
+      }
+      if (formData.exceptions.trim()) {
+        config.exceptions = formData.exceptions.split(',').map(e => e.trim()).filter(Boolean);
+      }
+      if (formData.min_impressions) config.min_impressions = parseInt(formData.min_impressions);
+      if (formData.max_impressions) config.max_impressions = parseInt(formData.max_impressions);
+      if (formData.min_clicks) config.min_clicks = parseInt(formData.min_clicks);
+      if (formData.max_clicks) config.max_clicks = parseInt(formData.max_clicks);
+      if (formData.min_cpc) config.min_cpc = parseFloat(formData.min_cpc);
+      if (formData.max_cpc) config.max_cpc = parseFloat(formData.max_cpc);
+      if (formData.min_ctr) config.min_ctr = parseFloat(formData.min_ctr);
+      if (formData.max_ctr) config.max_ctr = parseFloat(formData.max_ctr);
+      if (formData.min_cpa) config.min_cpa = parseFloat(formData.min_cpa);
+      if (formData.max_cpa) config.max_cpa = parseFloat(formData.max_cpa);
+    }
+
+    try {
+      const response = await fetch(RSYA_PROJECTS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          action: 'create_task',
+          project_id: parseInt(projectId || '0'),
+          description: formData.description,
+          config
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.tasks) {
+          setTasks(data.tasks);
+        }
+        toast({ title: '✅ Задача создана' });
+        setIsCreateDialogOpen(false);
+        setFormData({
+          description: '',
+          keywords: '',
+          exceptions: '',
+          goal_id: 'all',
+          min_impressions: '',
+          max_impressions: '',
+          min_clicks: '',
+          max_clicks: '',
+          min_cpc: '',
+          max_cpc: '',
+          min_ctr: '',
+          max_ctr: '',
+          min_cpa: '',
+          max_cpa: ''
+        });
+      } else {
+        toast({ title: 'Ошибка', description: 'Не удалось создать задачу', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      toast({ title: 'Ошибка', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const filteredTasks = tasks.filter(task => 
     task.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -221,7 +319,10 @@ export default function RSYAProject() {
                 className="pl-10 bg-white"
               />
             </div>
-            <Button className="bg-green-600 hover:bg-green-700 text-white gap-2">
+            <Button 
+              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
               <Icon name="Plus" className="h-4 w-4" />
               Создать
             </Button>
@@ -366,6 +467,215 @@ export default function RSYAProject() {
             )}
           </div>
         </div>
+
+        {/* Create Task Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Создать задачу</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="description">Название задачи</Label>
+                <Input
+                  id="description"
+                  placeholder="Например: Блокировка дорогих площадок"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
+              <Tabs value={createMode} onValueChange={(v) => setCreateMode(v as 'smart' | 'expert')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="smart">Умная очистка</TabsTrigger>
+                  <TabsTrigger value="expert">Режим эксперта</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="smart" className="space-y-4 mt-4">
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <Icon name="Sparkles" className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-blue-900 mb-1">Автоматическая оптимизация</h4>
+                        <p className="text-sm text-blue-700">
+                          Система автоматически заблокирует площадки с низкой эффективностью на основе машинного обучения
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="goal_id_smart">Цель оптимизации</Label>
+                    <Input
+                      id="goal_id_smart"
+                      placeholder="ID цели или 'all' для всех конверсий"
+                      value={formData.goal_id}
+                      onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="expert" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="keywords">Вхождения для блокировки</Label>
+                      <Textarea
+                        id="keywords"
+                        placeholder="Через запятую: com, dsp, vpn"
+                        value={formData.keywords}
+                        onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="exceptions">Исключения (не блокировать)</Label>
+                      <Textarea
+                        id="exceptions"
+                        placeholder="Через запятую: ozon, yandex"
+                        value={formData.exceptions}
+                        onChange={(e) => setFormData({ ...formData, exceptions: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min_impressions">Мин. показов</Label>
+                      <Input
+                        id="min_impressions"
+                        type="number"
+                        value={formData.min_impressions}
+                        onChange={(e) => setFormData({ ...formData, min_impressions: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max_impressions">Макс. показов</Label>
+                      <Input
+                        id="max_impressions"
+                        type="number"
+                        value={formData.max_impressions}
+                        onChange={(e) => setFormData({ ...formData, max_impressions: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min_clicks">Мин. кликов</Label>
+                      <Input
+                        id="min_clicks"
+                        type="number"
+                        value={formData.min_clicks}
+                        onChange={(e) => setFormData({ ...formData, min_clicks: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max_clicks">Макс. кликов</Label>
+                      <Input
+                        id="max_clicks"
+                        type="number"
+                        value={formData.max_clicks}
+                        onChange={(e) => setFormData({ ...formData, max_clicks: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min_cpc">Мин. цена клика (₽)</Label>
+                      <Input
+                        id="min_cpc"
+                        type="number"
+                        step="0.01"
+                        value={formData.min_cpc}
+                        onChange={(e) => setFormData({ ...formData, min_cpc: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max_cpc">Макс. цена клика (₽)</Label>
+                      <Input
+                        id="max_cpc"
+                        type="number"
+                        step="0.01"
+                        value={formData.max_cpc}
+                        onChange={(e) => setFormData({ ...formData, max_cpc: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min_ctr">Мин. CTR (%)</Label>
+                      <Input
+                        id="min_ctr"
+                        type="number"
+                        step="0.01"
+                        value={formData.min_ctr}
+                        onChange={(e) => setFormData({ ...formData, min_ctr: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max_ctr">Макс. CTR (%)</Label>
+                      <Input
+                        id="max_ctr"
+                        type="number"
+                        step="0.01"
+                        value={formData.max_ctr}
+                        onChange={(e) => setFormData({ ...formData, max_ctr: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="min_cpa">Мин. CPA (₽)</Label>
+                      <Input
+                        id="min_cpa"
+                        type="number"
+                        step="0.01"
+                        value={formData.min_cpa}
+                        onChange={(e) => setFormData({ ...formData, min_cpa: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="max_cpa">Макс. CPA (₽)</Label>
+                      <Input
+                        id="max_cpa"
+                        type="number"
+                        step="0.01"
+                        value={formData.max_cpa}
+                        onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="goal_id_expert">ID цели</Label>
+                      <Input
+                        id="goal_id_expert"
+                        placeholder="ID цели или 'all' для всех конверсий"
+                        value={formData.goal_id}
+                        onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={createTask}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Создать задачу
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Отмена
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

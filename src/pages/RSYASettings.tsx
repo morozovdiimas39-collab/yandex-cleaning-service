@@ -331,40 +331,6 @@ export default function RSYASettings() {
             </CardContent>
           </Card>
 
-          {goals.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Icon name="Target" className="h-5 w-5 text-purple-500" />
-                  Цели из Яндекс.Метрики
-                </CardTitle>
-                <CardDescription>Эти цели будут доступны при создании задач</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingGoals ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Icon name="Loader2" className="animate-spin h-8 w-8 text-green-600" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {goals.map(goal => (
-                      <div key={`${goal.counter_id}-${goal.id}`} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <Icon name="Target" className="h-4 w-4 text-purple-600 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-purple-900 truncate">{goal.name}</p>
-                            <p className="text-xs text-purple-600 mt-1">ID: {goal.id}</p>
-                            <p className="text-xs text-purple-500 mt-0.5">Счётчик: {goal.counter_name}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           <div className="flex justify-end gap-3">
             <Button onClick={() => navigate(`/rsya/${projectId}`)} variant="outline">
               Отмена

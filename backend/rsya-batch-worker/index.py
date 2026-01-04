@@ -460,15 +460,15 @@ def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn, proje
     '''Блокирует кампанию для обработки (избегаем race condition)'''
     try:
         cursor.execute("""
-            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaign_locks (project_id, campaign_id, worker_id, locked_until)
-            VALUES (%s, %s, %s, NOW() + INTERVAL '5 minutes')
-            ON CONFLICT (project_id, campaign_id) DO UPDATE
-            SET worker_id = EXCLUDED.worker_id,
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaign_locks (campaign_id, locked_by, expires_at)
+            VALUES (%s, %s, NOW() + INTERVAL '5 minutes')
+            ON CONFLICT (campaign_id) DO UPDATE
+            SET locked_by = EXCLUDED.locked_by,
                 locked_at = NOW(),
-                locked_until = EXCLUDED.locked_until
-            WHERE t_p97630513_yandex_cleaning_serv.rsya_campaign_locks.locked_until < NOW()
+                expires_at = EXCLUDED.expires_at
+            WHERE t_p97630513_yandex_cleaning_serv.rsya_campaign_locks.expires_at < NOW()
             RETURNING campaign_id
-        """, (project_id, campaign_id, request_id))
+        """, (campaign_id, request_id))
         conn.commit()
         result = cursor.fetchone()
         return result is not None
@@ -481,9 +481,9 @@ def release_campaign_lock(campaign_id: str, cursor, conn, project_id: int) -> No
     try:
         cursor.execute("""
             UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_locks 
-            SET locked_until = NOW() 
-            WHERE project_id = %s AND campaign_id = %s
-        """, (project_id, campaign_id))
+            SET expires_at = NOW() 
+            WHERE campaign_id = %s
+        """, (campaign_id,))
         conn.commit()
     except:
         pass

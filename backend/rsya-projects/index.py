@@ -1074,13 +1074,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'project_id required'})
                 }
             
+            # Проверяем что проект принадлежит пользователю
             cursor.execute(
-                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s RETURNING id",
+                "SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s AND user_id = %s",
                 (project_id, user_id_int)
             )
-            row = cursor.fetchone()
-            
-            if not row:
+            if not cursor.fetchone():
                 cursor.close()
                 conn.close()
                 return {
@@ -1088,6 +1087,59 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                     'body': json.dumps({'error': 'Project not found'})
                 }
+            
+            # 1. Удаляем все задачи проекта (это удалит и связанные записи через CASCADE)
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s",
+                (project_id,)
+            )
+            deleted_tasks = cursor.rowcount
+            print(f'🗑️  Deleted {deleted_tasks} tasks for project {project_id}')
+            
+            # 2. Удаляем pending батчи
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 3. Удаляем блокировки кампаний
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 4. Удаляем статистику площадок
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 5. Удаляем кампании проекта
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaigns WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 6. Удаляем цели проекта
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 7. Удаляем расписание проекта
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule WHERE project_id = %s",
+                (project_id,)
+            )
+            
+            # 8. Удаляем сам проект
+            cursor.execute(
+                "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s",
+                (project_id,)
+            )
+            
+            conn.commit()
+            print(f'✅ Project {project_id} and all related data deleted')
             
             cursor.close()
             conn.close()

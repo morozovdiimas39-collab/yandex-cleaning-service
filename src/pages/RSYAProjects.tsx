@@ -100,9 +100,10 @@ export default function RSYAProjects() {
 
   const deleteProject = async (projectId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Удалить проект?')) return;
+    e.preventDefault();
     
-    setLoading(true);
+    if (!confirm('Удалить проект и все его задачи?')) return;
+    
     try {
       const response = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
         method: 'DELETE',
@@ -111,14 +112,16 @@ export default function RSYAProjects() {
         }
       });
 
-      if (!response.ok) throw new Error('Ошибка удаления');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Ошибка удаления');
+      }
 
       setProjects(projects.filter(p => p.id !== projectId));
-      toast({ title: '✅ Проект удалён' });
-    } catch (error) {
-      toast({ title: 'Ошибка', description: 'Не удалось удалить проект', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+      toast({ title: '✅ Проект и все задачи удалены' });
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast({ title: 'Ошибка', description: error.message || 'Не удалось удалить проект', variant: 'destructive' });
     }
   };
 

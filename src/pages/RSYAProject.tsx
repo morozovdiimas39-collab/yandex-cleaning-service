@@ -38,12 +38,20 @@ interface Task {
   };
 }
 
+interface Goal {
+  id: string;
+  name: string;
+  counter_id?: string;
+  counter_name?: string;
+}
+
 interface Project {
   id: number;
   name: string;
   yandex_token?: string;
   campaign_ids?: string[];
   counter_ids?: string[];
+  goals?: Goal[];
 }
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || '';
@@ -222,7 +230,7 @@ export default function RSYAProject() {
           'X-User-Id': userId
         },
         body: JSON.stringify({
-          action: 'create_task',
+          action: 'add_task',
           project_id: parseInt(projectId || '0'),
           description: formData.description,
           config
@@ -507,19 +515,29 @@ export default function RSYAProject() {
 
                   <div className="space-y-2">
                     <Label htmlFor="goal_id_smart">Цель оптимизации</Label>
-                    <Input
+                    <select
                       id="goal_id_smart"
-                      placeholder="ID цели или 'all' для всех конверсий"
                       value={formData.goal_id}
                       onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="all">Все конверсии</option>
+                      {project?.goals?.map((goal) => (
+                        <option key={goal.id} value={goal.id}>
+                          {goal.name} (ID: {goal.id})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </TabsContent>
 
                 <TabsContent value="expert" className="space-y-4 mt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2 space-y-2">
-                      <Label htmlFor="keywords">Вхождения для блокировки</Label>
+                      <div className="flex items-center gap-2">
+                        <Icon name="ShieldOff" className="h-4 w-4 text-red-500" />
+                        <Label htmlFor="keywords">Вхождения для блокировки</Label>
+                      </div>
                       <Textarea
                         id="keywords"
                         placeholder="Через запятую: com, dsp, vpn"
@@ -530,7 +548,10 @@ export default function RSYAProject() {
                     </div>
 
                     <div className="col-span-2 space-y-2">
-                      <Label htmlFor="exceptions">Исключения (не блокировать)</Label>
+                      <div className="flex items-center gap-2">
+                        <Icon name="ShieldCheck" className="h-4 w-4 text-green-500" />
+                        <Label htmlFor="exceptions">Исключения (не блокировать)</Label>
+                      </div>
                       <Textarea
                         id="exceptions"
                         placeholder="Через запятую: ozon, yandex"
@@ -540,120 +561,138 @@ export default function RSYAProject() {
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="min_impressions">Мин. показов</Label>
-                      <Input
-                        id="min_impressions"
-                        type="number"
-                        value={formData.min_impressions}
-                        onChange={(e) => setFormData({ ...formData, min_impressions: e.target.value })}
-                      />
+                    <div className="col-span-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Icon name="Eye" className="h-4 w-4 text-blue-500" />
+                        <Label className="text-base font-semibold">Показы и клики</Label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="min_impressions" className="text-sm">Мин. показов</Label>
+                          <Input
+                            id="min_impressions"
+                            type="number"
+                            value={formData.min_impressions}
+                            onChange={(e) => setFormData({ ...formData, min_impressions: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max_impressions" className="text-sm">Макс. показов</Label>
+                          <Input
+                            id="max_impressions"
+                            type="number"
+                            value={formData.max_impressions}
+                            onChange={(e) => setFormData({ ...formData, max_impressions: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="min_clicks" className="text-sm">Мин. кликов</Label>
+                          <Input
+                            id="min_clicks"
+                            type="number"
+                            value={formData.min_clicks}
+                            onChange={(e) => setFormData({ ...formData, min_clicks: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max_clicks" className="text-sm">Макс. кликов</Label>
+                          <Input
+                            id="max_clicks"
+                            type="number"
+                            value={formData.max_clicks}
+                            onChange={(e) => setFormData({ ...formData, max_clicks: e.target.value })}
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="max_impressions">Макс. показов</Label>
-                      <Input
-                        id="max_impressions"
-                        type="number"
-                        value={formData.max_impressions}
-                        onChange={(e) => setFormData({ ...formData, max_impressions: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="min_clicks">Мин. кликов</Label>
-                      <Input
-                        id="min_clicks"
-                        type="number"
-                        value={formData.min_clicks}
-                        onChange={(e) => setFormData({ ...formData, min_clicks: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="max_clicks">Макс. кликов</Label>
-                      <Input
-                        id="max_clicks"
-                        type="number"
-                        value={formData.max_clicks}
-                        onChange={(e) => setFormData({ ...formData, max_clicks: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="min_cpc">Мин. цена клика (₽)</Label>
-                      <Input
-                        id="min_cpc"
-                        type="number"
-                        step="0.01"
-                        value={formData.min_cpc}
-                        onChange={(e) => setFormData({ ...formData, min_cpc: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="max_cpc">Макс. цена клика (₽)</Label>
-                      <Input
-                        id="max_cpc"
-                        type="number"
-                        step="0.01"
-                        value={formData.max_cpc}
-                        onChange={(e) => setFormData({ ...formData, max_cpc: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="min_ctr">Мин. CTR (%)</Label>
-                      <Input
-                        id="min_ctr"
-                        type="number"
-                        step="0.01"
-                        value={formData.min_ctr}
-                        onChange={(e) => setFormData({ ...formData, min_ctr: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="max_ctr">Макс. CTR (%)</Label>
-                      <Input
-                        id="max_ctr"
-                        type="number"
-                        step="0.01"
-                        value={formData.max_ctr}
-                        onChange={(e) => setFormData({ ...formData, max_ctr: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="min_cpa">Мин. CPA (₽)</Label>
-                      <Input
-                        id="min_cpa"
-                        type="number"
-                        step="0.01"
-                        value={formData.min_cpa}
-                        onChange={(e) => setFormData({ ...formData, min_cpa: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="max_cpa">Макс. CPA (₽)</Label>
-                      <Input
-                        id="max_cpa"
-                        type="number"
-                        step="0.01"
-                        value={formData.max_cpa}
-                        onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
-                      />
+                    <div className="col-span-2">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Icon name="DollarSign" className="h-4 w-4 text-green-500" />
+                        <Label className="text-base font-semibold">Цена и эффективность</Label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="min_cpc" className="text-sm">Мин. цена клика (₽)</Label>
+                          <Input
+                            id="min_cpc"
+                            type="number"
+                            step="0.01"
+                            value={formData.min_cpc}
+                            onChange={(e) => setFormData({ ...formData, min_cpc: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max_cpc" className="text-sm">Макс. цена клика (₽)</Label>
+                          <Input
+                            id="max_cpc"
+                            type="number"
+                            step="0.01"
+                            value={formData.max_cpc}
+                            onChange={(e) => setFormData({ ...formData, max_cpc: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="min_ctr" className="text-sm">Мин. CTR (%)</Label>
+                          <Input
+                            id="min_ctr"
+                            type="number"
+                            step="0.01"
+                            value={formData.min_ctr}
+                            onChange={(e) => setFormData({ ...formData, min_ctr: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max_ctr" className="text-sm">Макс. CTR (%)</Label>
+                          <Input
+                            id="max_ctr"
+                            type="number"
+                            step="0.01"
+                            value={formData.max_ctr}
+                            onChange={(e) => setFormData({ ...formData, max_ctr: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="min_cpa" className="text-sm">Мин. CPA (₽)</Label>
+                          <Input
+                            id="min_cpa"
+                            type="number"
+                            step="0.01"
+                            value={formData.min_cpa}
+                            onChange={(e) => setFormData({ ...formData, min_cpa: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="max_cpa" className="text-sm">Макс. CPA (₽)</Label>
+                          <Input
+                            id="max_cpa"
+                            type="number"
+                            step="0.01"
+                            value={formData.max_cpa}
+                            onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="col-span-2 space-y-2">
-                      <Label htmlFor="goal_id_expert">ID цели</Label>
-                      <Input
+                      <div className="flex items-center gap-2">
+                        <Icon name="Target" className="h-4 w-4 text-purple-500" />
+                        <Label htmlFor="goal_id_expert">Цель конверсии</Label>
+                      </div>
+                      <select
                         id="goal_id_expert"
-                        placeholder="ID цели или 'all' для всех конверсий"
                         value={formData.goal_id}
                         onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                      />
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="all">Все конверсии</option>
+                        {project?.goals?.map((goal) => (
+                          <option key={goal.id} value={goal.id}>
+                            {goal.name} (ID: {goal.id})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </TabsContent>

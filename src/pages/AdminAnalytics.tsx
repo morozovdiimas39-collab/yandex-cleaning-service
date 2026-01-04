@@ -844,8 +844,8 @@ function CleanupSection({ title, action, dangerous = false }: { title: string; a
       confirmText = `⚠️ КРИТИЧЕСКОЕ ДЕЙСТВИЕ ⚠️\n\nЭто удалит:\n- ВСЕ проекты\n- ВСЕ задачи\n- ВСЕ логи выполнений\n- ВСЕ логи блокировок\n- ВСЮ очередь блокировок\n- ВСЕ батчи кампаний\n\nДЕЙСТВИЕ НЕОБРАТИМО!\n\nВведите "DELETE ALL" для подтверждения:`;
       
       const userInput = prompt(confirmText);
-      if (userInput !== 'DELETE ALL') {
-        alert('Отменено. Требуется точное совпадение текста.');
+      if (!userInput || userInput.trim().toUpperCase() !== 'DELETE ALL') {
+        alert('Отменено. Требуется ввести: DELETE ALL');
         return;
       }
     } else {

@@ -40,28 +40,51 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'DATABASE_URL not configured'})
         }
     
+    # Проверяем параметр force_all для игнорирования расписания
+    params = event.get('queryStringParameters') or {}
+    force_all = params.get('force_all') == 'true'
+    
     try:
         conn = psycopg2.connect(dsn)
         conn.autocommit = False
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Получаем проекты, которые нужно запустить
-        print(f"🔍 Checking for projects to schedule at {datetime.now()}")
-        cursor.execute("""
-            SELECT 
-                s.id as schedule_id,
-                s.project_id,
-                s.interval_hours,
-                p.yandex_token,
-                p.campaign_ids
-            FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
-            JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
-            WHERE s.is_active = TRUE
-              AND s.next_run_at <= CURRENT_TIMESTAMP
-              AND p.yandex_token IS NOT NULL
-            ORDER BY s.next_run_at
-            LIMIT 5
-        """)
+        print(f"🔍 Checking for projects to schedule at {datetime.now()} (force_all={force_all})")
+        
+        if force_all:
+            # Игнорируем расписание — берём ВСЕ активные проекты
+            cursor.execute("""
+                SELECT 
+                    s.id as schedule_id,
+                    s.project_id,
+                    s.interval_hours,
+                    p.yandex_token,
+                    p.campaign_ids
+                FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
+                JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
+                WHERE s.is_active = TRUE
+                  AND p.yandex_token IS NOT NULL
+                ORDER BY s.project_id
+                LIMIT 10
+            """)
+        else:
+            # Обычный режим — по расписанию
+            cursor.execute("""
+                SELECT 
+                    s.id as schedule_id,
+                    s.project_id,
+                    s.interval_hours,
+                    p.yandex_token,
+                    p.campaign_ids
+                FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
+                JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
+                WHERE s.is_active = TRUE
+                  AND s.next_run_at <= CURRENT_TIMESTAMP
+                  AND p.yandex_token IS NOT NULL
+                ORDER BY s.next_run_at
+                LIMIT 5
+            """)
         
         projects = cursor.fetchall()
         print(f"📊 Found {len(projects)} projects to schedule")

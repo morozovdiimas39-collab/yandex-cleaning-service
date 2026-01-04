@@ -41,14 +41,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         message_body = event['messages'][0]['details']['message']['body']
         data = json.loads(message_body)
     else:
-        # Прямой вызов (для тестов)
+        # Прямой вызов (для тестов) — читаем из БД
         body_str = event.get('body', '{}')
         if not body_str or body_str == '{}':
-            return {
-                'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Empty body. Expected batch_id, project_id, campaign_ids, yandex_token'})
-            }
+            # DB FALLBACK: читаем pending батчи из базы
+            print('📭 Empty body, checking database for pending batches...')
+            return process_from_database()
         data = json.loads(body_str) if isinstance(body_str, str) else body_str
     
     batch_id = data.get('batch_id')
@@ -382,6 +380,70 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bo
         return False
     
     return True
+
+
+def process_from_database() -> Dict[str, Any]:
+    '''DB Fallback: обработка pending батчей из базы'''
+    dsn = os.environ.get('DATABASE_URL')
+    if not dsn:
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'DATABASE_URL not configured'})
+        }
+    
+    try:
+        conn = psycopg2.connect(dsn)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Получаем 1 pending batch
+        cursor.execute("""
+            SELECT b.id, b.project_id, b.campaign_ids, p.yandex_token
+            FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
+            JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = b.project_id
+            WHERE b.status = 'pending'
+            ORDER BY b.created_at ASC
+            LIMIT 1
+        """)
+        
+        batch = cursor.fetchone()
+        
+        if not batch:
+            conn.close()
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({
+                    'success': True,
+                    'message': 'No pending batches',
+                    'processed': 0
+                })
+            }
+        
+        # Обрабатываем батч рекурсивно через handler
+        event = {
+            'httpMethod': 'POST',
+            'body': json.dumps({
+                'batch_id': batch['id'],
+                'project_id': batch['project_id'],
+                'campaign_ids': json.loads(batch['campaign_ids']) if isinstance(batch['campaign_ids'], str) else batch['campaign_ids'],
+                'yandex_token': batch['yandex_token']
+            })
+        }
+        
+        class FakeContext:
+            request_id = 'db-fallback'
+        
+        conn.close()
+        return handler(event, FakeContext())
+        
+    except Exception as e:
+        print(f'❌ DB Fallback error: {str(e)}')
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': str(e)})
+        }
 
 
 def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn, project_id: int) -> bool:

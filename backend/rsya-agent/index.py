@@ -1348,21 +1348,24 @@ def read_google_sheet(user_id: str, project_id: str, args: Dict) -> Dict:
         headers = values[0]
         rows = values[1:]
         
+        print(f'📊 Headers from sheet: {headers}')
+        
         # Находим колонки с датами и "Директ"
         date_col_idx = None
         direct_col_idx = None
         
         for idx, header in enumerate(headers):
-            if 'дата' in header.lower():
+            header_lower = str(header).lower().strip()
+            if 'дата' in header_lower or 'date' in header_lower:
                 date_col_idx = idx
-            if 'директ' in header.lower():
+            if 'директ' in header_lower or 'direct' in header_lower or 'yandex' in header_lower:
                 direct_col_idx = idx
         
         if date_col_idx is None or direct_col_idx is None:
             return {
                 'function': 'read_google_sheet',
                 'status': 'error',
-                'message': 'Не найдены колонки "Дата" или "Директ"'
+                'message': f'Не найдены нужные колонки. Найдены заголовки: {", ".join(str(h) for h in headers)}. Нужны колонки с "Дата" и "Директ" в названии.'
             }
         
         # Собираем данные

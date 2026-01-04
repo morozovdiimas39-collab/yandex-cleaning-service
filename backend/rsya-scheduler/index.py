@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import psycopg2
 import psycopg2.extras
 import boto3
+import requests
 
 # Константы для расчёта батчей
 AVG_TIME_PER_CAMPAIGN = 7  # секунд на обработку 1 кампании (по факту ~6-7 сек)
@@ -215,15 +216,20 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
         
         batch_id = cursor.fetchone()['id']
         
-        # Отправляем в Message Queue
-        send_to_mq({
+        batch_data = {
             'batch_id': batch_id,
             'project_id': project_id,
             'campaign_ids': batch_campaign_ids,
             'yandex_token': yandex_token,
             'batch_number': batch_number,
             'total_batches': total_batches
-        })
+        }
+        
+        # Отправляем в Message Queue (для истории)
+        send_to_mq(batch_data)
+        
+        # СРАЗУ вызываем Worker через HTTP (синхронно)
+        invoke_worker_sync(batch_data)
     
     return total_batches
 
@@ -258,3 +264,29 @@ def send_to_mq(message: Dict[str, Any]) -> None:
     )
     
     print(f"✅ Sent batch {message['batch_number']}/{message['total_batches']} to MQ (MessageId: {response.get('MessageId', 'N/A')})")
+
+
+def invoke_worker_sync(batch_data: Dict[str, Any]) -> None:
+    '''Синхронный вызов Worker через HTTP (для ручного запуска)'''
+    worker_url = 'https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81'
+    
+    try:
+        print(f"🚀 Invoking Worker directly for batch {batch_data['batch_number']}/{batch_data['total_batches']}...")
+        
+        response = requests.post(
+            worker_url,
+            json=batch_data,
+            headers={'Content-Type': 'application/json'},
+            timeout=120  # 2 минуты таймаут (Worker может обрабатывать до 90 сек)
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ Worker processed batch {batch_data['batch_number']}: {result.get('successful', 0)} successful, {result.get('failed', 0)} failed")
+        else:
+            print(f"⚠️ Worker returned status {response.status_code}: {response.text[:200]}")
+    
+    except requests.exceptions.Timeout:
+        print(f"⏱️ Worker timeout for batch {batch_data['batch_number']} (still processing in background)")
+    except Exception as e:
+        print(f"❌ Failed to invoke Worker for batch {batch_data['batch_number']}: {str(e)}")

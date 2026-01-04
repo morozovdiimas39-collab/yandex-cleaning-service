@@ -926,16 +926,28 @@ export default function RSYAProject() {
                               </select>
                             )}
                           </div>
-                          <div>
-                            <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="500"
-                              value={formData.max_cpa}
-                              onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
-                              className="mt-1 bg-white border-purple-200"
-                            />
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="500"
+                                value={formData.max_cpa}
+                                onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
+                                className="mt-1 bg-white border-purple-200"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm text-purple-900">Мин. конверсий</Label>
+                              <Input
+                                type="number"
+                                placeholder="1"
+                                value={formData.min_conversions || ''}
+                                onChange={(e) => setFormData({ ...formData, min_conversions: e.target.value })}
+                                className="mt-1 bg-white border-purple-200"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

@@ -499,6 +499,18 @@ def block_placements_batch(
     # Получаем текущий список ExcludedSites из Яндекса
     current_excluded = get_excluded_sites(token, campaign_id)
     
+    # КРИТИЧНО: Если кампания архивная - удаляем из очереди и пропускаем
+    if current_excluded == 'ARCHIVED':
+        print(f'🗑️ Campaign {campaign_id} is archived, removing {len(placements)} placements from queue')
+        for placement in placements:
+            cursor.execute("""
+                DELETE FROM block_queue 
+                WHERE project_id = %s 
+                  AND campaign_id = %s 
+                  AND domain = %s
+            """, (project_id, campaign_id, placement['domain']))
+        return {'processed': len(placements), 'blocked': 0, 'failed': 0}
+    
     if current_excluded is None:
         print(f'❌ Failed to fetch ExcludedSites for campaign {campaign_id}')
         return {'processed': 0, 'blocked': 0, 'failed': len(placements)}
@@ -565,8 +577,8 @@ def block_placements_batch(
         return {'processed': len(placements), 'blocked': 0, 'failed': len(placements)}
 
 
-def get_excluded_sites(token: str, campaign_id: int) -> List[str]:
-    '''Получение списка ExcludedSites из Яндекс.Директ (возвращает дедуплицированный список)'''
+def get_excluded_sites(token: str, campaign_id: int):
+    '''Получение списка ExcludedSites из Яндекс.Директ (возвращает список доменов или 'ARCHIVED')'''
     
     try:
         response = requests.post(
@@ -577,7 +589,7 @@ def get_excluded_sites(token: str, campaign_id: int) -> List[str]:
                     'SelectionCriteria': {
                         'Ids': [campaign_id]
                     },
-                    'FieldNames': ['Id', 'ExcludedSites']
+                    'FieldNames': ['Id', 'ExcludedSites', 'Status']
                 }
             },
             headers={'Authorization': f'Bearer {token}'}
@@ -592,6 +604,12 @@ def get_excluded_sites(token: str, campaign_id: int) -> List[str]:
         
         if not campaigns:
             return []
+        
+        # ПРОВЕРЯЕМ СТАТУС КАМПАНИИ
+        campaign_status = campaigns[0].get('Status', 'UNKNOWN')
+        if campaign_status == 'ARCHIVED':
+            print(f'⚠️ Campaign {campaign_id} is ARCHIVED, cannot be modified')
+            return 'ARCHIVED'  # Специальное значение
         
         excluded_sites_obj = campaigns[0].get('ExcludedSites', {})
         excluded = excluded_sites_obj.get('Items', []) if excluded_sites_obj else []

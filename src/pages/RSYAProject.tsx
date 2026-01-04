@@ -538,19 +538,27 @@ export default function RSYAProject() {
                       <Icon name="Target" className="h-5 w-5 text-purple-500" />
                       <Label htmlFor="goal_id_smart" className="text-base font-semibold">Цель оптимизации</Label>
                     </div>
-                    <select
-                      id="goal_id_smart"
-                      value={formData.goal_id}
-                      onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                      className="w-full h-11 px-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                    >
-                      <option value="all">🎯 Все конверсии</option>
-                      {project?.goals?.map((goal) => (
-                        <option key={goal.id} value={goal.id}>
-                          {goal.name} (ID: {goal.id})
-                        </option>
-                      ))}
-                    </select>
+                    {(!project?.goals || project.goals.length === 0) ? (
+                      <div className="p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ Сначала настройте счетчики Метрики в настройках проекта для загрузки целей
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        id="goal_id_smart"
+                        value={formData.goal_id}
+                        onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
+                        className="w-full h-11 px-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+                      >
+                        <option value="all">🎯 Все конверсии</option>
+                        {project.goals.map((goal) => (
+                          <option key={goal.id} value={goal.id}>
+                            {goal.name} (ID: {goal.id})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -703,19 +711,27 @@ export default function RSYAProject() {
                         <Icon name="Target" className="h-4 w-4 text-purple-500" />
                         <Label htmlFor="goal_id_expert">Цель конверсии</Label>
                       </div>
-                      <select
-                        id="goal_id_expert"
-                        value={formData.goal_id}
-                        onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      >
-                        <option value="all">Все конверсии</option>
-                        {project?.goals?.map((goal) => (
-                          <option key={goal.id} value={goal.id}>
-                            {goal.name} (ID: {goal.id})
-                          </option>
-                        ))}
-                      </select>
+                      {(!project?.goals || project.goals.length === 0) ? (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            ⚠️ Сначала настройте счетчики Метрики в настройках проекта
+                          </p>
+                        </div>
+                      ) : (
+                        <select
+                          id="goal_id_expert"
+                          value={formData.goal_id}
+                          onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                          <option value="all">Все конверсии</option>
+                          {project.goals.map((goal) => (
+                            <option key={goal.id} value={goal.id}>
+                              {goal.name} (ID: {goal.id})
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
                 </TabsContent>

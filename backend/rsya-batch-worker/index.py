@@ -396,6 +396,16 @@ def process_from_database() -> Dict[str, Any]:
         conn = psycopg2.connect(dsn)
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
+        # ОЧИСТКА МЕРТВЫХ ЛОКОВ (старше 5 минут)
+        cursor.execute("""
+            DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks 
+            WHERE locked_until < NOW()
+        """)
+        deleted_locks = cursor.rowcount
+        conn.commit()
+        if deleted_locks > 0:
+            print(f'🔓 Cleaned {deleted_locks} expired campaign locks')
+        
         # Получаем 1 pending batch
         cursor.execute("""
             SELECT b.id, b.project_id, b.campaign_ids, p.yandex_token

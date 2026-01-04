@@ -202,7 +202,7 @@ export default function RSYAProject() {
     <div className="flex h-screen bg-gray-50">
       <AppSidebar />
       
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto ml-64">
         <div className="max-w-6xl mx-auto p-4 md:p-8">
           {/* Header */}
           <div className="mb-8">

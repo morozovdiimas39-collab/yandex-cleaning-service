@@ -7,13 +7,13 @@
       "expectedStatus": 401
     },
     {
-      "name": "Test non-admin access",
+      "name": "Test admin analytics endpoint",
       "method": "GET",
-      "path": "/",
+      "path": "/?action=analytics",
       "headers": {
-        "X-User-Id": "test-user"
+        "X-Admin-Key": "directkit_admin_2024"
       },
-      "expectedStatus": 403
+      "expectedStatus": 200
     }
   ]
 }

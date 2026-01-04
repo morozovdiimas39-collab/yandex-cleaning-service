@@ -68,6 +68,8 @@ export default function AdminAnalytics() {
   const [workersHealth, setWorkersHealth] = useState<WorkersHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('overview');
+  const [expandedProject, setExpandedProject] = useState<number | null>(null);
+  const [projectTasks, setProjectTasks] = useState<{[key: number]: any[]}>({});
 
   useEffect(() => {
     loadAnalytics();
@@ -139,6 +141,83 @@ export default function AdminAnalytics() {
       }
     } catch (error) {
       console.error('Failed to load workers health:', error);
+    }
+  };
+
+  const loadProjectTasks = async (projectId: number) => {
+    if (projectTasks[projectId]) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_project_detail&project_id=${projectId}`, {
+        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProjectTasks(prev => ({ ...prev, [projectId]: data.tasks_stats || [] }));
+      }
+    } catch (error) {
+      console.error('Failed to load project tasks:', error);
+    }
+  };
+
+  const toggleProject = (projectId: number) => {
+    if (expandedProject === projectId) {
+      setExpandedProject(null);
+    } else {
+      setExpandedProject(projectId);
+      loadProjectTasks(projectId);
+    }
+  };
+
+  const deleteProject = async (projectId: number, projectName: string) => {
+    if (!confirm(`Вы уверены что хотите удалить проект "${projectName}" (ID: ${projectId})?\n\nЭто удалит:\n- Проект\n- Все задачи проекта\n- Все логи выполнений\n- Все записи в очереди блокировок\n- Все логи блокировок\n\nДействие необратимо!`)) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=delete_project&project_id=${projectId}`, {
+        method: 'POST',
+        headers: {
+          'X-Admin-Key': 'directkit_admin_2024',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Проект удален!\n${data.message}`);
+        loadProjects();
+        loadAnalytics();
+      } else {
+        alert('Ошибка при удалении проекта');
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error}`);
+    }
+  };
+
+  const deleteTask = async (taskId: number, taskDescription: string, projectId: number) => {
+    if (!confirm(`Вы уверены что хотите удалить задачу "${taskDescription}" (ID: ${taskId})?\n\nЭто удалит:\n- Задачу\n- Все логи выполнений задачи\n- Все записи в очереди блокировок\n- Все логи блокировок\n\nДействие необратимо!`)) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URLS.admin}?action=delete_task&task_id=${taskId}`, {
+        method: 'POST',
+        headers: {
+          'X-Admin-Key': 'directkit_admin_2024',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Задача удалена!\n${data.message}`);
+        setProjectTasks(prev => ({ ...prev, [projectId]: [] }));
+        loadProjectTasks(projectId);
+        loadProjects();
+        loadAnalytics();
+      } else {
+        alert('Ошибка при удалении задачи');
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error}`);
     }
   };
 
@@ -318,49 +397,115 @@ export default function AdminAnalytics() {
                   ) : (
                     <div className="space-y-4">
                       {projects.map((project) => (
-                        <div key={project.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{project.name}</h3>
-                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                  ID: {project.id}
-                                </span>
-                                {project.is_configured && (
-                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                    Настроен
+                        <div key={project.id} className="border rounded-lg overflow-hidden">
+                          <div className="p-4 hover:bg-gray-50">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => toggleProject(project.id)}
+                                    className="hover:bg-gray-200 p-1 rounded transition-colors"
+                                  >
+                                    <Icon 
+                                      name={expandedProject === project.id ? "ChevronDown" : "ChevronRight"} 
+                                      size={20} 
+                                      className="text-gray-500"
+                                    />
+                                  </button>
+                                  <h3 className="font-semibold text-lg">{project.name}</h3>
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                    ID: {project.id}
                                   </span>
-                                )}
+                                  {project.is_configured && (
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                      Настроен
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground mt-1 ml-9">
+                                  User ID: {project.user_id} • Login: {project.client_login || 'Не указан'}
+                                </p>
                               </div>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                User ID: {project.user_id} • Login: {project.client_login || 'Не указан'}
-                              </p>
+                              <button
+                                onClick={() => deleteProject(project.id, project.name)}
+                                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 flex items-center gap-1"
+                              >
+                                <Icon name="Trash2" size={14} />
+                                Удалить
+                              </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-4 gap-4 text-sm ml-9">
+                              <div>
+                                <span className="text-muted-foreground">Задач:</span>
+                                <span className="ml-2 font-semibold">{project.tasks_count}</span>
+                                <span className="text-green-600 ml-1">({project.active_tasks_count} активных)</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Выполнений:</span>
+                                <span className="ml-2 font-semibold">{project.total_executions}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Заблокировано:</span>
+                                <span className="ml-2 font-semibold">{project.total_blocked}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Последний запуск:</span>
+                                <span className="ml-2 font-semibold">
+                                  {project.last_execution_at 
+                                    ? new Date(project.last_execution_at).toLocaleString('ru-RU')
+                                    : 'Никогда'}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="grid grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Задач:</span>
-                              <span className="ml-2 font-semibold">{project.tasks_count}</span>
-                              <span className="text-green-600 ml-1">({project.active_tasks_count} активных)</span>
+
+                          {expandedProject === project.id && (
+                            <div className="bg-gray-50 p-4 border-t">
+                              <h4 className="font-semibold mb-3 ml-9">Задачи проекта:</h4>
+                              {!projectTasks[project.id] ? (
+                                <p className="text-muted-foreground ml-9">Загрузка задач...</p>
+                              ) : projectTasks[project.id].length === 0 ? (
+                                <p className="text-muted-foreground ml-9">Нет задач</p>
+                              ) : (
+                                <div className="space-y-2 ml-9">
+                                  {projectTasks[project.id].map((task: any) => (
+                                    <div key={task.id} className="flex items-center justify-between p-3 bg-white border rounded">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium">{task.description}</span>
+                                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                            ID: {task.id}
+                                          </span>
+                                          {task.enabled ? (
+                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                              Активна
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                              Отключена
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                          Выполнений: {task.total_executions} • 
+                                          Заблокировано: {task.total_blocked} • 
+                                          Ошибок: {task.errors}
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => deleteTask(task.id, task.description, project.id)}
+                                        className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 flex items-center gap-1"
+                                      >
+                                        <Icon name="Trash2" size={12} />
+                                        Удалить
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                            <div>
-                              <span className="text-muted-foreground">Выполнений:</span>
-                              <span className="ml-2 font-semibold">{project.total_executions}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Заблокировано:</span>
-                              <span className="ml-2 font-semibold">{project.total_blocked}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Последний запуск:</span>
-                              <span className="ml-2 font-semibold">
-                                {project.last_execution_at 
-                                  ? new Date(project.last_execution_at).toLocaleString('ru-RU')
-                                  : 'Никогда'}
-                              </span>
-                            </div>
-                          </div>
+                          )}
                         </div>
                       ))}
                     </div>

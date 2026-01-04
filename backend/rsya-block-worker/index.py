@@ -499,9 +499,9 @@ def block_placements_batch(
     # Получаем текущий список ExcludedSites из Яндекса
     current_excluded = get_excluded_sites(token, campaign_id)
     
-    # КРИТИЧНО: Если кампания архивная - удаляем из очереди и пропускаем
-    if current_excluded == 'ARCHIVED':
-        print(f'🗑️ Campaign {campaign_id} is archived, removing {len(placements)} placements from queue')
+    # КРИТИЧНО: Если кампания не ACCEPTED (archived, moderation, etc) - удаляем из очереди и пропускаем
+    if current_excluded == 'UNMODIFIABLE':
+        print(f'🗑️ Campaign {campaign_id} cannot be modified, removing {len(placements)} placements from queue')
         for placement in placements:
             cursor.execute("""
                 DELETE FROM block_queue 
@@ -605,11 +605,11 @@ def get_excluded_sites(token: str, campaign_id: int):
         if not campaigns:
             return []
         
-        # ПРОВЕРЯЕМ СТАТУС КАМПАНИИ
+        # ПРОВЕРЯЕМ СТАТУС КАМПАНИИ (можно модифицировать только ACCEPTED)
         campaign_status = campaigns[0].get('Status', 'UNKNOWN')
-        if campaign_status == 'ARCHIVED':
-            print(f'⚠️ Campaign {campaign_id} is ARCHIVED, cannot be modified')
-            return 'ARCHIVED'  # Специальное значение
+        if campaign_status != 'ACCEPTED':
+            print(f'⚠️ Campaign {campaign_id} has status {campaign_status}, cannot be modified (only ACCEPTED can)')
+            return 'UNMODIFIABLE'  # Специальное значение для неактивных кампаний
         
         excluded_sites_obj = campaigns[0].get('ExcludedSites', {})
         excluded = excluded_sites_obj.get('Items', []) if excluded_sites_obj else []

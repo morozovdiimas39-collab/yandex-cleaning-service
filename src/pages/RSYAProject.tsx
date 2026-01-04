@@ -621,6 +621,38 @@ export default function RSYAProject() {
                         type="button"
                         onClick={() => {
                           const newModules = new Set(activeModules);
+                          if (newModules.has('exceptions')) newModules.delete('exceptions');
+                          else newModules.add('exceptions');
+                          setActiveModules(newModules);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          activeModules.has('exceptions')
+                            ? 'border-green-400 bg-green-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            activeModules.has('exceptions') ? 'bg-green-500' : 'bg-gray-100'
+                          }`}>
+                            <Icon name="ShieldCheck" className={`h-5 w-5 ${
+                              activeModules.has('exceptions') ? 'text-white' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">Исключения</div>
+                            <div className="text-xs text-gray-500">Никогда не блокировать</div>
+                          </div>
+                          <Icon name={activeModules.has('exceptions') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
+                            activeModules.has('exceptions') ? 'text-green-500' : 'text-gray-400'
+                          }`} />
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModules = new Set(activeModules);
                           if (newModules.has('metrics')) newModules.delete('metrics');
                           else newModules.add('metrics');
                           setActiveModules(newModules);
@@ -680,38 +712,6 @@ export default function RSYAProject() {
                           }`} />
                         </div>
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newModules = new Set(activeModules);
-                          if (newModules.has('exceptions')) newModules.delete('exceptions');
-                          else newModules.add('exceptions');
-                          setActiveModules(newModules);
-                        }}
-                        className={`p-4 rounded-xl border-2 transition-all text-left ${
-                          activeModules.has('exceptions')
-                            ? 'border-green-400 bg-green-50 shadow-sm'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            activeModules.has('exceptions') ? 'bg-green-500' : 'bg-gray-100'
-                          }`}>
-                            <Icon name="ShieldCheck" className={`h-5 w-5 ${
-                              activeModules.has('exceptions') ? 'text-white' : 'text-gray-500'
-                            }`} />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">Исключения</div>
-                            <div className="text-xs text-gray-500">Никогда не блокировать</div>
-                          </div>
-                          <Icon name={activeModules.has('exceptions') ? 'Check' : 'Plus'} className={`h-5 w-5 ${
-                            activeModules.has('exceptions') ? 'text-green-500' : 'text-gray-400'
-                          }`} />
-                        </div>
-                      </button>
                     </div>
                   </div>
 
@@ -744,6 +744,38 @@ export default function RSYAProject() {
                           onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
                           rows={3}
                           className="bg-white border-red-200 focus:border-red-400"
+                        />
+                      </div>
+                    )}
+
+                    {activeModules.has('exceptions') && (
+                      <div className="p-4 rounded-xl border-2 border-green-200 bg-green-50/50">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
+                            <Icon name="ShieldCheck" className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-green-900">Исключения</h4>
+                            <p className="text-sm text-green-700">Эти площадки никогда не будут заблокированы</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newModules = new Set(activeModules);
+                              newModules.delete('exceptions');
+                              setActiveModules(newModules);
+                            }}
+                            className="text-green-500 hover:text-green-700"
+                          >
+                            <Icon name="X" className="h-5 w-5" />
+                          </button>
+                        </div>
+                        <Textarea
+                          placeholder="Через запятую: ozon, yandex, mail, avito"
+                          value={formData.exceptions}
+                          onChange={(e) => setFormData({ ...formData, exceptions: e.target.value })}
+                          rows={3}
+                          className="bg-white border-green-200 focus:border-green-400"
                         />
                       </div>
                     )}
@@ -823,6 +855,17 @@ export default function RSYAProject() {
                             />
                           </div>
                           <div>
+                            <Label className="text-sm text-blue-900">Мин. CPC (₽)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="10"
+                              value={formData.min_cpc}
+                              onChange={(e) => setFormData({ ...formData, min_cpc: e.target.value })}
+                              className="mt-1 bg-white border-blue-200"
+                            />
+                          </div>
+                          <div>
                             <Label className="text-sm text-blue-900">Макс. CPC (₽)</Label>
                             <Input
                               type="number"
@@ -883,62 +926,18 @@ export default function RSYAProject() {
                               </select>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="500"
-                                value={formData.max_cpa}
-                                onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
-                                className="mt-1 bg-white border-purple-200"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-sm text-purple-900">Мин. конверсий</Label>
-                              <Input
-                                type="number"
-                                placeholder="1"
-                                value={formData.min_conversions || ''}
-                                onChange={(e) => setFormData({ ...formData, min_conversions: e.target.value })}
-                                className="mt-1 bg-white border-purple-200"
-                              />
-                            </div>
+                          <div>
+                            <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="500"
+                              value={formData.max_cpa}
+                              onChange={(e) => setFormData({ ...formData, max_cpa: e.target.value })}
+                              className="mt-1 bg-white border-purple-200"
+                            />
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {activeModules.has('exceptions') && (
-                      <div className="p-4 rounded-xl border-2 border-green-200 bg-green-50/50">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
-                            <Icon name="ShieldCheck" className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-green-900">Исключения</h4>
-                            <p className="text-sm text-green-700">Эти площадки никогда не будут заблокированы</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newModules = new Set(activeModules);
-                              newModules.delete('exceptions');
-                              setActiveModules(newModules);
-                            }}
-                            className="text-green-500 hover:text-green-700"
-                          >
-                            <Icon name="X" className="h-5 w-5" />
-                          </button>
-                        </div>
-                        <Textarea
-                          placeholder="Через запятую: ozon, yandex, mail, avito"
-                          value={formData.exceptions}
-                          onChange={(e) => setFormData({ ...formData, exceptions: e.target.value })}
-                          rows={3}
-                          className="bg-white border-green-200 focus:border-green-400"
-                        />
                       </div>
                     )}
 

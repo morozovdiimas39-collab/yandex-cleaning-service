@@ -204,7 +204,8 @@ export default function RSYAProject() {
       
       <div className="flex-1 overflow-auto">
         <div className="p-4 md:p-8">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
+            <div className="max-w-6xl mx-auto">
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Задачи</h1>
@@ -365,6 +366,7 @@ export default function RSYAProject() {
                 </CardContent>
               </Card>
             )}
+            </div>
             </div>
           </div>
         </div>

@@ -144,6 +144,48 @@ export default function AdminAnalytics() {
     }
   };
 
+  const triggerScheduler = async () => {
+    if (!confirm('Запустить scheduler вручную?\n\nScheduler найдёт проекты с расписанием и создаст батчи для обработки.')) return;
+    
+    try {
+      const response = await fetch(BACKEND_URLS['rsya-scheduler'], {
+        method: 'GET'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Scheduler запущен!\n\nПроектов запланировано: ${data.scheduled_projects || 0}\nБатчей создано: ${data.total_batches || 0}`);
+        loadWorkersHealth();
+      } else {
+        alert('Ошибка при запуске scheduler');
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error}`);
+    }
+  };
+
+  const triggerWorker = async () => {
+    if (!confirm('Запустить worker вручную?\n\nWorker обработает pending батчи из базы данных.')) return;
+    
+    try {
+      const response = await fetch(BACKEND_URLS['rsya-batch-worker'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Worker запущен!\n\nКампаний обработано: ${data.campaigns_processed || 0}\nУспешно: ${data.successful || 0}\nОшибок: ${data.failed || 0}`);
+        loadWorkersHealth();
+      } else {
+        alert('Ошибка при запуске worker');
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error}`);
+    }
+  };
+
   const loadProjectTasks = async (projectId: number) => {
     if (projectTasks[projectId]) return;
     
@@ -644,6 +686,34 @@ export default function AdminAnalytics() {
             </TabsContent>
 
             <TabsContent value="workers" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Icon name="Play" size={20} className="text-blue-500" />
+                    Ручной запуск
+                  </CardTitle>
+                  <CardDescription>
+                    Запуск scheduler и worker вручную для тестирования
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex gap-4">
+                  <button
+                    onClick={triggerScheduler}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Icon name="Calendar" size={16} />
+                    Запустить Scheduler
+                  </button>
+                  <button
+                    onClick={triggerWorker}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Icon name="Zap" size={16} />
+                    Запустить Worker
+                  </button>
+                </CardContent>
+              </Card>
+
               {workersHealth ? (
                 <>
                   <Card>

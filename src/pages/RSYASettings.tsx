@@ -211,6 +211,11 @@ export default function RSYASettings() {
 
       if (!response.ok) throw new Error('Ошибка сохранения');
 
+      // Синхронизируем цели после сохранения counter_ids
+      if (goals.length > 0) {
+        await syncGoals(goals);
+      }
+
       toast({ title: '✅ Настройки обновлены' });
       navigate(`/rsya/${projectId}`);
     } catch (error) {

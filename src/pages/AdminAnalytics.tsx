@@ -818,6 +818,11 @@ export default function AdminAnalytics() {
                   <CleanupSection title="Удалить старые pending батчи (>24ч)" action="delete_old_batches" />
                   <CleanupSection title="Удалить все pending батчи" action="delete_all_pending_batches" />
                   <CleanupSection title="Очистить campaign locks" action="clean_campaign_locks" />
+                  <CleanupSection 
+                    title="⚠️ УДАЛИТЬ ВСЕ ПРОЕКТЫ И ЗАДАЧИ" 
+                    action="delete_all_projects" 
+                    dangerous={true}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -828,12 +833,24 @@ export default function AdminAnalytics() {
   );
 }
 
-function CleanupSection({ title, action }: { title: string; action: string }) {
+function CleanupSection({ title, action, dangerous = false }: { title: string; action: string; dangerous?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string; deleted?: number } | null>(null);
 
   const handleCleanup = async () => {
-    if (!confirm(`Вы уверены что хотите выполнить: ${title}?`)) return;
+    let confirmText = `Вы уверены что хотите выполнить: ${title}?`;
+    
+    if (dangerous) {
+      confirmText = `⚠️ КРИТИЧЕСКОЕ ДЕЙСТВИЕ ⚠️\n\nЭто удалит:\n- ВСЕ проекты\n- ВСЕ задачи\n- ВСЕ логи выполнений\n- ВСЕ логи блокировок\n- ВСЮ очередь блокировок\n- ВСЕ батчи кампаний\n\nДЕЙСТВИЕ НЕОБРАТИМО!\n\nВведите "DELETE ALL" для подтверждения:`;
+      
+      const userInput = prompt(confirmText);
+      if (userInput !== 'DELETE ALL') {
+        alert('Отменено. Требуется точное совпадение текста.');
+        return;
+      }
+    } else {
+      if (!confirm(confirmText)) return;
+    }
     
     setLoading(true);
     setResult(null);
@@ -874,7 +891,9 @@ function CleanupSection({ title, action }: { title: string; action: string }) {
       <button
         onClick={handleCleanup}
         disabled={loading}
-        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+          dangerous ? 'bg-red-900 hover:bg-red-950 animate-pulse' : 'bg-red-600 hover:bg-red-700'
+        }`}
       >
         {loading ? (
           <>

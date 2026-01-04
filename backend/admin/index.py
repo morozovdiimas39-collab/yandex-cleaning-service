@@ -46,7 +46,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия с admin key (не требуют user_id)
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'delete_project', 'delete_task']:
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'delete_project', 'delete_task', 'delete_all_projects']:
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -184,6 +184,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
                 
                 result = delete_task(cur, conn, int(task_id))
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+            
+            elif action == 'delete_all_projects':
+                result = delete_all_projects(cur, conn)
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -1481,5 +1489,48 @@ def delete_task(cur, conn, task_id: int):
     return {
         'success': True,
         'message': f'Задача удалена. Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}',
+        'deleted': stats
+    }
+
+
+def delete_all_projects(cur, conn):
+    '''Удаляет ВСЕ проекты и все связанные данные'''
+    
+    stats = {
+        'projects': 0,
+        'tasks': 0,
+        'execution_logs': 0,
+        'blocking_logs': 0,
+        'block_queue': 0,
+        'campaign_batches': 0,
+        'campaign_locks': 0
+    }
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs")
+    stats['blocking_logs'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue")
+    stats['block_queue'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs")
+    stats['execution_logs'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches")
+    stats['campaign_batches'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks")
+    stats['campaign_locks'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks")
+    stats['tasks'] = cur.rowcount
+    
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_projects")
+    stats['projects'] = cur.rowcount
+    
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}',
         'deleted': stats
     }

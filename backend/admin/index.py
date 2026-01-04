@@ -44,7 +44,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия с admin key (не требуют user_id)
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health']:
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks']:
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -130,6 +130,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                     'body': json.dumps(workers_data, default=str)
+                }
+            
+            elif action == 'delete_old_batches':
+                result = delete_old_batches(cur, conn)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+            
+            elif action == 'delete_all_pending_batches':
+                result = delete_all_pending_batches(cur, conn)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+            
+            elif action == 'clean_campaign_locks':
+                result = clean_campaign_locks(cur, conn)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
                 }
         
         # Для остальных действий требуется user_id
@@ -1311,4 +1335,51 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
         'hourly_activity': hourly_activity,
         'recent_errors': recent_errors,
         'queue_snapshots': queue_snapshots
+    }
+
+
+def delete_old_batches(cur, conn):
+    '''Удаляет pending батчи старше 24 часов'''
+    cur.execute("""
+        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+        WHERE status = 'pending' AND created_at < NOW() - INTERVAL '24 hours'
+    """)
+    deleted = cur.rowcount
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Удалено старых pending батчей',
+        'deleted': deleted
+    }
+
+
+def delete_all_pending_batches(cur, conn):
+    '''Удаляет ВСЕ pending батчи'''
+    cur.execute("""
+        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+        WHERE status = 'pending'
+    """)
+    deleted = cur.rowcount
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Удалено всех pending батчей',
+        'deleted': deleted
+    }
+
+
+def clean_campaign_locks(cur, conn):
+    '''Очищает все campaign locks'''
+    cur.execute("""
+        DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks
+    """)
+    deleted = cur.rowcount
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Очищено campaign locks',
+        'deleted': deleted
     }

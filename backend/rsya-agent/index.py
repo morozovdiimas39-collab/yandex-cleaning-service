@@ -111,9 +111,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 def build_system_prompt(project_id: Optional[int]) -> str:
     '''Формирует system prompt для Gemini'''
     
-    prompt = """Ты — Антон, профессиональный ассистент по чистке РСЯ (Яндекс.Директ).
+    prompt = """Ты — Антон, профессиональный ассистент по работе с Яндекс.Директ.
 
-🚨 WORKFLOW - СТРОГО ПО ШАГАМ:
+🎯 ТЫ УМЕЕШЬ:
+1. Анализировать площадки РСЯ и блокировать мусор
+2. Заполнять Google Таблицы статистикой из Директа
+
+🚨 WORKFLOW ДЛЯ ЧИСТКИ РСЯ:
 
 ШАГ 1: Пользователь пишет "проанализируй площадки"
 → Ты СРАЗУ вызываешь get_conversion_goals()
@@ -136,6 +140,35 @@ def build_system_prompt(project_id: Optional[int]) -> str:
 → Показываешь таблицу с площадками на блокировку
 → Объясняешь ПОЧЕМУ каждая блокируется
 → Спрашиваешь: "Заблокировать эти площадки?"
+
+📊 WORKFLOW ДЛЯ GOOGLE ТАБЛИЦ:
+
+Когда пользователь даёт ссылку на Google Таблицу:
+
+ШАГ 1: Читаешь таблицу
+→ Вызываешь read_google_sheet(url=...)
+→ Анализируешь структуру: какие колонки есть, где "Дата", где "Директ"
+
+ШАГ 2: Определяешь пропущенные даты
+→ Смотришь какие строки НЕ заполнены в колонке "Директ"
+→ Извлекаешь даты из этих строк
+
+ШАГ 3: Получаешь статистику
+→ Вызываешь get_direct_stats_by_dates(dates=[...]) для пропущенных дат
+→ Получаешь данные: расход, клики, показы, конверсии
+
+ШАГ 4: Заполняешь таблицу
+→ Вызываешь write_google_sheet() с массивом обновлений:
+  updates=[
+    {"row": 2, "column": "B", "value": "12345.67"},
+    {"row": 3, "column": "B", "value": "8901.23"}
+  ]
+
+⚠️ ВАЖНО ПРИ РАБОТЕ С ТАБЛИЦАМИ:
+- Всегда сначала read_google_sheet чтобы понять структуру
+- Проверяй какая колонка = "Директ" (может быть B, C, D...)
+- Заполняй ТОЛЬКО пустые ячейки (где direct_value пустой)
+- Формат значения: число с копейками (например: "12345.67")
 
 ШАГ 5: Пользователь подтвердил
 → Вызываешь create_blocking_task() с платформами из анализа
@@ -480,6 +513,61 @@ def get_available_functions() -> List[Dict]:
                 },
                 "required": ["platforms"]
             }
+        },
+        {
+            "name": "read_google_sheet",
+            "description": "Прочитать структуру и данные из Google Таблицы. Возвращает структуру таблицы, заголовки и все строки с датами",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Ссылка на Google Таблицу (например: https://docs.google.com/spreadsheets/d/...)"
+                    }
+                },
+                "required": ["url"]
+            }
+        },
+        {
+            "name": "write_google_sheet",
+            "description": "Записать данные в Google Таблицу. Обновляет конкретные ячейки таблицы",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sheet_id": {
+                        "type": "string",
+                        "description": "ID таблицы (получаешь из read_google_sheet)"
+                    },
+                    "updates": {
+                        "type": "array",
+                        "description": "Массив обновлений ячеек",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "row": {"type": "integer", "description": "Номер строки"},
+                                "column": {"type": "string", "description": "Буква колонки (A, B, C...)"},
+                                "value": {"type": "string", "description": "Значение для ячейки"}
+                            }
+                        }
+                    }
+                },
+                "required": ["sheet_id", "updates"]
+            }
+        },
+        {
+            "name": "get_direct_stats_by_dates",
+            "description": "Получить статистику из Яндекс.Директ за указанные даты (расход, клики, показы, конверсии)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dates": {
+                        "type": "array",
+                        "description": "Массив дат в формате YYYY-MM-DD (например: ['2025-01-01', '2025-01-02'])",
+                        "items": {"type": "string"}
+                    }
+                },
+                "required": ["dates"]
+            }
         }
     ]
 
@@ -500,6 +588,12 @@ def execute_function(
         return analyze_rsya_platforms_function(user_id, project_id, function_args)
     elif function_name == 'create_blocking_task':
         return create_blocking_task_function(user_id, project_id, function_args)
+    elif function_name == 'read_google_sheet':
+        return read_google_sheet(user_id, project_id, function_args)
+    elif function_name == 'write_google_sheet':
+        return write_google_sheet(user_id, project_id, function_args)
+    elif function_name == 'get_direct_stats_by_dates':
+        return get_direct_stats_by_dates(user_id, project_id, function_args)
     
     return {
         'function': function_name,
@@ -1187,6 +1281,317 @@ def fetch_and_analyze_platforms(token: str, campaign_ids: List[str], selected_go
             'high_cpa': len([p for p in to_block if 'CPA' in p['reason'] and '>' in p['reason']])
         }
     }
+
+
+def read_google_sheet(user_id: str, project_id: str, args: Dict) -> Dict:
+    '''Читает структуру и данные из Google Таблицы'''
+    
+    spreadsheet_url = args.get('url')
+    
+    if not spreadsheet_url:
+        return {
+            'function': 'read_google_sheet',
+            'status': 'error',
+            'message': 'Не указана ссылка на Google Таблицу'
+        }
+    
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        
+        # Получаем credentials из секретов
+        creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS')
+        if not creds_json:
+            return {
+                'function': 'read_google_sheet',
+                'status': 'error',
+                'message': 'Google Sheets API не настроен (отсутствует GOOGLE_SHEETS_CREDENTIALS)'
+            }
+        
+        creds_dict = json.loads(creds_json)
+        credentials = service_account.Credentials.from_service_account_info(
+            creds_dict,
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        
+        service = build('sheets', 'v4', credentials=credentials)
+        
+        # Извлекаем ID таблицы из URL
+        sheet_id = spreadsheet_url.split('/d/')[1].split('/')[0]
+        
+        # Читаем всю таблицу (первый лист)
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range='A1:Z1000'
+        ).execute()
+        
+        values = result.get('values', [])
+        
+        if not values:
+            return {
+                'function': 'read_google_sheet',
+                'status': 'error',
+                'message': 'Таблица пустая'
+            }
+        
+        # Парсим структуру
+        headers = values[0]
+        rows = values[1:]
+        
+        # Находим колонки с датами и "Директ"
+        date_col_idx = None
+        direct_col_idx = None
+        
+        for idx, header in enumerate(headers):
+            if 'дата' in header.lower():
+                date_col_idx = idx
+            if 'директ' in header.lower():
+                direct_col_idx = idx
+        
+        if date_col_idx is None or direct_col_idx is None:
+            return {
+                'function': 'read_google_sheet',
+                'status': 'error',
+                'message': 'Не найдены колонки "Дата" или "Директ"'
+            }
+        
+        # Собираем данные
+        data = []
+        for row_idx, row in enumerate(rows):
+            if len(row) > max(date_col_idx, direct_col_idx):
+                date_val = row[date_col_idx] if date_col_idx < len(row) else ''
+                direct_val = row[direct_col_idx] if direct_col_idx < len(row) else ''
+                
+                data.append({
+                    'row_number': row_idx + 2,  # +2 потому что заголовок в строке 1
+                    'date': date_val,
+                    'direct_value': direct_val
+                })
+        
+        return {
+            'function': 'read_google_sheet',
+            'status': 'success',
+            'data': {
+                'sheet_id': sheet_id,
+                'headers': headers,
+                'date_column': date_col_idx,
+                'direct_column': direct_col_idx,
+                'rows': data,
+                'total_rows': len(data)
+            },
+            'message': f'Прочитано {len(data)} строк из таблицы'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'read_google_sheet',
+            'status': 'error',
+            'message': f'Ошибка чтения таблицы: {str(e)}'
+        }
+
+
+def write_google_sheet(user_id: str, project_id: str, args: Dict) -> Dict:
+    '''Записывает данные в Google Таблицу'''
+    
+    sheet_id = args.get('sheet_id')
+    updates = args.get('updates', [])  # [{'row': 2, 'column': 'B', 'value': '12345.67'}]
+    
+    if not sheet_id or not updates:
+        return {
+            'function': 'write_google_sheet',
+            'status': 'error',
+            'message': 'Не указаны sheet_id или updates'
+        }
+    
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        
+        creds_json = os.environ.get('GOOGLE_SHEETS_CREDENTIALS')
+        if not creds_json:
+            return {
+                'function': 'write_google_sheet',
+                'status': 'error',
+                'message': 'Google Sheets API не настроен'
+            }
+        
+        creds_dict = json.loads(creds_json)
+        credentials = service_account.Credentials.from_service_account_info(
+            creds_dict,
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        
+        service = build('sheets', 'v4', credentials=credentials)
+        
+        # Формируем batch update
+        data = []
+        for upd in updates:
+            cell_range = f"{upd['column']}{upd['row']}"
+            data.append({
+                'range': cell_range,
+                'values': [[upd['value']]]
+            })
+        
+        body = {
+            'valueInputOption': 'RAW',
+            'data': data
+        }
+        
+        result = service.spreadsheets().values().batchUpdate(
+            spreadsheetId=sheet_id,
+            body=body
+        ).execute()
+        
+        return {
+            'function': 'write_google_sheet',
+            'status': 'success',
+            'data': {
+                'updated_cells': result.get('totalUpdatedCells', 0)
+            },
+            'message': f'Обновлено {len(updates)} ячеек'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'write_google_sheet',
+            'status': 'error',
+            'message': f'Ошибка записи в таблицу: {str(e)}'
+        }
+
+
+def get_direct_stats_by_dates(user_id: str, project_id: str, args: Dict) -> Dict:
+    '''Получает статистику из Яндекс.Директ за указанные даты'''
+    
+    dates = args.get('dates', [])  # ['2025-01-01', '2025-01-02']
+    
+    if not dates:
+        return {
+            'function': 'get_direct_stats_by_dates',
+            'status': 'error',
+            'message': 'Не указаны даты'
+        }
+    
+    if not project_id:
+        return {
+            'function': 'get_direct_stats_by_dates',
+            'status': 'error',
+            'message': 'Не выбран проект'
+        }
+    
+    try:
+        import psycopg2
+        
+        db_url = os.environ.get('MY_DATABASE_URL')
+        if not db_url:
+            raise Exception('MY_DATABASE_URL не настроен')
+        
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+        
+        # Получаем токен пользователя
+        cur.execute(
+            'SELECT ya_token FROM rsya_projects WHERE id = %s AND user_id = %s',
+            (project_id, user_id)
+        )
+        row = cur.fetchone()
+        
+        if not row:
+            return {
+                'function': 'get_direct_stats_by_dates',
+                'status': 'error',
+                'message': 'Проект не найден'
+            }
+        
+        token = row[0]
+        
+        # Получаем кампании
+        cur.execute(
+            'SELECT campaign_ids FROM rsya_projects WHERE id = %s',
+            (project_id,)
+        )
+        row = cur.fetchone()
+        campaign_ids = row[0] if row else []
+        
+        conn.close()
+        
+        if not campaign_ids:
+            return {
+                'function': 'get_direct_stats_by_dates',
+                'status': 'error',
+                'message': 'У проекта нет кампаний'
+            }
+        
+        # Запрашиваем статистику по датам
+        stats_by_date = {}
+        
+        for date_str in dates:
+            body = {
+                'params': {
+                    'SelectionCriteria': {
+                        'DateFrom': date_str,
+                        'DateTo': date_str,
+                        'Filter': [
+                            {'Field': 'CampaignId', 'Operator': 'IN', 'Values': campaign_ids}
+                        ]
+                    },
+                    'FieldNames': ['Date', 'Cost', 'Clicks', 'Impressions', 'Conversions'],
+                    'ReportName': f'Stats {date_str}',
+                    'ReportType': 'CUSTOM_REPORT',
+                    'DateRangeType': 'CUSTOM_DATE',
+                    'Format': 'TSV',
+                    'IncludeVAT': 'YES',
+                    'IncludeDiscount': 'NO'
+                }
+            }
+            
+            headers = {
+                'Authorization': f'Bearer {token}',
+                'Accept-Language': 'ru',
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(
+                'https://api.direct.yandex.com/json/v5/reports',
+                json=body,
+                headers=headers,
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                lines = response.text.strip().split('\n')
+                if len(lines) > 1:
+                    # Парсим TSV
+                    data_line = lines[1].split('\t')
+                    stats_by_date[date_str] = {
+                        'cost': float(data_line[1]) if len(data_line) > 1 else 0,
+                        'clicks': int(data_line[2]) if len(data_line) > 2 else 0,
+                        'impressions': int(data_line[3]) if len(data_line) > 3 else 0,
+                        'conversions': int(data_line[4]) if len(data_line) > 4 else 0
+                    }
+                else:
+                    stats_by_date[date_str] = {'cost': 0, 'clicks': 0, 'impressions': 0, 'conversions': 0}
+            else:
+                stats_by_date[date_str] = {'cost': 0, 'clicks': 0, 'impressions': 0, 'conversions': 0}
+        
+        return {
+            'function': 'get_direct_stats_by_dates',
+            'status': 'success',
+            'data': stats_by_date,
+            'message': f'Получена статистика за {len(dates)} дней'
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'function': 'get_direct_stats_by_dates',
+            'status': 'error',
+            'message': f'Ошибка получения статистики: {str(e)}'
+        }
 
 
 def format_platform_analysis(data: Dict) -> str:

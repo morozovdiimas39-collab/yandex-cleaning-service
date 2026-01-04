@@ -640,7 +640,7 @@ export default function AdminAnalytics() {
                                 <div className="text-green-600">{type.completed} успешных</div>
                                 <div className="text-red-600">{type.errors} ошибок</div>
                                 <div className="text-muted-foreground">
-                                  ~{type.avg_duration_seconds.toFixed(1)}s
+                                  ~{Number(type.avg_duration_seconds || 0).toFixed(1)}s
                                 </div>
                               </div>
                             </div>

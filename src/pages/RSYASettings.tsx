@@ -20,6 +20,13 @@ interface Counter {
   site: string;
 }
 
+interface Goal {
+  id: string;
+  name: string;
+  counter_id?: string;
+  counter_name?: string;
+}
+
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = 'https://functions.poehali.dev/6b18ca7b-7f12-4758-a9db-4f774aaf2d23';
 
@@ -34,6 +41,8 @@ export default function RSYASettings() {
   
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loadingGoals, setLoadingGoals] = useState(false);
   
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
   const [selectedCounters, setSelectedCounters] = useState<Set<string>>(new Set());
@@ -92,6 +101,11 @@ export default function RSYASettings() {
         
         const savedCounterIds = projectData.project.counter_ids || [];
         setSelectedCounters(new Set(savedCounterIds));
+        
+        // Загружаем цели для выбранных счетчиков
+        if (savedCounterIds.length > 0) {
+          await loadGoals(token, savedCounterIds);
+        }
       }
       
       setAutoAddNewCampaigns(projectData.project.auto_add_campaigns ?? true);
@@ -101,6 +115,73 @@ export default function RSYASettings() {
       toast({ title: 'Ошибка загрузки данных', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGoals = async (token: string, counterIds: string[]) => {
+    setLoadingGoals(true);
+    try {
+      const response = await fetch(`${YANDEX_DIRECT_URL}?action=goals&counter_ids=${counterIds.join(',')}`, {
+        headers: { 'X-Auth-Token': token }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const allGoals = data.goals || [];
+        setGoals(allGoals);
+        
+        // Синхронизируем цели в базу
+        if (allGoals.length > 0) {
+          await syncGoals(allGoals);
+        }
+      } else {
+        toast({ title: 'Ошибка загрузки целей', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error loading goals:', error);
+      toast({ title: 'Ошибка загрузки целей', variant: 'destructive' });
+    } finally {
+      setLoadingGoals(false);
+    }
+  };
+
+  const syncGoals = async (goalsToSync: Goal[]) => {
+    try {
+      await fetch(`${RSYA_PROJECTS_URL}?action=sync-goals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          project_id: parseInt(projectId!),
+          goals: goalsToSync
+        })
+      });
+    } catch (error) {
+      console.error('Error syncing goals:', error);
+    }
+  };
+
+  const handleCounterChange = async (counterId: string) => {
+    const newSelected = new Set(selectedCounters);
+    if (newSelected.has(counterId)) {
+      newSelected.delete(counterId);
+    } else {
+      newSelected.add(counterId);
+    }
+    setSelectedCounters(newSelected);
+    
+    // Загружаем цели для выбранных счетчиков
+    if (newSelected.size > 0) {
+      const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
+        headers: { 'X-User-Id': userId }
+      });
+      const projectData = await projectResponse.json();
+      const token = projectData.project.yandex_token;
+      await loadGoals(token, Array.from(newSelected));
+    } else {
+      setGoals([]);
     }
   };
 
@@ -232,15 +313,7 @@ export default function RSYASettings() {
                     <div key={counter.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
                       <Checkbox
                         checked={selectedCounters.has(counter.id)}
-                        onCheckedChange={() => {
-                          const newSelected = new Set(selectedCounters);
-                          if (newSelected.has(counter.id)) {
-                            newSelected.delete(counter.id);
-                          } else {
-                            newSelected.add(counter.id);
-                          }
-                          setSelectedCounters(newSelected);
-                        }}
+                        onCheckedChange={() => handleCounterChange(counter.id)}
                       />
                       <div className="flex-1">
                         <div className="text-sm font-medium">{counter.name}</div>
@@ -252,6 +325,40 @@ export default function RSYASettings() {
               )}
             </CardContent>
           </Card>
+
+          {goals.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Icon name="Target" className="h-5 w-5 text-purple-500" />
+                  Цели из Яндекс.Метрики
+                </CardTitle>
+                <CardDescription>Эти цели будут доступны при создании задач</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingGoals ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Icon name="Loader2" className="animate-spin h-8 w-8 text-green-600" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {goals.map(goal => (
+                      <div key={`${goal.counter_id}-${goal.id}`} className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <Icon name="Target" className="h-4 w-4 text-purple-600 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-purple-900 truncate">{goal.name}</p>
+                            <p className="text-xs text-purple-600 mt-1">ID: {goal.id}</p>
+                            <p className="text-xs text-purple-500 mt-0.5">Счётчик: {goal.counter_name}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex justify-end gap-3">
             <Button onClick={() => navigate(`/rsya/${projectId}`)} variant="outline">

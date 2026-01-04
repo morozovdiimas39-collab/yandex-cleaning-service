@@ -145,10 +145,10 @@ export default function AdminAnalytics() {
   };
 
   const triggerScheduler = async () => {
-    if (!confirm('Запустить scheduler вручную?\n\nScheduler найдёт проекты с расписанием и создаст батчи для обработки.')) return;
+    if (!confirm('Запустить scheduler вручную?\n\nScheduler ИГНОРИРУЕТ расписание и обработает ВСЕ активные проекты прямо сейчас.')) return;
     
     try {
-      const response = await fetch(BACKEND_URLS['rsya-scheduler'], {
+      const response = await fetch(`${BACKEND_URLS['rsya-scheduler']}?force_all=true`, {
         method: 'GET'
       });
 

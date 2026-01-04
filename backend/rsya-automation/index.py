@@ -636,12 +636,12 @@ def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
         if protect_conversions and conversions > 0:
             continue
         
-        # 4-13. Фильтры по метрикам (блокируем если НЕ в диапазоне)
-        # CPC: блокируем если НИЖЕ min (дешевые площадки) или ВЫШЕ max (дорогие площадки)
-        if min_cpc is not None and cpc < min_cpc:
-            pass  # Дешевые площадки (CPC < min) - блокируем
-        elif max_cpc is not None and cpc > max_cpc:
-            pass  # Дорогие площадки (CPC > max) - блокируем
+        # 4-13. Фильтры по метрикам
+        # CPC ЛОГИКА: min_cpc=10 → блокируем CPC>10 (дорогие), max_cpc=50 → блокируем CPC<50 (дешевые боты)
+        if min_cpc is not None and cpc > min_cpc:
+            pass  # CPC выше min - блокируем дорогие
+        elif max_cpc is not None and cpc < max_cpc:
+            pass  # CPC ниже max - блокируем дешевые
         elif min_cpc is not None or max_cpc is not None:
             continue  # CPC в допустимом диапазоне - НЕ блокируем
         

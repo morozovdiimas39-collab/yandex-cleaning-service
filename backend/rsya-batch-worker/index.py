@@ -796,20 +796,26 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 invalid_sites.append((site, 'empty'))
                 continue
             
+            site_clean = site.strip()
+            
             # Проверяем длину (макс 255 символов)
-            if len(site) > 255:
-                invalid_sites.append((site, 'too_long'))
+            if len(site_clean) > 255:
+                invalid_sites.append((site_clean, 'too_long'))
                 continue
             
-            # Проверяем на недопустимые символы (пробелы, кириллица в начале)
-            site_clean = site.strip()
+            # Проверяем на пробелы
             if ' ' in site_clean:
-                invalid_sites.append((site, 'contains_spaces'))
+                invalid_sites.append((site_clean, 'contains_spaces'))
                 continue
             
             # Проверяем что не начинается с точки или дефиса
             if site_clean.startswith('.') or site_clean.startswith('-'):
-                invalid_sites.append((site, 'invalid_start'))
+                invalid_sites.append((site_clean, 'invalid_start'))
+                continue
+            
+            # Проверяем на кириллицу (русские буквы)
+            if any(ord(char) >= 0x0400 and ord(char) <= 0x04FF for char in site_clean):
+                invalid_sites.append((site_clean, 'contains_cyrillic'))
                 continue
             
             valid_sites.append(site_clean)

@@ -786,7 +786,47 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
     '''Обновление списка ExcludedSites в Яндекс.Директ'''
     
     try:
-        print(f'🔄 Updating campaign {campaign_id}: {len(excluded_sites)} domains')
+        # Валидация доменов перед отправкой
+        valid_sites = []
+        invalid_sites = []
+        
+        for site in excluded_sites:
+            # Пропускаем пустые строки
+            if not site or not site.strip():
+                invalid_sites.append((site, 'empty'))
+                continue
+            
+            # Проверяем длину (макс 255 символов)
+            if len(site) > 255:
+                invalid_sites.append((site, 'too_long'))
+                continue
+            
+            # Проверяем на недопустимые символы (пробелы, кириллица в начале)
+            site_clean = site.strip()
+            if ' ' in site_clean:
+                invalid_sites.append((site, 'contains_spaces'))
+                continue
+            
+            # Проверяем что не начинается с точки или дефиса
+            if site_clean.startswith('.') or site_clean.startswith('-'):
+                invalid_sites.append((site, 'invalid_start'))
+                continue
+            
+            valid_sites.append(site_clean)
+        
+        # Логируем невалидные домены
+        if invalid_sites:
+            print(f'⚠️ FILTERED {len(invalid_sites)} invalid domains:')
+            for site, reason in invalid_sites[:10]:  # Показываем первые 10
+                print(f'  ❌ {site[:50]} → {reason}')
+            if len(invalid_sites) > 10:
+                print(f'  ... и еще {len(invalid_sites) - 10} доменов')
+        
+        if not valid_sites:
+            print(f'❌ No valid domains to update')
+            return False
+        
+        print(f'🔄 Updating campaign {campaign_id}: {len(valid_sites)} valid domains (filtered {len(invalid_sites)})')
         
         response = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',
@@ -796,7 +836,7 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                     'Campaigns': [{
                         'Id': int(campaign_id),
                         'ExcludedSites': {
-                            'Items': excluded_sites
+                            'Items': valid_sites
                         }
                     }]
                 }

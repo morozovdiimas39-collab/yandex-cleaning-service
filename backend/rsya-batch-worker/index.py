@@ -764,10 +764,24 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
         campaigns = data.get('result', {}).get('Campaigns', [])
         
         if not campaigns:
+            print(f'📭 Campaign {campaign_id}: API returned empty campaigns list')
             return []
         
-        excluded_sites_obj = campaigns[0].get('ExcludedSites', {})
+        # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+        campaign_data = campaigns[0]
+        returned_id = campaign_data.get('Id')
+        print(f'📋 API returned campaign ID: {returned_id} (requested: {campaign_id})')
+        
+        if str(returned_id) != str(campaign_id):
+            print(f'⚠️ WARNING: API returned different campaign! Requested {campaign_id}, got {returned_id}')
+        
+        excluded_sites_obj = campaign_data.get('ExcludedSites', {})
         excluded = excluded_sites_obj.get('Items', []) if excluded_sites_obj else []
+        
+        print(f'📊 Campaign {campaign_id}: ExcludedSites contains {len(excluded)} domains')
+        if excluded:
+            print(f'   First 5: {excluded[:5]}')
+            print(f'   Last 5: {excluded[-5:]}')
         
         # Дедуплицируем список (избегаем ошибки 9802)
         deduplicated = list(dict.fromkeys(excluded)) if excluded else []

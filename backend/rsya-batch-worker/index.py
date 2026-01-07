@@ -43,7 +43,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     else:
         # Прямой вызов (для тестов) — читаем из БД
         body_str = event.get('body', '{}')
-        if not body_str or body_str == '{}':
+        if not body_str or body_str == '{}' or body_str.strip() == '':
             # DB FALLBACK: читаем pending батчи из базы
             print('📭 Empty body, checking database for pending batches...')
             return process_from_database()

@@ -848,6 +848,11 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
         
         print(f'🔄 Updating campaign {campaign_id}: {len(valid_sites)} valid domains (filtered {len(invalid_sites)})')
         
+        # ЛОГИРУЕМ ОТПРАВЛЯЕМЫЙ СПИСОК для отладки ошибки 5006
+        if len(valid_sites) > 20:
+            print(f'   📋 Sending domains[0-9]: {valid_sites[:10]}')
+            print(f'   📋 Sending domains[110-130]: {valid_sites[110:131] if len(valid_sites) > 130 else valid_sites[-20:]}')
+        
         response = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',
             json={

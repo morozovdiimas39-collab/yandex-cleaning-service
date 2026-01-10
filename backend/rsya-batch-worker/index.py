@@ -852,6 +852,8 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
         if len(valid_sites) > 20:
             print(f'   📋 Sending domains[0-9]: {valid_sites[:10]}')
             print(f'   📋 Sending domains[110-130]: {valid_sites[110:131] if len(valid_sites) > 130 else valid_sites[-20:]}')
+            if len(valid_sites) > 446:
+                print(f'   📋 Sending domains[440-450]: {valid_sites[440:451]}')
         
         response = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',

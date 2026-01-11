@@ -1590,7 +1590,7 @@ def delete_all_projects(cur, conn):
 
 
 def get_schedules(cur) -> List[Dict[str, Any]]:
-    '''Получить все расписания чистки проектов (только активные проекты)'''
+    '''Получить все расписания чистки проектов (только для существующих проектов)'''
     cur.execute("""
         SELECT 
             s.id,
@@ -1602,7 +1602,6 @@ def get_schedules(cur) -> List[Dict[str, Any]]:
             s.is_active
         FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
         INNER JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
-        WHERE p.is_deleted = FALSE
         ORDER BY s.project_id DESC
     """)
     return cur.fetchall()

@@ -774,13 +774,15 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
             print(f'📭 Campaign {campaign_id}: API returned empty campaigns list')
             return []
         
-        # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+        # КРИТИЧЕСКАЯ ПРОВЕРКА: API вернул именно запрошенную кампанию
         campaign_data = campaigns[0]
         returned_id = campaign_data.get('Id')
         print(f'📋 API returned campaign ID: {returned_id} (requested: {campaign_id})')
         
         if str(returned_id) != str(campaign_id):
-            print(f'⚠️ WARNING: API returned different campaign! Requested {campaign_id}, got {returned_id}')
+            print(f'🚨 CRITICAL: API returned WRONG campaign! Requested {campaign_id}, got {returned_id}')
+            print(f'🛡️ SAFETY: Aborting to prevent overwriting wrong campaign data!')
+            return None
         
         excluded_sites_obj = campaign_data.get('ExcludedSites', {})
         excluded = excluded_sites_obj.get('Items', []) if excluded_sites_obj else []

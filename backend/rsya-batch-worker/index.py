@@ -908,17 +908,9 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
         # Проверяем что обновление прошло успешно
         if 'result' in data:
             update_results = data['result'].get('UpdateResults', [])
-            if update_results:
-                # Проверяем наличие ошибок в ответе
-                if 'Errors' in update_results[0]:
-                    errors = update_results[0]['Errors']
-                    print(f'❌ API returned errors in UpdateResults: {json.dumps(errors, ensure_ascii=False)}')
-                    return False
-                
-                # Успех только если есть Id и нет Errors
-                if 'Id' in update_results[0]:
-                    print(f'✅ Campaign {campaign_id} updated successfully')
-                    return True
+            if update_results and 'Id' in update_results[0]:
+                print(f'✅ Campaign {campaign_id} updated successfully')
+                return True
         
         # Если есть ошибки
         if 'error' in data:

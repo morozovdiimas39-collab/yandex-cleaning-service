@@ -19,6 +19,8 @@ interface Task {
   description: string;
   is_enabled: boolean;
   created_at: string;
+  combine_operator?: 'AND' | 'OR';
+  task_group_id?: number;
   config?: {
     keywords?: string[];
     exceptions?: string[];
@@ -76,6 +78,7 @@ export default function RSYAProject() {
     keywords: '',
     exceptions: '',
     goal_id: 'all',
+    combine_operator: 'OR' as 'AND' | 'OR',
     min_impressions: '',
     max_impressions: '',
     min_clicks: '',
@@ -236,6 +239,7 @@ export default function RSYAProject() {
           action: 'add_task',
           project_id: parseInt(projectId || '0'),
           description: formData.description,
+          combine_operator: formData.combine_operator,
           config
         })
       });
@@ -252,6 +256,7 @@ export default function RSYAProject() {
           keywords: '',
           exceptions: '',
           goal_id: 'all',
+          combine_operator: 'OR' as 'AND' | 'OR',
           min_impressions: '',
           max_impressions: '',
           min_clicks: '',
@@ -377,6 +382,15 @@ export default function RSYAProject() {
                               <Badge className={`${status.color} border-0`}>
                                 {status.text}
                               </Badge>
+                              {task.combine_operator && (
+                                <Badge className={`border-0 ${
+                                  task.combine_operator === 'AND' 
+                                    ? 'bg-purple-100 text-purple-700' 
+                                    : 'bg-indigo-100 text-indigo-700'
+                                }`}>
+                                  {task.combine_operator === 'AND' ? 'И (AND)' : 'ИЛИ (OR)'}
+                                </Badge>
+                              )}
                               <span className="text-sm text-gray-500">
                                 ID: t{task.id}
                               </span>
@@ -573,6 +587,47 @@ export default function RSYAProject() {
                         ))}
                       </select>
                     )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
+                      <Label className="text-base font-semibold">Режим выполнения</Label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, combine_operator: 'OR' })}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          formData.combine_operator === 'OR'
+                            ? 'border-indigo-400 bg-indigo-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-900 mb-1">ИЛИ (OR)</div>
+                          <div className="text-xs text-gray-600">
+                            Каждое условие проверяется отдельно
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, combine_operator: 'AND' })}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          formData.combine_operator === 'AND'
+                            ? 'border-purple-400 bg-purple-50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-900 mb-1">И (AND)</div>
+                          <div className="text-xs text-gray-600">
+                            Все условия суммируются в одно правило
+                          </div>
+                        </div>
+                      </button>
+                    </div>
                   </div>
                 </TabsContent>
 
@@ -964,6 +1019,67 @@ export default function RSYAProject() {
                   </div>
                 </TabsContent>
               </Tabs>
+
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
+                    <Label className="text-base font-semibold">Режим выполнения задачи</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, combine_operator: 'OR' })}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        formData.combine_operator === 'OR'
+                          ? 'border-indigo-400 bg-indigo-50 shadow-sm'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          formData.combine_operator === 'OR' ? 'bg-indigo-500' : 'bg-gray-100'
+                        }`}>
+                          <Icon name="List" className={`h-5 w-5 ${
+                            formData.combine_operator === 'OR' ? 'text-white' : 'text-gray-500'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-gray-900 mb-1">ИЛИ (OR)</div>
+                          <div className="text-xs text-gray-600 leading-relaxed">
+                            Каждое условие проверяется отдельно. Площадки блокируются если подходят под ЛЮБОЕ условие
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, combine_operator: 'AND' })}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        formData.combine_operator === 'AND'
+                          ? 'border-purple-400 bg-purple-50 shadow-sm'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          formData.combine_operator === 'AND' ? 'bg-purple-500' : 'bg-gray-100'
+                        }`}>
+                          <Icon name="Layers" className={`h-5 w-5 ${
+                            formData.combine_operator === 'AND' ? 'text-white' : 'text-gray-500'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-gray-900 mb-1">И (AND)</div>
+                          <div className="text-xs text-gray-600 leading-relaxed">
+                            Все условия суммируются. Площадки блокируются только если подходят под ВСЕ условия сразу
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               <div className="flex gap-3 pt-4">
                 <Button

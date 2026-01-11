@@ -203,7 +203,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем задачи из rsya_tasks
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks_rows = cursor.fetchall()
@@ -213,7 +213,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'id': t[0],
                     'description': t[1],
                     'is_enabled': t[2] or False,
-                    'created_at': t[4].isoformat() if t[4] else None
+                    'created_at': t[4].isoformat() if t[4] else None,
+                    'combine_operator': t[5] if t[5] else 'OR'
                 }
                 if t[3]:
                     try:
@@ -465,6 +466,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             project_id = body_data.get('project_id')
             description = body_data.get('description', 'Новая задача')
             config = body_data.get('config')
+            combine_operator = body_data.get('combine_operator', 'OR')
             
             if not project_id:
                 cursor.close()
@@ -489,17 +491,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'error': 'Project not found'})
                 }
             
-            # Создаём задачу с config (сериализуем в JSON)
+            # Создаём задачу с config и combine_operator
             cursor.execute(
-                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_tasks (project_id, description, enabled, config) VALUES (%s, %s, true, %s) RETURNING id",
-                (project_id, description, json.dumps(config) if config else '{}')
+                "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_tasks (project_id, description, enabled, config, combine_operator) VALUES (%s, %s, true, %s, %s) RETURNING id",
+                (project_id, description, json.dumps(config) if config else '{}', combine_operator)
             )
             task_id = cursor.fetchone()[0]
             conn.commit()
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -515,7 +517,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'description': row[1],
                     'is_enabled': row[2],
                     'config': config,
-                    'created_at': row[4].isoformat() if row[4] else None
+                    'created_at': row[4].isoformat() if row[4] else None,
+                    'combine_operator': row[5] if row[5] else 'OR'
                 })
             
             cursor.close()
@@ -599,7 +602,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -615,7 +618,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'description': row[1],
                     'is_enabled': row[2],
                     'config': config,
-                    'created_at': row[4].isoformat() if row[4] else None
+                    'created_at': row[4].isoformat() if row[4] else None,
+                    'combine_operator': row[5] if row[5] else 'OR'
                 })
             
             cursor.close()
@@ -665,7 +669,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []
@@ -681,7 +685,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'description': row[1],
                     'is_enabled': row[2],
                     'config': config,
-                    'created_at': row[4].isoformat() if row[4] else None
+                    'created_at': row[4].isoformat() if row[4] else None,
+                    'combine_operator': row[5] if row[5] else 'OR'
                 })
             
             cursor.close()
@@ -731,7 +736,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Загружаем все задачи проекта
             cursor.execute(
-                "SELECT id, description, enabled, config, created_at FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
+                "SELECT id, description, enabled, config, created_at, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s ORDER BY created_at DESC",
                 (project_id,)
             )
             tasks = []

@@ -332,12 +332,15 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bo
     '''
     domain = platform['domain'].lower()
     
-    # 1. Проверка ключевых слов (обязательна если указаны)
+    # 1. Проверка ключевых слов (ОБЯЗАТЕЛЬНА — без keywords задача не может блокировать)
     keywords = config.get('keywords', [])
-    if keywords:
-        has_keyword = any(kw.lower() in domain for kw in keywords)
-        if not has_keyword:
-            return False
+    if not keywords:
+        # Если нет keywords — задача не блокирует площадки (только exceptions)
+        return False
+    
+    has_keyword = any(kw.lower() in domain for kw in keywords)
+    if not has_keyword:
+        return False
     
     # 2. Проверка исключений (самое сильное правило)
     exceptions = config.get('exceptions', [])

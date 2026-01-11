@@ -267,17 +267,25 @@ def process_campaign(
         blocked_domains = set(s['domain'] for s in blocked_sites)
         
         # 6. Фильтруем площадки по задачам
+        # Площадка должна пройти ВСЕ задачи одновременно
         matched_platforms = []
-        for task in tasks:
-            config = json.loads(task['config']) if isinstance(task['config'], str) else task['config']
+        
+        for platform in candidates:
+            if platform['domain'] in blocked_domains:
+                continue
             
-            for platform in candidates:
-                if platform['domain'] in blocked_domains:
-                    continue
+            # Проверяем площадку по ВСЕМ задачам
+            matches_all = True
+            for task in tasks:
+                config = json.loads(task['config']) if isinstance(task['config'], str) else task['config']
                 
-                if matches_task_filters(platform, config):
-                    matched_platforms.append(platform)
-                    print(f"✅ Platform {platform['domain']} matched task '{task['description']}'")
+                if not matches_task_filters(platform, config):
+                    matches_all = False
+                    break
+            
+            if matches_all:
+                matched_platforms.append(platform)
+                print(f"✅ Platform {platform['domain']} matched ALL tasks")
         
         # Убираем дубли
         to_block = list({p['domain']: p for p in matched_platforms}.values())

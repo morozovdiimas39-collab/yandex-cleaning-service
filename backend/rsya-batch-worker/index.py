@@ -620,8 +620,12 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
     for line in lines[1:]:  # Пропускаем заголовок
         parts = line.split('\t')
         if len(parts) >= 4:
+            domain = parts[0].strip()
+            # Пропускаем домены с пробелами или другими недопустимыми символами
+            if ' ' in domain or not domain:
+                continue
             platforms.append({
-                'domain': parts[0],
+                'domain': domain,
                 'clicks': int(parts[1] or 0),
                 'cost': float(parts[2] or 0),
                 'conversions': int(parts[3] or 0)

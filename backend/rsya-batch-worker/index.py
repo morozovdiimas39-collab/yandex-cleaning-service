@@ -577,7 +577,7 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
                         'Values': [str(campaign_id)]
                     },
                     {
-                        'Field': 'Clicks',
+                        'Field': 'Impressions',
                         'Operator': 'GREATER_THAN',
                         'Values': ['0']
                     }
@@ -585,7 +585,7 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
                 'DateFrom': date_from,
                 'DateTo': date_to
             },
-            'FieldNames': ['Placement', 'Clicks', 'Cost', 'Conversions'],
+            'FieldNames': ['Placement', 'Clicks', 'Cost', 'Conversions', 'Impressions'],
             'ReportName': f'platforms_{campaign_id}_{date_from}',
             'ReportType': 'CUSTOM_REPORT',
             'DateRangeType': 'CUSTOM_DATE',

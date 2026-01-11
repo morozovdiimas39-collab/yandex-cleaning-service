@@ -194,8 +194,8 @@ export default function RSYASettings() {
     try {
       setSaving(true);
       
-      // Если выбраны счетчики, но цели еще не загружены - загружаем их
-      if (selectedCounters.size > 0 && goals.length === 0) {
+      // Загружаем цели перед сохранением, если выбраны счетчики
+      if (selectedCounters.size > 0) {
         const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
           headers: { 'X-User-Id': userId }
         });

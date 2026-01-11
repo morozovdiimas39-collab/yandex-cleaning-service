@@ -1638,19 +1638,19 @@ def trigger_schedule_now(cur, conn, project_id: int) -> Dict[str, Any]:
     
     conn.commit()
     
-    # Вызываем rsya-scheduler напрямую для немедленного запуска
-    scheduler_url = 'https://functions.poehali.dev/22e90e78-a58a-4857-925d-9a8e72db8de0?force_all=true'
+    # Вызываем rsya-scheduler с конкретным project_id для немедленного запуска
+    scheduler_url = f'https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9?project_id={project_id}'
     
     try:
         req = urllib.request.Request(scheduler_url, method='POST')
         with urllib.request.urlopen(req, timeout=5) as response:
             response_data = response.read()
-            print(f'✅ Scheduler triggered: {response.status} - {response_data.decode()[:200]}')
+            print(f'✅ Scheduler triggered for project {project_id}: {response.status}')
     except Exception as e:
-        print(f'⚠️ Failed to trigger scheduler (will run on next scheduled time): {str(e)}')
+        print(f'⚠️ Failed to trigger scheduler: {str(e)}')
     
     return {
         'success': True,
-        'message': f'Чистка проекта #{project_id} запущена немедленно',
+        'message': f'Чистка проекта #{project_id} запущена',
         'project_id': project_id
     }

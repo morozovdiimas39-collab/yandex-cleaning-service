@@ -41,9 +41,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'DATABASE_URL not configured'})
         }
     
-    # Проверяем параметр force_all для игнорирования расписания
+    # Проверяем параметры
     params = event.get('queryStringParameters') or {}
     force_all = params.get('force_all') == 'true'
+    target_project_id = params.get('project_id')
     
     try:
         conn = psycopg2.connect(dsn)
@@ -51,9 +52,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Получаем проекты, которые нужно запустить
-        print(f"🔍 Checking for projects to schedule at {datetime.now()} (force_all={force_all})")
+        print(f"🔍 Checking for projects to schedule at {datetime.now()} (force_all={force_all}, project_id={target_project_id})")
         
-        if force_all:
+        if target_project_id:
+            # Запуск конкретного проекта (для кнопки "Запустить сейчас")
+            cursor.execute("""
+                SELECT 
+                    s.id as schedule_id,
+                    s.project_id,
+                    s.interval_hours,
+                    p.yandex_token,
+                    p.campaign_ids
+                FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
+                JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
+                WHERE s.project_id = %s
+                  AND s.is_active = TRUE
+                  AND p.yandex_token IS NOT NULL
+            """, (int(target_project_id),))
+        elif force_all:
             # Игнорируем расписание — берём ВСЕ активные проекты
             cursor.execute("""
                 SELECT 

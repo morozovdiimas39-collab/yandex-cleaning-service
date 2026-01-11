@@ -817,9 +817,9 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 invalid_sites.append((site_clean, 'too_long'))
                 continue
             
-            # Проверяем на пробелы
-            if ' ' in site_clean:
-                invalid_sites.append((site_clean, 'contains_spaces'))
+            # Проверяем на пробелы, табы, переносы строк
+            if any(char in site_clean for char in [' ', '\t', '\n', '\r']):
+                invalid_sites.append((site_clean, 'whitespace'))
                 continue
             
             # Проверяем что не начинается с точки или дефиса
@@ -827,9 +827,24 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 invalid_sites.append((site_clean, 'invalid_start'))
                 continue
             
+            # Проверяем что не заканчивается точкой или дефисом
+            if site_clean.endswith('.') or site_clean.endswith('-'):
+                invalid_sites.append((site_clean, 'invalid_end'))
+                continue
+            
             # Проверяем на кириллицу (русские буквы)
             if any(ord(char) >= 0x0400 and ord(char) <= 0x04FF for char in site_clean):
                 invalid_sites.append((site_clean, 'contains_cyrillic'))
+                continue
+            
+            # Проверяем на запрещенные символы (только буквы, цифры, точка, дефис)
+            if not all(char.isalnum() or char in ['.', '-'] for char in site_clean):
+                invalid_sites.append((site_clean, 'invalid_chars'))
+                continue
+            
+            # Проверяем что нет двойных точек подряд
+            if '..' in site_clean:
+                invalid_sites.append((site_clean, 'double_dot'))
                 continue
             
             valid_sites.append(site_clean)

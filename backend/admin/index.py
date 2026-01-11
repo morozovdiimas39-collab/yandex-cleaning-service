@@ -7,6 +7,7 @@ Returns: HTTP response со списком пользователей или р�
 
 import json
 import os
+import urllib.request
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import psycopg2
@@ -1589,7 +1590,7 @@ def delete_all_projects(cur, conn):
 
 
 def get_schedules(cur) -> List[Dict[str, Any]]:
-    '''Получить все расписания чистки проектов'''
+    '''Получить все расписания чистки проектов (только активные проекты)'''
     cur.execute("""
         SELECT 
             s.id,
@@ -1600,8 +1601,9 @@ def get_schedules(cur) -> List[Dict[str, Any]]:
             s.last_run_at,
             s.is_active
         FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
-        ORDER BY s.project_id
+        INNER JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
+        WHERE p.is_deleted = FALSE
+        ORDER BY s.project_id DESC
     """)
     return cur.fetchall()
 
@@ -1626,7 +1628,8 @@ def update_schedule_interval(cur, conn, schedule_id: int, interval_hours: int) -
 
 
 def trigger_schedule_now(cur, conn, project_id: int) -> Dict[str, Any]:
-    '''Запустить чистку проекта немедленно (обновить next_run_at на NOW)'''
+    '''Запустить чистку проекта немедленно'''
+    # Обновляем next_run_at на NOW
     cur.execute("""
         UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
         SET next_run_at = NOW(),
@@ -1636,8 +1639,19 @@ def trigger_schedule_now(cur, conn, project_id: int) -> Dict[str, Any]:
     
     conn.commit()
     
+    # Вызываем rsya-scheduler напрямую для немедленного запуска
+    scheduler_url = 'https://functions.poehali.dev/22e90e78-a58a-4857-925d-9a8e72db8de0?force_all=true'
+    
+    try:
+        req = urllib.request.Request(scheduler_url, method='POST')
+        with urllib.request.urlopen(req, timeout=5) as response:
+            response_data = response.read()
+            print(f'✅ Scheduler triggered: {response.status} - {response_data.decode()[:200]}')
+    except Exception as e:
+        print(f'⚠️ Failed to trigger scheduler (will run on next scheduled time): {str(e)}')
+    
     return {
         'success': True,
-        'message': f'Чистка проекта #{project_id} запланирована на немедленное выполнение',
+        'message': f'Чистка проекта #{project_id} запущена немедленно',
         'project_id': project_id
     }

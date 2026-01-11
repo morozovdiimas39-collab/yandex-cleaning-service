@@ -9,6 +9,7 @@ import UsersTab from '@/components/admin/UsersTab';
 import AnalyticsTab from '@/components/admin/AnalyticsTab';
 import BulkTab from '@/components/admin/BulkTab';
 import AffiliatesTab from '@/components/admin/AffiliatesTab';
+import ScheduleTab from '@/components/admin/ScheduleTab';
 
 interface User {
   userId: string;
@@ -424,6 +425,10 @@ export default function AdminPage() {
 
         {activeTab === 'affiliates' && (
           <AffiliatesTab />
+        )}
+
+        {activeTab === 'schedule' && (
+          <ScheduleTab />
         )}
       </div>
     </div>

@@ -46,7 +46,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия с admin key (не требуют user_id)
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'delete_project', 'delete_task', 'delete_all_projects']:
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
             if admin_key != 'directkit_admin_2024':
                 return {
                     'statusCode': 403,
@@ -192,6 +192,53 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             elif action == 'delete_all_projects':
                 result = delete_all_projects(cur, conn)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+            
+            elif action == 'get_schedules':
+                schedules = get_schedules(cur)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'schedules': schedules}, default=str)
+                }
+            
+            elif action == 'update_schedule':
+                body_str = event.get('body', '{}')
+                body_data = json.loads(body_str)
+                schedule_id = body_data.get('schedule_id')
+                interval_hours = body_data.get('interval_hours')
+                
+                if not schedule_id or not interval_hours:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'schedule_id and interval_hours required'})
+                    }
+                
+                result = update_schedule_interval(cur, conn, schedule_id, interval_hours)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+            
+            elif action == 'trigger_schedule':
+                body_str = event.get('body', '{}')
+                body_data = json.loads(body_str)
+                project_id = body_data.get('project_id')
+                
+                if not project_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'project_id required'})
+                    }
+                
+                result = trigger_schedule_now(cur, conn, project_id)
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -1538,4 +1585,59 @@ def delete_all_projects(cur, conn):
         'success': True,
         'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}, Статусов задач: {stats["task_processing_status"]}',
         'deleted': stats
+    }
+
+
+def get_schedules(cur) -> List[Dict[str, Any]]:
+    '''Получить все расписания чистки проектов'''
+    cur.execute("""
+        SELECT 
+            s.id,
+            s.project_id,
+            p.name as project_name,
+            s.interval_hours,
+            s.next_run_at,
+            s.last_run_at,
+            s.is_active
+        FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
+        ORDER BY s.project_id
+    """)
+    return cur.fetchall()
+
+
+def update_schedule_interval(cur, conn, schedule_id: int, interval_hours: int) -> Dict[str, Any]:
+    '''Обновить интервал чистки для расписания'''
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
+        SET interval_hours = %s,
+            updated_at = NOW()
+        WHERE id = %s
+    """, (interval_hours, schedule_id))
+    
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Интервал обновлен на {interval_hours} часов',
+        'schedule_id': schedule_id,
+        'interval_hours': interval_hours
+    }
+
+
+def trigger_schedule_now(cur, conn, project_id: int) -> Dict[str, Any]:
+    '''Запустить чистку проекта немедленно (обновить next_run_at на NOW)'''
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
+        SET next_run_at = NOW(),
+            updated_at = NOW()
+        WHERE project_id = %s
+    """, (project_id,))
+    
+    conn.commit()
+    
+    return {
+        'success': True,
+        'message': f'Чистка проекта #{project_id} запланирована на немедленное выполнение',
+        'project_id': project_id
     }

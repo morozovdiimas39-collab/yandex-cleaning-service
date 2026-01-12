@@ -10,6 +10,7 @@ import AnalyticsTab from '@/components/admin/AnalyticsTab';
 import BulkTab from '@/components/admin/BulkTab';
 import AffiliatesTab from '@/components/admin/AffiliatesTab';
 import ScheduleTab from '@/components/admin/ScheduleTab';
+import RSYATesterTab from '@/components/admin/RSYATesterTab';
 
 interface User {
   userId: string;
@@ -429,6 +430,10 @@ export default function AdminPage() {
 
         {activeTab === 'schedule' && (
           <ScheduleTab />
+        )}
+
+        {activeTab === 'rsya-tester' && (
+          <RSYATesterTab />
         )}
       </div>
     </div>

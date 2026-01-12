@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 
-export type TabType = 'dashboard' | 'users' | 'analytics' | 'bulk' | 'affiliates' | 'schedule';
+export type TabType = 'dashboard' | 'users' | 'analytics' | 'bulk' | 'affiliates' | 'schedule' | 'rsya-tester';
 
 interface TabConfig {
   id: TabType;
@@ -20,7 +20,8 @@ const tabs: TabConfig[] = [
   { id: 'schedule', label: 'Расписание', icon: 'Clock' },
   { id: 'affiliates', label: 'Партнеры', icon: 'UserCheck' },
   { id: 'analytics', label: 'Аналитика', icon: 'BarChart3' },
-  { id: 'bulk', label: 'Массовые операции', icon: 'FileStack' }
+  { id: 'bulk', label: 'Массовые операции', icon: 'FileStack' },
+  { id: 'rsya-tester', label: 'Тестер РСЯ', icon: 'TestTube' }
 ];
 
 export default function AdminTabs({ activeTab, onTabChange }: AdminTabsProps) {

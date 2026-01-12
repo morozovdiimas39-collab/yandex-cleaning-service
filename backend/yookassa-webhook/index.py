@@ -72,10 +72,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         now = datetime.now()
         
-        if plan_type == 'monthly':
+        if plan_type == 'wordstat':
             subscription_ends_at = now + timedelta(days=30)
-        elif plan_type == 'annual':
-            subscription_ends_at = now + timedelta(days=365)
+        elif plan_type == 'rsya_project':
+            subscription_ends_at = None
         else:
             subscription_ends_at = now + timedelta(days=30)
         

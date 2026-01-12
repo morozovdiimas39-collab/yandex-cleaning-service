@@ -92,7 +92,7 @@ export default function Subscription() {
     }
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (planType: 'wordstat' | 'rsya_project', amount: string) => {
     if (!user?.id) {
       return;
     }
@@ -102,8 +102,8 @@ export default function Subscription() {
     try {
       const requestBody = {
         userId: user.id.toString(),
-        planType: 'monthly',
-        amount: '1990'
+        planType: planType,
+        amount: amount
       };
       
       const response = await fetch(BACKEND_URLS['yookassa-payment'], {
@@ -283,7 +283,7 @@ export default function Subscription() {
             <div>
               <h2 className="text-2xl font-semibold mb-6">Выберите тариф</h2>
               
-              <div className="grid md:grid-cols-2 gap-6 max-w-3xl">
+              <div className="grid md:grid-cols-3 gap-6">
                 <Card className="p-6 bg-white border border-slate-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-4 right-4">
                     <div className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">
@@ -346,6 +346,55 @@ export default function Subscription() {
                   )}
                 </Card>
 
+                <Card className="p-6 bg-white border border-slate-200 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-4 right-4">
+                    <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                      РСЯ
+                    </div>
+                  </div>
+                  
+                  <div className="mb-6">
+                    <h3 className="text-xl font-bold mb-2">Чистка РСЯ</h3>
+                    <div className="flex items-baseline gap-2 mb-3">
+                      <span className="text-3xl font-bold text-emerald-600">250₽</span>
+                      <span className="text-gray-600 text-sm">/ проект</span>
+                    </div>
+                    <p className="text-gray-700 text-sm">
+                      Один проект для чистки площадок РСЯ
+                    </p>
+                  </div>
+
+                  <div className="space-y-2.5 mb-6">
+                    <div className="flex items-start gap-2">
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-gray-700">Автоматическая чистка</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-gray-700">Фильтры и исключения</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-gray-700">1 проект</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => handlePayment('rsya_project', '250')}
+                    disabled={paymentLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    {paymentLoading ? (
+                      <>
+                        <Icon name="Loader2" className="animate-spin mr-2" size={16} />
+                        Переход к оплате...
+                      </>
+                    ) : (
+                      'Купить'
+                    )}
+                  </Button>
+                </Card>
+
                 <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 shadow-lg relative overflow-hidden">
                   <div className="absolute top-4 right-4">
                     <div className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-semibold">
@@ -354,13 +403,13 @@ export default function Subscription() {
                   </div>
                   
                   <div className="mb-6">
-                    <h3 className="text-xl font-bold mb-2">Месячная подписка</h3>
+                    <h3 className="text-xl font-bold mb-2">Парсер Вордстат</h3>
                     <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-3xl font-bold text-emerald-600">1990₽</span>
+                      <span className="text-3xl font-bold text-emerald-600">1500₽</span>
                       <span className="text-gray-600 text-sm">/ месяц</span>
                     </div>
                     <p className="text-gray-700 text-sm">
-                      Полный доступ ко всем функциям
+                      Парсинг и кластеризация ключей
                     </p>
                   </div>
 
@@ -375,11 +424,7 @@ export default function Subscription() {
                     </div>
                     <div className="flex items-start gap-2">
                       <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Безлимит проектов</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Icon name="Check" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm font-medium text-gray-900">Все функции</span>
+                      <span className="text-sm font-medium text-gray-900">Кластеризация GPT-4</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <Icon name="Headphones" size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -388,7 +433,7 @@ export default function Subscription() {
                   </div>
 
                   <Button
-                    onClick={handlePayment}
+                    onClick={() => handlePayment('wordstat', '1500')}
                     disabled={paymentLoading}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   >
@@ -401,13 +446,6 @@ export default function Subscription() {
                       'Оформить подписку'
                     )}
                   </Button>
-                  
-                  {subscription?.hasAccess && subscription.planType === 'monthly' && (
-                    <div className="mt-3 text-center py-2 px-4 bg-white/80 text-emerald-700 rounded-lg font-medium text-sm">
-                      <Icon name="CheckCircle2" className="inline mr-2" size={16} />
-                      Активна
-                    </div>
-                  )}
                 </Card>
               </div>
             </div>
@@ -418,10 +456,10 @@ export default function Subscription() {
                 <div>
                   <h3 className="font-semibold text-blue-900 mb-2">О подписке</h3>
                   <ul className="space-y-1 text-sm text-blue-800">
-                    <li>• Безопасная оплата через Альфа-Банк</li>
+                    <li>• Безопасная оплата через ЮКасса</li>
                     <li>• Подписка активируется автоматически после оплаты</li>
-                    <li>• Доступ сохраняется на 30 дней</li>
-                    <li>• Все данные останутся в вашем аккаунте</li>
+                    <li>• Парсер Вордстат — доступ на 30 дней</li>
+                    <li>• Чистка РСЯ — оплата за 1 проект</li>
                   </ul>
                 </div>
               </div>

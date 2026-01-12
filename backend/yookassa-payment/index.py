@@ -65,8 +65,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         plan_descriptions = {
             'trial': 'Пробная подписка DirectKit',
-            'monthly': 'Ежемесячная подписка DirectKit',
-            'annual': 'Годовая подписка DirectKit'
+            'wordstat': 'Парсер Вордстат DirectKit',
+            'rsya_project': 'Чистка РСЯ - 1 проект DirectKit'
         }
         
         payment_data = {

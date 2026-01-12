@@ -31,18 +31,9 @@ export default function Subscription() {
     
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
-    const orderNumber = params.get('order');
-    const plan = params.get('plan');
     
-    if (paymentStatus === 'success' && orderNumber && plan) {
-      checkPaymentStatus(orderNumber, plan);
-    } else if (paymentStatus === 'failed') {
-      toast({
-        title: 'Оплата отменена',
-        description: 'Попробуйте снова',
-        variant: 'destructive'
-      });
-      window.history.replaceState({}, '', '/subscription');
+    if (paymentStatus === 'success') {
+      checkPaymentStatus();
     }
   }, [authLoading]);
 
@@ -103,51 +94,39 @@ export default function Subscription() {
 
   const handlePayment = async () => {
     if (!user?.id) {
-      console.error('❌ No user ID');
       return;
     }
 
-    console.log('💳 Starting payment creation...', { userId: user.id });
     setPaymentLoading(true);
     
     try {
       const requestBody = {
-        action: 'create_payment',
-        amount: 1500,
-        plan: 'monthly'
+        userId: user.id.toString(),
+        planType: 'monthly',
+        amount: '1990'
       };
       
-      console.log('📤 Payment request:', requestBody);
-      
-      const response = await fetch(BACKEND_URLS.subscription, {
+      const response = await fetch(BACKEND_URLS['yookassa-payment'], {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id.toString()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
       });
 
-      console.log('📥 Payment response status:', response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Payment response data:', data);
         
-        if (data.payment_url) {
-          console.log('🔗 Redirecting to:', data.payment_url);
-          window.location.href = data.payment_url;
+        if (data.confirmationUrl) {
+          window.location.href = data.confirmationUrl;
         } else {
-          console.error('❌ No payment_url in response:', data);
           throw new Error('No payment URL');
         }
       } else {
         const errorData = await response.json();
-        console.error('❌ Payment error response:', errorData);
         throw new Error(errorData.error || 'Payment creation failed');
       }
     } catch (error) {
-      console.error('❌ Payment creation error:', error);
       toast({
         title: 'Ошибка',
         description: error instanceof Error ? error.message : 'Не удалось создать платёж',
@@ -157,39 +136,18 @@ export default function Subscription() {
     }
   };
 
-  const checkPaymentStatus = async (orderNumber: string, plan: string) => {
+  const checkPaymentStatus = async () => {
     if (!user?.id) return;
 
     try {
-      const response = await fetch(BACKEND_URLS.subscription, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id.toString()
-        },
-        body: JSON.stringify({
-          action: 'check_payment',
-          orderNumber: orderNumber,
-          plan: plan
-        })
+      toast({
+        title: 'Оплата прошла успешно!',
+        description: 'Подписка активируется автоматически'
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.is_paid) {
-          toast({
-            title: 'Оплата прошла успешно!',
-            description: 'Подписка активирована'
-          });
-          await loadSubscription();
-        } else {
-          toast({
-            title: 'Проверка платежа',
-            description: data.status_text || 'Платёж ещё обрабатывается',
-            variant: 'destructive'
-          });
-        }
-      }
+      
+      setTimeout(async () => {
+        await loadSubscription();
+      }, 2000);
     } catch (error) {
       console.error('Payment check error:', error);
     } finally {
@@ -398,7 +356,7 @@ export default function Subscription() {
                   <div className="mb-6">
                     <h3 className="text-xl font-bold mb-2">Месячная подписка</h3>
                     <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-3xl font-bold text-emerald-600">1500₽</span>
+                      <span className="text-3xl font-bold text-emerald-600">1990₽</span>
                       <span className="text-gray-600 text-sm">/ месяц</span>
                     </div>
                     <p className="text-gray-700 text-sm">

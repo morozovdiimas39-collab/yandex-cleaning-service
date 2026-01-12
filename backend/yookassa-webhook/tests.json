@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Payment succeeded webhook",
+      "method": "POST",
+      "body": {
+        "event": "payment.succeeded",
+        "object": {
+          "id": "test-payment-id",
+          "status": "succeeded",
+          "metadata": {
+            "user_id": "test-user-webhook",
+            "plan_type": "monthly"
+          }
+        }
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

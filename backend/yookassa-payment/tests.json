@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "Create payment for monthly subscription",
+      "method": "POST",
+      "body": {
+        "userId": "test-user-123",
+        "planType": "monthly",
+        "amount": "1990"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "paymentId": "string",
+        "confirmationUrl": "string",
+        "status": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Missing required fields",
+      "method": "POST",
+      "body": {
+        "userId": "test-user-123"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

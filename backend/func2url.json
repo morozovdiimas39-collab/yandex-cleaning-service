@@ -1,4 +1,6 @@
 {
+  "yookassa-payment": "https://functions.poehali.dev/b8412303-5e7d-4b96-89fc-59709566cf81",
+  "yookassa-webhook": "https://functions.poehali.dev/46e1181a-61a8-484f-930c-a73bbb2d6ec9",
   "rsya-async-poller": "https://functions.poehali.dev/393cddf6-50a3-40ed-8eac-630a02475b54",
   "wordstat-parser": "https://functions.poehali.dev/17c36e7b-bb48-4fea-83d1-690d1b0b8802",
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",

@@ -350,33 +350,49 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bo
     if config.get('protect_conversions') and platform.get('conversions', 0) > 0:
         return False
     
-    # 4. Фильтры по метрикам
-    if config.get('min_impressions') and platform.get('impressions', 0) < config['min_impressions']:
-        return False
-    if config.get('max_impressions') and platform.get('impressions', 0) > config['max_impressions']:
-        return False
-    
-    if config.get('min_clicks') and platform.get('clicks', 0) < config['min_clicks']:
-        return False
-    if config.get('max_clicks') and platform.get('clicks', 0) > config['max_clicks']:
+    # 4. Фильтры по метрикам (проверяем ТОЛЬКО если указаны в config)
+    min_impressions = config.get('min_impressions')
+    if min_impressions is not None and platform.get('impressions', 0) < min_impressions:
         return False
     
-    if config.get('min_cpc') and platform.get('cpc', 0) < config['min_cpc']:
-        return False
-    if config.get('max_cpc') and platform.get('cpc', 0) > config['max_cpc']:
-        return False
-    
-    if config.get('min_ctr') and platform.get('ctr', 0) < config['min_ctr']:
-        return False
-    if config.get('max_ctr') and platform.get('ctr', 0) > config['max_ctr']:
+    max_impressions = config.get('max_impressions')
+    if max_impressions is not None and platform.get('impressions', 0) > max_impressions:
         return False
     
-    if config.get('min_conversions') and platform.get('conversions', 0) < config['min_conversions']:
+    min_clicks = config.get('min_clicks')
+    if min_clicks is not None and platform.get('clicks', 0) < min_clicks:
         return False
     
-    if config.get('min_cpa') and platform.get('cpa', 0) < config['min_cpa']:
+    max_clicks = config.get('max_clicks')
+    if max_clicks is not None and platform.get('clicks', 0) > max_clicks:
         return False
-    if config.get('max_cpa') and platform.get('cpa', 0) > config['max_cpa']:
+    
+    min_cpc = config.get('min_cpc')
+    if min_cpc is not None and platform.get('cpc', 0) < min_cpc:
+        return False
+    
+    max_cpc = config.get('max_cpc')
+    if max_cpc is not None and platform.get('cpc', 0) > max_cpc:
+        return False
+    
+    min_ctr = config.get('min_ctr')
+    if min_ctr is not None and platform.get('ctr', 0) < min_ctr:
+        return False
+    
+    max_ctr = config.get('max_ctr')
+    if max_ctr is not None and platform.get('ctr', 0) > max_ctr:
+        return False
+    
+    min_conversions = config.get('min_conversions')
+    if min_conversions is not None and platform.get('conversions', 0) < min_conversions:
+        return False
+    
+    min_cpa = config.get('min_cpa')
+    if min_cpa is not None and platform.get('cpa', 0) < min_cpa:
+        return False
+    
+    max_cpa = config.get('max_cpa')
+    if max_cpa is not None and platform.get('cpa', 0) > max_cpa:
         return False
     
     return True

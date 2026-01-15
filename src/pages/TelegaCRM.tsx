@@ -61,8 +61,8 @@ export default function TelegaCRM() {
   const createProject = async () => {
     if (!user?.id) return;
     
-    if (!formData.name || !formData.bot_token || !formData.telegram_chat_id) {
-      toast.error('Заполните все поля');
+    if (!formData.name || !formData.bot_token) {
+      toast.error('Заполните название и токен бота');
       return;
     }
 
@@ -153,7 +153,7 @@ export default function TelegaCRM() {
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-1">Подключите бота</h3>
                   <p className="text-slate-600 text-sm">
-                    Вставьте токен и ID Telegram-канала для получения заявок
+                    Вставьте токен. ID канала необязателен — если пусто, заявки придут вам в личку.
                   </p>
                 </div>
               </div>
@@ -202,13 +202,16 @@ export default function TelegaCRM() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="chat_id">ID канала</Label>
+                    <Label htmlFor="chat_id">ID канала (необязательно)</Label>
                     <Input
                       id="chat_id"
-                      placeholder="-1001234567890"
+                      placeholder="-1001234567890 или оставьте пустым"
                       value={formData.telegram_chat_id}
                       onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value })}
                     />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Если пусто - заявки придут вам в личку. Если указан - в группу/канал.
+                    </p>
                   </div>
                   <Button onClick={createProject} className="w-full">
                     Создать проект
@@ -348,13 +351,16 @@ export default function TelegaCRM() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="chat_id2">ID канала</Label>
+                        <Label htmlFor="chat_id2">ID канала (необязательно)</Label>
                         <Input
                           id="chat_id2"
-                          placeholder="-1001234567890"
+                          placeholder="-1001234567890 или оставьте пустым"
                           value={formData.telegram_chat_id}
                           onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value })}
                         />
+                        <p className="text-xs text-slate-500 mt-1">
+                          Если пусто - заявки придут вам в личку. Если указан - в группу/канал.
+                        </p>
                       </div>
                       <Button onClick={createProject} className="w-full">
                         Создать проект

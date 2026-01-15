@@ -31,6 +31,20 @@ export default function TelegaCRMProject({ project }: { project: Project }) {
       </div>
 
       <div className="bg-slate-50 rounded-lg p-4 space-y-4">
+        {!project.telegram_chat_id && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div className="flex items-start gap-2">
+              <Icon name="Info" className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-900 mb-1">Заявки придут вам в личку</p>
+                <p className="text-xs text-blue-700">
+                  Чтобы получать заявки, напишите боту любое сообщение или нажмите /start.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div>
           <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
             <span className="bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">1</span>

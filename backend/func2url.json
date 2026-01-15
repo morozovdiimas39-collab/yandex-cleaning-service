@@ -1,4 +1,5 @@
 {
+  "telega-start-handler": "https://functions.poehali.dev/7a1ec7f5-f3c4-45d7-b0d7-4ab82a094653",
   "telega-button-handler": "https://functions.poehali.dev/2a77f28b-3726-4b01-ac43-960fb1bb00b6",
   "telega-lead-webhook": "https://functions.poehali.dev/43d31e2d-138f-46f7-9185-ffdea93ba3ed",
   "telega-crm": "https://functions.poehali.dev/39b2c20b-31e6-4545-bb17-b7b1cda779cc",

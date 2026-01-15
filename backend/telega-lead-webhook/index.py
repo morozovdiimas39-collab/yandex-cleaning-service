@@ -47,18 +47,28 @@ def handler(event: dict, context) -> dict:
         conn.autocommit = True
         cur = conn.cursor()
         
-        # Получаем данные проекта (bot_token, telegram_chat_id)
+        # Получаем данные проекта и владельца
         cur.execute('''
-            SELECT bot_token, telegram_chat_id
-            FROM telega_crm_projects
-            WHERE id = %s
+            SELECT p.bot_token, p.telegram_chat_id, p.owner_telegram_id, u.telegram_id, p.user_id
+            FROM telega_crm_projects p
+            LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON u.id = p.user_id
+            WHERE p.id = %s
         ''', (project_id,))
         
         row = cur.fetchone()
         if not row:
             return error_response('Project not found', 404)
         
-        bot_token, chat_id = row
+        bot_token, telegram_chat_id, owner_telegram_id, user_telegram_id, user_id = row
+        
+        # Определяем куда слать: если есть telegram_chat_id - туда, иначе в личку владельцу
+        if telegram_chat_id:
+            chat_id = telegram_chat_id
+        else:
+            # Используем owner_telegram_id или user_telegram_id из users
+            chat_id = owner_telegram_id or user_telegram_id
+            if not chat_id:
+                return error_response('No telegram_chat_id or owner telegram_id configured. Please set up Telegram bot first.', 400)
         
         # Сохраняем заявку в БД
         cur.execute('''

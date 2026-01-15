@@ -90,16 +90,21 @@ def create_project(cur, event: dict) -> dict:
     user_id = body.get('user_id')
     name = body.get('name')
     bot_token = body.get('bot_token')
-    telegram_chat_id = body.get('telegram_chat_id')
+    telegram_chat_id = body.get('telegram_chat_id')  # Необязательное поле
     
-    if not all([user_id, name, bot_token, telegram_chat_id]):
-        return error_response('Missing required fields', 400)
+    if not all([user_id, name, bot_token]):
+        return error_response('user_id, name, and bot_token required', 400)
+    
+    # Получаем telegram_id пользователя для owner_telegram_id
+    cur.execute('SELECT telegram_id FROM t_p97630513_yandex_cleaning_serv.users WHERE id = %s', (user_id,))
+    user_row = cur.fetchone()
+    owner_telegram_id = user_row[0] if user_row else None
     
     cur.execute('''
-        INSERT INTO telega_crm_projects (user_id, name, bot_token, telegram_chat_id)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO telega_crm_projects (user_id, name, bot_token, telegram_chat_id, owner_telegram_id)
+        VALUES (%s, %s, %s, %s, %s)
         RETURNING id, created_at
-    ''', (user_id, name, bot_token, telegram_chat_id))
+    ''', (user_id, name, bot_token, telegram_chat_id or None, owner_telegram_id))
     
     row = cur.fetchone()
     

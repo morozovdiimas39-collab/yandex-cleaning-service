@@ -6,61 +6,145 @@ from urllib.parse import urlencode
 
 CLIENT_ID = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_ID', '')
 CLIENT_SECRET = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_SECRET', '')
-REDIRECT_URI = 'https://functions.poehali.dev/61ff1445-d92e-4f1f-9900-fe5b339f3e56/callback'
+REDIRECT_URI = 'https://oauth.yandex.ru/verification_code'
 
 def handler(event: dict, context) -> dict:
     '''
-    OAuth-поток для получения токена Яндекс.Метрики
+    OAuth-поток для получения токена Яндекс.Метрики через verification_code
     '''
     method = event.get('httpMethod', 'GET')
-    path = event.get('requestContext', {}).get('http', {}).get('path', '')
+    params = event.get('queryStringParameters') or {}
     
     if method == 'OPTIONS':
         return cors_response(200, '')
     
-    if '/callback' in path:
-        return handle_callback(event)
+    # POST: обмен кода на токен
+    if method == 'POST':
+        return handle_token_exchange(event)
     
-    return handle_auth_start(event)
-
-
-def handle_auth_start(event: dict) -> dict:
-    '''Начало OAuth-потока: редирект на Яндекс'''
-    params = event.get('queryStringParameters') or {}
+    # GET: показываем форму для ввода кода
     project_id = params.get('project_id')
+    if project_id:
+        return show_code_input_page(project_id)
     
-    if not project_id:
-        return cors_response(400, json.dumps({'error': 'project_id required'}))
-    
+    return cors_response(400, json.dumps({'error': 'project_id required'}))
+
+
+def show_code_input_page(project_id: str) -> dict:
+    '''Показываем страницу с кнопкой авторизации и полем для кода'''
     auth_url = 'https://oauth.yandex.ru/authorize?' + urlencode({
         'response_type': 'code',
         'client_id': CLIENT_ID,
-        'redirect_uri': REDIRECT_URI,
-        'state': project_id,
-        'force_confirm': 'yes'
+        'device_id': f'project_{project_id}',
+        'device_name': 'TelegaCRM'
     })
     
+    html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Подключение Яндекс.Метрики</title>
+        <style>
+            body {{ font-family: system-ui; max-width: 500px; margin: 100px auto; text-align: center; }}
+            .step {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }}
+            .step-number {{ background: #3b82f6; color: white; border-radius: 50%; width: 32px; height: 32px; 
+                           display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 10px; }}
+            input {{ width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 16px; box-sizing: border-box; }}
+            button {{ background: #3b82f6; color: white; border: none; padding: 12px 24px; 
+                     border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px; width: 100%; }}
+            button:hover {{ background: #2563eb; }}
+            .link {{ color: #3b82f6; text-decoration: none; }}
+            h1 {{ color: #0f172a; margin-bottom: 30px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Подключение Яндекс.Метрики</h1>
+        
+        <div class="step">
+            <div class="step-number">1</div>
+            <h3>Разрешите доступ к Метрике</h3>
+            <p style="color: #64748b; font-size: 14px;">Нажмите кнопку, авторизуйтесь и разрешите доступ</p>
+            <a href="{auth_url}" target="_blank">
+                <button type="button">Открыть Яндекс OAuth</button>
+            </a>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">2</div>
+            <h3>Скопируйте код подтверждения</h3>
+            <p style="color: #64748b; font-size: 14px;">После авторизации Яндекс покажет код — вставьте его сюда</p>
+            <form id="codeForm">
+                <input type="text" id="code" placeholder="Вставьте код" required />
+                <button type="submit">Подключить</button>
+            </form>
+        </div>
+        
+        <div id="result" style="margin-top: 20px; padding: 12px; border-radius: 6px; display: none;"></div>
+        
+        <script>
+        document.getElementById('codeForm').onsubmit = async (e) => {{
+            e.preventDefault();
+            const code = document.getElementById('code').value;
+            const result = document.getElementById('result');
+            
+            result.style.display = 'block';
+            result.style.background = '#f1f5f9';
+            result.style.color = '#475569';
+            result.textContent = 'Подключаю...';
+            
+            try {{
+                const res = await fetch(window.location.href, {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{code: code, project_id: '{project_id}'}})
+                }});
+                
+                const data = await res.json();
+                
+                if (res.ok && data.success) {{
+                    result.style.background = '#dcfce7';
+                    result.style.color = '#166534';
+                    result.textContent = '✅ Метрика подключена! Закройте это окно.';
+                    setTimeout(() => window.close(), 2000);
+                }} else {{
+                    result.style.background = '#fee2e2';
+                    result.style.color = '#991b1b';
+                    result.textContent = '❌ Ошибка: ' + (data.error || 'Неизвестная ошибка');
+                }}
+            }} catch (err) {{
+                result.style.background = '#fee2e2';
+                result.style.color = '#991b1b';
+                result.textContent = '❌ Ошибка соединения';
+            }}
+        }};
+        </script>
+    </body>
+    </html>
+    '''
+    
     return {
-        'statusCode': 302,
+        'statusCode': 200,
         'headers': {
-            'Location': auth_url,
+            'Content-Type': 'text/html; charset=utf-8',
             'Access-Control-Allow-Origin': '*'
         },
-        'body': '',
+        'body': html,
         'isBase64Encoded': False
     }
 
 
-def handle_callback(event: dict) -> dict:
-    '''Обработка callback от Яндекса: обмен code на token'''
-    params = event.get('queryStringParameters') or {}
-    code = params.get('code')
-    project_id = params.get('state')
-    
-    if not code or not project_id:
-        return error_page('Ошибка авторизации: нет code или project_id')
-    
+def handle_token_exchange(event: dict) -> dict:
+    '''Обмен кода на токен через device flow'''
     try:
+        body = json.loads(event.get('body', '{}'))
+        code = body.get('code')
+        project_id = body.get('project_id')
+        
+        if not code or not project_id:
+            return json_response(400, {'error': 'code и project_id обязательны'})
+        
+        # Обмен кода на токен
         token_response = requests.post('https://oauth.yandex.ru/token', data={
             'grant_type': 'authorization_code',
             'code': code,
@@ -71,13 +155,15 @@ def handle_callback(event: dict) -> dict:
         token_data = token_response.json()
         
         if 'access_token' not in token_data:
-            return error_page(f'Ошибка получения токена: {token_data}')
+            print(f'Token error: {token_data}')
+            return json_response(400, {'error': f'Неверный код: {token_data.get("error_description", "unknown")'})
         
         access_token = token_data['access_token']
         
+        # Сохраняем токен в БД
         dsn = os.environ.get('DATABASE_URL')
         if not dsn:
-            return error_page('DATABASE_URL not configured')
+            return json_response(500, {'error': 'DATABASE_URL not configured'})
         
         conn = psycopg2.connect(dsn)
         conn.autocommit = True
@@ -93,81 +179,28 @@ def handle_callback(event: dict) -> dict:
         if cur.rowcount == 0:
             cur.close()
             conn.close()
-            return error_page('Проект не найден')
+            return json_response(404, {'error': 'Проект не найден'})
         
         cur.close()
         conn.close()
         
-        return success_page()
+        return json_response(200, {'success': True})
         
     except Exception as e:
         print(f'Error: {e}')
-        return error_page(f'Ошибка: {str(e)}')
+        import traceback
+        print(traceback.format_exc())
+        return json_response(500, {'error': str(e)})
 
 
-def success_page() -> dict:
-    html = '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Метрика подключена</title>
-        <style>
-            body { font-family: system-ui; max-width: 500px; margin: 100px auto; text-align: center; }
-            .success { color: #059669; font-size: 64px; }
-            h1 { color: #0f172a; }
-            p { color: #64748b; }
-            button { background: #059669; color: white; border: none; padding: 12px 24px; 
-                     border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <div class="success">✅</div>
-        <h1>Яндекс.Метрика подключена!</h1>
-        <p>Теперь конверсии будут автоматически отправляться в Метрику, а цели создадутся автоматически.</p>
-        <button onclick="window.close()">Закрыть окно</button>
-    </body>
-    </html>
-    '''
+def json_response(status: int, data: dict) -> dict:
     return {
-        'statusCode': 200,
+        'statusCode': status,
         'headers': {
-            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         },
-        'body': html,
-        'isBase64Encoded': False
-    }
-
-
-def error_page(message: str) -> dict:
-    html = f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Ошибка</title>
-        <style>
-            body {{ font-family: system-ui; max-width: 500px; margin: 100px auto; text-align: center; }}
-            .error {{ color: #dc2626; font-size: 64px; }}
-            h1 {{ color: #0f172a; }}
-            p {{ color: #64748b; }}
-        </style>
-    </head>
-    <body>
-        <div class="error">❌</div>
-        <h1>Ошибка подключения</h1>
-        <p>{message}</p>
-    </body>
-    </html>
-    '''
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': html,
+        'body': json.dumps(data),
         'isBase64Encoded': False
     }
 
@@ -178,7 +211,7 @@ def cors_response(status: int, body: str) -> dict:
         'headers': {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type'
         },
         'body': body,

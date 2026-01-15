@@ -1,6 +1,7 @@
 import json
 import os
 import psycopg2
+import requests
 from datetime import datetime
 
 def handler(event: dict, context) -> dict:
@@ -107,9 +108,24 @@ def create_project(cur, event: dict) -> dict:
     ''', (user_id, name, bot_token, telegram_chat_id or None, owner_telegram_id))
     
     row = cur.fetchone()
+    project_id = row[0]
+    
+    # Автоматически устанавливаем вебхук для /start команды
+    start_handler_url = 'https://functions.poehali.dev/7a1ec7f5-f3c4-45d7-b0d7-4ab82a094653'
+    try:
+        webhook_response = requests.post(
+            f'https://api.telegram.org/bot{bot_token}/setWebhook',
+            json={'url': start_handler_url},
+            timeout=5
+        )
+        webhook_data = webhook_response.json()
+        if not webhook_data.get('ok'):
+            print(f'Warning: Failed to set webhook: {webhook_data}')
+    except Exception as e:
+        print(f'Warning: Could not set webhook: {e}')
     
     return success_response({
-        'id': row[0],
+        'id': project_id,
         'name': name,
         'bot_token': bot_token,
         'telegram_chat_id': telegram_chat_id,

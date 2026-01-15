@@ -1,0 +1,31 @@
+{
+  "tests": [
+    {
+      "name": "GET projects for user",
+      "method": "GET",
+      "path": "/?user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "projects": "array"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST create project",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "user_id": 999,
+        "name": "Test Project",
+        "bot_token": "123456:ABC",
+        "telegram_chat_id": "-100123"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number",
+        "name": "Test Project"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

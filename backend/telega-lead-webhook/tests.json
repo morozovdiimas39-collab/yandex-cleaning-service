@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "POST lead webhook",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "project_id": 1,
+        "phone": "+79001234567",
+        "name": "Иван",
+        "course": "Актёрское мастерство"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "lead_id": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

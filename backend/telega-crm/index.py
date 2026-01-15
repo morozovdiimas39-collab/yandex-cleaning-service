@@ -1,0 +1,202 @@
+import json
+import os
+import psycopg2
+from datetime import datetime
+
+def handler(event: dict, context) -> dict:
+    '''
+    API для управления проектами TelegaCRM и приёма заявок с сайта
+    '''
+    method = event.get('httpMethod', 'GET')
+    
+    if method == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id'
+            },
+            'body': '',
+            'isBase64Encoded': False
+        }
+    
+    dsn = os.environ.get('DATABASE_URL')
+    if not dsn:
+        return error_response('DATABASE_URL not configured', 500)
+    
+    try:
+        conn = psycopg2.connect(dsn)
+        conn.autocommit = True
+        cur = conn.cursor()
+        
+        if method == 'GET':
+            return get_projects(cur, event)
+        elif method == 'POST':
+            return create_project(cur, event)
+        elif method == 'PUT':
+            return update_project(cur, event)
+        elif method == 'DELETE':
+            return delete_project(cur, event)
+        else:
+            return error_response('Method not allowed', 405)
+            
+    except Exception as e:
+        print(f'Error: {e}')
+        return error_response(str(e), 500)
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
+
+
+def get_projects(cur, event: dict) -> dict:
+    '''Получить список проектов пользователя'''
+    params = event.get('queryStringParameters') or {}
+    user_id = params.get('user_id')
+    
+    if not user_id:
+        return error_response('user_id required', 400)
+    
+    cur.execute('''
+        SELECT id, name, bot_token, telegram_chat_id, created_at, updated_at
+        FROM telega_crm_projects
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+    ''', (user_id,))
+    
+    projects = []
+    for row in cur.fetchall():
+        projects.append({
+            'id': row[0],
+            'name': row[1],
+            'bot_token': row[2],
+            'telegram_chat_id': row[3],
+            'created_at': row[4].isoformat() if row[4] else None,
+            'updated_at': row[5].isoformat() if row[5] else None
+        })
+    
+    return success_response({'projects': projects})
+
+
+def create_project(cur, event: dict) -> dict:
+    '''Создать новый проект'''
+    try:
+        body = json.loads(event.get('body', '{}'))
+    except:
+        return error_response('Invalid JSON', 400)
+    
+    user_id = body.get('user_id')
+    name = body.get('name')
+    bot_token = body.get('bot_token')
+    telegram_chat_id = body.get('telegram_chat_id')
+    
+    if not all([user_id, name, bot_token, telegram_chat_id]):
+        return error_response('Missing required fields', 400)
+    
+    cur.execute('''
+        INSERT INTO telega_crm_projects (user_id, name, bot_token, telegram_chat_id)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id, created_at
+    ''', (user_id, name, bot_token, telegram_chat_id))
+    
+    row = cur.fetchone()
+    
+    return success_response({
+        'id': row[0],
+        'name': name,
+        'bot_token': bot_token,
+        'telegram_chat_id': telegram_chat_id,
+        'created_at': row[1].isoformat() if row[1] else None
+    })
+
+
+def update_project(cur, event: dict) -> dict:
+    '''Обновить проект'''
+    try:
+        body = json.loads(event.get('body', '{}'))
+    except:
+        return error_response('Invalid JSON', 400)
+    
+    project_id = body.get('project_id')
+    user_id = body.get('user_id')
+    
+    if not all([project_id, user_id]):
+        return error_response('project_id and user_id required', 400)
+    
+    updates = []
+    params = []
+    
+    if 'name' in body:
+        updates.append('name = %s')
+        params.append(body['name'])
+    if 'bot_token' in body:
+        updates.append('bot_token = %s')
+        params.append(body['bot_token'])
+    if 'telegram_chat_id' in body:
+        updates.append('telegram_chat_id = %s')
+        params.append(body['telegram_chat_id'])
+    
+    if not updates:
+        return error_response('No fields to update', 400)
+    
+    updates.append('updated_at = NOW()')
+    params.extend([project_id, user_id])
+    
+    cur.execute(f'''
+        UPDATE telega_crm_projects
+        SET {', '.join(updates)}
+        WHERE id = %s AND user_id = %s
+        RETURNING id
+    ''', params)
+    
+    if cur.rowcount == 0:
+        return error_response('Project not found', 404)
+    
+    return success_response({'success': True})
+
+
+def delete_project(cur, event: dict) -> dict:
+    '''Удалить проект'''
+    params = event.get('queryStringParameters') or {}
+    project_id = params.get('project_id')
+    user_id = params.get('user_id')
+    
+    if not all([project_id, user_id]):
+        return error_response('project_id and user_id required', 400)
+    
+    cur.execute('''
+        DELETE FROM telega_crm_projects
+        WHERE id = %s AND user_id = %s
+        RETURNING id
+    ''', (project_id, user_id))
+    
+    if cur.rowcount == 0:
+        return error_response('Project not found', 404)
+    
+    return success_response({'success': True})
+
+
+def success_response(data: dict) -> dict:
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps(data),
+        'isBase64Encoded': False
+    }
+
+
+def error_response(message: str, code: int) -> dict:
+    return {
+        'statusCode': code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps({'error': message}),
+        'isBase64Encoded': False
+    }

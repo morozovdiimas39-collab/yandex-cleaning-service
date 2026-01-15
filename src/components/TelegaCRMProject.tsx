@@ -1,0 +1,98 @@
+import { Card } from '@/components/ui/card';
+import Icon from '@/components/ui/icon';
+import { BACKEND_URLS } from '@/config/backend-urls';
+
+interface Project {
+  id: number;
+  name: string;
+  bot_token: string;
+  telegram_chat_id: string;
+  created_at: string;
+}
+
+export default function TelegaCRMProject({ project }: { project: Project }) {
+  const webhookUrl = BACKEND_URLS['telega-button-handler'] || '[URL not found]';
+  const leadUrl = BACKEND_URLS['telega-lead-webhook'] || '[URL not found]';
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+            <Icon name="MessageSquare" className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">{project.name}</h3>
+            <p className="text-sm text-slate-600">
+              Создан {new Date(project.created_at).toLocaleDateString('ru-RU')}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 rounded-lg p-4 space-y-4">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+            <span className="bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">1</span>
+            Настройте webhook для кнопок
+          </h4>
+          <p className="text-xs text-slate-600 mb-2">Выполните в терминале:</p>
+          <pre className="bg-slate-900 text-slate-100 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all">
+{`curl -X POST "https://api.telegram.org/bot${project.bot_token}/setWebhook" \\
+  -H "Content-Type: application/json" \\
+  -d '{"url":"${webhookUrl}"}'`}
+          </pre>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
+            <span className="bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">2</span>
+            Добавьте форму на сайт
+          </h4>
+          <p className="text-xs text-slate-600 mb-2">Вставьте этот HTML на свой сайт:</p>
+          <pre className="bg-slate-900 text-slate-100 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+{`<form id="leadForm">
+  <input name="phone" placeholder="Телефон" required />
+  <input name="name" placeholder="Имя" />
+  <input name="course" placeholder="Курс" />
+  <button type="submit">Отправить</button>
+</form>
+
+<script>
+document.getElementById('leadForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const data = {
+    project_id: ${project.id},
+    phone: e.target.phone.value,
+    name: e.target.name.value,
+    course: e.target.course.value
+  };
+  
+  const res = await fetch('${leadUrl}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  
+  if (res.ok) alert('Заявка отправлена!');
+  else alert('Ошибка');
+};
+</script>`}
+          </pre>
+        </div>
+
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <Icon name="CheckCircle2" className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-emerald-900">Готово!</p>
+              <p className="text-xs text-emerald-700">
+                Теперь заявки с сайта будут приходить в ваш Telegram-канал с кнопками статусов.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

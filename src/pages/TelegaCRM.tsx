@@ -1,8 +1,111 @@
+import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Icon from '@/components/ui/icon';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { BACKEND_URLS } from '@/config/backend-urls';
+import TelegaCRMProject from '@/components/TelegaCRMProject';
+
+interface Project {
+  id: number;
+  name: string;
+  bot_token: string;
+  telegram_chat_id: string;
+  created_at: string;
+}
 
 export default function TelegaCRM() {
+  const { user } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    bot_token: '',
+    telegram_chat_id: ''
+  });
+
+  useEffect(() => {
+    if (user?.id) {
+      loadProjects();
+    }
+  }, [user]);
+
+  const loadProjects = async () => {
+    if (!user?.id) return;
+    
+    setLoading(true);
+    try {
+      const url = BACKEND_URLS['telega-crm'];
+      if (!url) {
+        console.error('telega-crm URL not found');
+        setLoading(false);
+        return;
+      }
+      
+      const response = await fetch(`${url}?user_id=${user.id}`);
+      const data = await response.json();
+      setProjects(data.projects || []);
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+      toast.error('Ошибка загрузки проектов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createProject = async () => {
+    if (!user?.id) return;
+    
+    if (!formData.name || !formData.bot_token || !formData.telegram_chat_id) {
+      toast.error('Заполните все поля');
+      return;
+    }
+
+    try {
+      const url = BACKEND_URLS['telega-crm'];
+      if (!url) {
+        toast.error('Сервис временно недоступен');
+        return;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          ...formData
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Проект создан!');
+        setIsDialogOpen(false);
+        setFormData({ name: '', bot_token: '', telegram_chat_id: '' });
+        loadProjects();
+      } else {
+        toast.error('Ошибка создания проекта');
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-slate-50">
+        <Sidebar />
+        <main className="flex-1 flex items-center justify-center">
+          <Icon name="Loader2" className="h-8 w-8 animate-spin text-emerald-600" />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
@@ -68,10 +171,51 @@ export default function TelegaCRM() {
               </div>
             </div>
 
-            <Button size="lg" className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700">
-              <Icon name="Plus" className="h-5 w-5 mr-2" />
-              Создать первый проект
-            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700">
+                  <Icon name="Plus" className="h-5 w-5 mr-2" />
+                  Создать первый проект
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Подключить Telegram-бота</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Название проекта</Label>
+                    <Input
+                      id="name"
+                      placeholder="Например: Школа актёрского мастерства"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bot_token">Токен бота</Label>
+                    <Input
+                      id="bot_token"
+                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      value={formData.bot_token}
+                      onChange={(e) => setFormData({ ...formData, bot_token: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="chat_id">ID канала</Label>
+                    <Input
+                      id="chat_id"
+                      placeholder="-1001234567890"
+                      value={formData.telegram_chat_id}
+                      onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value })}
+                    />
+                  </div>
+                  <Button onClick={createProject} className="w-full">
+                    Создать проект
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Преимущества */}
@@ -166,13 +310,68 @@ export default function TelegaCRM() {
             </div>
           </div>
 
-          {/* Coming soon badge */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-              <Icon name="Clock" className="h-4 w-4" />
-              В разработке — запуск в феврале 2026
-            </div>
-          </div>
+          {projects.length > 0 && (
+            <>
+              <div className="flex items-center justify-between mt-12 mb-6">
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">Мои проекты</h2>
+                  <p className="text-slate-600">Управляйте заявками через Telegram</p>
+                </div>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700">
+                      <Icon name="Plus" className="h-4 w-4 mr-2" />
+                      Новый проект
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Подключить Telegram-бота</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="name2">Название проекта</Label>
+                        <Input
+                          id="name2"
+                          placeholder="Например: Школа актёрского мастерства"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="bot_token2">Токен бота</Label>
+                        <Input
+                          id="bot_token2"
+                          placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                          value={formData.bot_token}
+                          onChange={(e) => setFormData({ ...formData, bot_token: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="chat_id2">ID канала</Label>
+                        <Input
+                          id="chat_id2"
+                          placeholder="-1001234567890"
+                          value={formData.telegram_chat_id}
+                          onChange={(e) => setFormData({ ...formData, telegram_chat_id: e.target.value })}
+                        />
+                      </div>
+                      <Button onClick={createProject} className="w-full">
+                        Создать проект
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4">
+                {projects.map((project) => (
+                  <TelegaCRMProject key={project.id} project={project} />
+                ))}
+              </div>
+            </>
+          )}
+
         </div>
       </main>
     </div>

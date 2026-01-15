@@ -1,0 +1,26 @@
+{
+  "tests": [
+    {
+      "name": "POST callback query",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "callback_query": {
+          "id": "123",
+          "data": "status:1:called",
+          "message": {
+            "message_id": 456,
+            "chat": {
+              "id": -1001234567
+            }
+          }
+        }
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

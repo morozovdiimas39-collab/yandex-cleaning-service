@@ -1,4 +1,7 @@
 {
+  "telega-button-handler": "https://functions.poehali.dev/2a77f28b-3726-4b01-ac43-960fb1bb00b6",
+  "telega-lead-webhook": "https://functions.poehali.dev/43d31e2d-138f-46f7-9185-ffdea93ba3ed",
+  "telega-crm": "https://functions.poehali.dev/39b2c20b-31e6-4545-bb17-b7b1cda779cc",
   "yookassa-payment": "https://functions.poehali.dev/b8412303-5e7d-4b96-89fc-59709566cf81",
   "yookassa-webhook": "https://functions.poehali.dev/46e1181a-61a8-484f-930c-a73bbb2d6ec9",
   "rsya-async-poller": "https://functions.poehali.dev/393cddf6-50a3-40ed-8eac-630a02475b54",

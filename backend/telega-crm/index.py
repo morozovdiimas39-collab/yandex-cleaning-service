@@ -92,6 +92,7 @@ def create_project(cur, event: dict) -> dict:
     name = body.get('name')
     bot_token = body.get('bot_token')
     telegram_chat_id = body.get('telegram_chat_id')  # Необязательное поле
+    metrika_counter_id = body.get('metrika_counter_id')  # Необязательное поле
     
     if not all([user_id, name, bot_token]):
         return error_response('user_id, name, and bot_token required', 400)
@@ -102,10 +103,10 @@ def create_project(cur, event: dict) -> dict:
     owner_telegram_id = user_row[0] if user_row else None
     
     cur.execute('''
-        INSERT INTO telega_crm_projects (user_id, name, bot_token, telegram_chat_id, owner_telegram_id)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO telega_crm_projects (user_id, name, bot_token, telegram_chat_id, owner_telegram_id, metrika_counter_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id, created_at
-    ''', (user_id, name, bot_token, telegram_chat_id or None, owner_telegram_id))
+    ''', (user_id, name, bot_token, telegram_chat_id or None, owner_telegram_id, metrika_counter_id or None))
     
     row = cur.fetchone()
     project_id = row[0]

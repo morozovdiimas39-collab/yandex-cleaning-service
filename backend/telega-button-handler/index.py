@@ -59,7 +59,7 @@ def handler(event: dict, context) -> dict:
         
         # Получаем данные лида и проекта
         cur.execute('''
-            SELECT l.id, l.phone, l.name, l.course, p.bot_token
+            SELECT l.id, l.phone, l.name, l.course, p.bot_token, p.metrika_counter_id
             FROM telega_crm_leads l
             JOIN telega_crm_projects p ON l.project_id = p.id
             WHERE l.id = %s
@@ -69,7 +69,7 @@ def handler(event: dict, context) -> dict:
         if not row:
             return error_response('Lead not found', 404)
         
-        lead_id, phone, name, course, bot_token = row
+        lead_id, phone, name, course, bot_token, metrika_counter_id = row
         
         # Обновляем статус в БД
         cur.execute('''
@@ -114,6 +114,10 @@ def handler(event: dict, context) -> dict:
             'parse_mode': 'HTML'
         }, timeout=5)
         
+        # Отправляем конверсию в Яндекс.Метрику
+        if metrika_counter_id and new_status in ['trial', 'enrolled']:
+            send_metrika_conversion(metrika_counter_id, new_status, phone)
+        
         return success_response({'success': True})
         
     except Exception as e:
@@ -148,3 +152,32 @@ def error_response(message: str, code: int) -> dict:
         'body': json.dumps({'error': message}),
         'isBase64Encoded': False
     }
+
+
+def send_metrika_conversion(counter_id: str, status: str, phone: str) -> None:
+    '''
+    Отправка конверсии в Яндекс.Метрику через Measurement Protocol
+    '''
+    try:
+        # Генерируем client_id из телефона (уникальный идентификатор)
+        import hashlib
+        client_id = hashlib.md5(phone.encode()).hexdigest()
+        
+        # Название цели в зависимости от статуса
+        goal_name = 'trial_booking' if status == 'trial' else 'course_enrollment'
+        
+        # URL для отправки конверсии
+        metrika_url = f'https://mc.yandex.ru/watch/{counter_id}'
+        
+        params = {
+            'browser-info': f'ar:1:pv:1:ls:1:en:utf-8',
+            'page-url': f'https://telega-crm.conversion/{goal_name}',
+            'page-ref': 'https://telega-crm.conversion/',
+            'uid': client_id,
+            'ut': 'noindex'
+        }
+        
+        response = requests.get(metrika_url, params=params, timeout=5)
+        print(f'Metrika conversion sent: {goal_name}, status: {response.status_code}')
+    except Exception as e:
+        print(f'Failed to send Metrika conversion: {e}')

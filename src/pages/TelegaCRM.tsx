@@ -27,7 +27,8 @@ export default function TelegaCRM() {
   const [formData, setFormData] = useState({
     name: '',
     bot_token: '',
-    telegram_chat_id: ''
+    telegram_chat_id: '',
+    metrika_counter_id: ''
   });
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function TelegaCRM() {
       if (response.ok) {
         toast.success('Проект создан!');
         setIsDialogOpen(false);
-        setFormData({ name: '', bot_token: '', telegram_chat_id: '' });
+        setFormData({ name: '', bot_token: '', telegram_chat_id: '', metrika_counter_id: '' });
         loadProjects();
       } else {
         toast.error('Ошибка создания проекта');
@@ -253,6 +254,18 @@ export default function TelegaCRM() {
                     />
                     <p className="text-xs text-slate-500 mt-1">
                       Если пусто - заявки придут вам в личку. Если указан - в группу/канал.
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="metrika_counter">ID счётчика Яндекс.Метрики (необязательно)</Label>
+                    <Input
+                      id="metrika_counter"
+                      placeholder="12345678"
+                      value={formData.metrika_counter_id}
+                      onChange={(e) => setFormData({ ...formData, metrika_counter_id: e.target.value })}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Для отправки конверсий в Метрику ("Записался на пробное", "Записался на обучение")
                     </p>
                   </div>
                   <Button onClick={createProject} className="w-full">

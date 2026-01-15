@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -108,8 +108,9 @@ export default function TestVectorClustering() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <Header />
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <Sidebar />
+      <div className="flex-1">
       
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8">
@@ -252,6 +253,7 @@ export default function TestVectorClustering() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { City } from '@/data/russian-cities';
 import SourceStep from '@/components/clustering/SourceStep';
 import CitiesStep from '@/components/clustering/CitiesStep';
@@ -899,6 +899,7 @@ export default function TestClustering() {
           </div>
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }

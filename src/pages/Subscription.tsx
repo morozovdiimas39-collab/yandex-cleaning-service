@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface SubscriptionStatus {
@@ -157,15 +157,15 @@ export default function Subscription() {
 
   if (loading) {
     return (
-      <>
-        <Header />
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 flex items-center justify-center">
+      <div className="flex min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <Icon name="Loader2" className="animate-spin h-12 w-12 text-emerald-600 mx-auto mb-4" />
             <p className="text-gray-600">Загрузка...</p>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -183,9 +183,9 @@ export default function Subscription() {
   };
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
+    <div className="flex min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
+      <Sidebar />
+      <div className="flex-1">
         <div className="container mx-auto px-6 py-8">
           <div className="max-w-4xl mx-auto space-y-8">
             
@@ -467,6 +467,6 @@ export default function Subscription() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

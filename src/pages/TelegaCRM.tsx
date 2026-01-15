@@ -1,0 +1,180 @@
+import Sidebar from '@/components/Sidebar';
+import { Button } from '@/components/ui/button';
+import Icon from '@/components/ui/icon';
+
+export default function TelegaCRM() {
+  return (
+    <div className="flex h-screen bg-slate-50">
+      <Sidebar />
+      
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-6xl mx-auto p-8">
+          {/* Hero секция */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 mb-4">
+              <Icon name="MessageSquare" className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-slate-900 mb-3">
+              TelegaCRM
+            </h1>
+            <p className="text-xl text-slate-600 max-w-2xl mx-auto">
+              CRM прямо в Telegram. Заявки с сайта → кнопки в боте → конверсии в Метрику.
+              <br />Без кабинетов, без обучения сотрудников.
+            </p>
+          </div>
+
+          {/* Быстрый старт */}
+          <div className="bg-white rounded-xl border border-slate-200 p-8 mb-8">
+            <h2 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+              <Icon name="Zap" className="h-6 w-6 text-emerald-500" />
+              Быстрый старт
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-1">Создайте бота в Telegram</h3>
+                  <p className="text-slate-600 text-sm">
+                    Откройте @BotFather → /newbot → скопируйте токен
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-1">Подключите бота</h3>
+                  <p className="text-slate-600 text-sm">
+                    Вставьте токен и ID Telegram-канала для получения заявок
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  3
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-1">Добавьте форму на сайт</h3>
+                  <p className="text-slate-600 text-sm">
+                    Скопируйте код формы и вставьте на свой сайт
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button size="lg" className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700">
+              <Icon name="Plus" className="h-5 w-5 mr-2" />
+              Создать первый проект
+            </Button>
+          </div>
+
+          {/* Преимущества */}
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
+                <Icon name="Zap" className="h-6 w-6 text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-slate-900 mb-2">Мгновенные уведомления</h3>
+              <p className="text-slate-600 text-sm">
+                Заявка пришла → ОП видит в телеге за секунду. Никаких задержек.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
+                <Icon name="MousePointerClick" className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="font-semibold text-slate-900 mb-2">Кнопки статусов</h3>
+              <p className="text-slate-600 text-sm">
+                "Позвонил", "Записался", "Думает", "Нецелевой" — всё в один клик.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center mb-4">
+                <Icon name="TrendingUp" className="h-6 w-6 text-emerald-600" />
+              </div>
+              <h3 className="font-semibold text-slate-900 mb-2">Конверсии в Метрику</h3>
+              <p className="text-slate-600 text-sm">
+                Статус → Яндекс.Метрика → Директ обучается на реальных конверсиях.
+              </p>
+            </div>
+          </div>
+
+          {/* Пример заявки */}
+          <div className="bg-white rounded-xl border border-slate-200 p-8">
+            <h2 className="text-2xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+              <Icon name="Eye" className="h-6 w-6 text-slate-400" />
+              Как это выглядит в Telegram
+            </h2>
+            
+            <div className="bg-slate-900 rounded-lg p-6 max-w-md mx-auto">
+              <div className="bg-slate-800 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-700">
+                  <Icon name="Bell" className="h-5 w-5 text-yellow-400" />
+                  <span className="text-white font-semibold">НОВАЯ ЗАЯВКА</span>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Icon name="Phone" className="h-4 w-4" />
+                    <span>+7 (903) 379-58-58</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Icon name="GraduationCap" className="h-4 w-4" />
+                    <span>Курс: Актёрское мастерство</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Icon name="Calendar" className="h-4 w-4" />
+                    <span>14 января 2026 в 20:48</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <button className="w-full py-2 px-4 bg-slate-700 hover:bg-slate-600 rounded text-white text-sm flex items-center justify-center gap-2 transition-colors">
+                  <Icon name="Phone" className="h-4 w-4" />
+                  Позвонил клиенту
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 rounded text-white text-sm flex items-center justify-center gap-2 transition-colors">
+                    <Icon name="Check" className="h-4 w-4" />
+                    Записался на пробное
+                  </button>
+                  <button className="py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm flex items-center justify-center gap-2 transition-colors">
+                    <Icon name="Pencil" className="h-4 w-4" />
+                    Записался на обучение
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="py-2 px-4 bg-slate-700 hover:bg-slate-600 rounded text-white text-sm flex items-center justify-center gap-2 transition-colors">
+                    <Icon name="Clock" className="h-4 w-4" />
+                    Думает
+                  </button>
+                  <button className="py-2 px-4 bg-red-600 hover:bg-red-700 rounded text-white text-sm flex items-center justify-center gap-2 transition-colors">
+                    <Icon name="X" className="h-4 w-4" />
+                    Нецелевой
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Coming soon badge */}
+          <div className="mt-8 text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+              <Icon name="Clock" className="h-4 w-4" />
+              В разработке — запуск в феврале 2026
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

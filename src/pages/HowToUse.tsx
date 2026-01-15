@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import Icon from '@/components/ui/icon';
 
 interface Step {
@@ -122,9 +122,9 @@ export default function HowToUse() {
   };
 
   return (
-    <>
-      <Header />
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-4 md:p-8">
+    <div className="flex min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
+      <Sidebar />
+      <div className="flex-1 p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl mb-4">
@@ -282,6 +282,6 @@ export default function HowToUse() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -44,6 +44,7 @@ import RSYATestCleaning from "./pages/RSYATestCleaning";
 import RSYAWorkersMonitoring from "./pages/RSYAWorkersMonitoring";
 import RSYAAgent from "./pages/RSYAAgent";
 import RSYAFilterTester from "./pages/RSYAFilterTester";
+import TelegaCRM from "./pages/TelegaCRM";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,7 @@ const App = () => (
           <Route path="/rsya/:id/setup" element={<ProtectedRoute><RSYASetup /></ProtectedRoute>} />
           <Route path="/rsya/:id/settings" element={<ProtectedRoute><RSYASettings /></ProtectedRoute>} />
           <Route path="/rsya/:id/test-filters" element={<ProtectedRoute><RSYAFilterTester /></ProtectedRoute>} />
+          <Route path="/telega-crm" element={<ProtectedRoute><TelegaCRM /></ProtectedRoute>} />
 
           <Route path="/wordstat" element={<ProtectedRoute><WordstatNew /></ProtectedRoute>} />
           <Route path="/wordstat-old" element={<ProtectedRoute><Wordstat /></ProtectedRoute>} />

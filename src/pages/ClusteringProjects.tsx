@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import Icon from '@/components/ui/icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import Header from '@/components/Header';
+import Sidebar from '@/components/Sidebar';
 import { BACKEND_URLS } from '@/config/backend-urls';
 
 const API_URL = BACKEND_URLS.api;
@@ -252,9 +252,9 @@ export default function ClusteringProjects() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
-      <Header />
-      <div className="p-4 md:p-8">
+    <div className="flex min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50">
+      <Sidebar />
+      <div className="flex-1 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>

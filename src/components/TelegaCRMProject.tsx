@@ -4,6 +4,10 @@ import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Project {
   id: number;
@@ -11,13 +15,19 @@ interface Project {
   bot_token: string;
   telegram_chat_id: string;
   created_at: string;
+  metrika_counter_id?: string;
 }
 
-export default function TelegaCRMProject({ project }: { project: Project }) {
+export default function TelegaCRMProject({ project, onUpdate }: { project: Project; onUpdate?: () => void }) {
+  const { user } = useAuth();
   const webhookUrl = BACKEND_URLS['telega-button-handler'] || '[URL not found]';
   const leadUrl = BACKEND_URLS['telega-lead-webhook'] || '[URL not found]';
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [webhookMessage, setWebhookMessage] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    metrika_counter_id: project.metrika_counter_id || ''
+  });
 
   const setupWebhook = async () => {
     setWebhookStatus('loading');
@@ -51,6 +61,38 @@ export default function TelegaCRMProject({ project }: { project: Project }) {
     }
   };
 
+  const updateProject = async () => {
+    if (!user?.id) return;
+
+    try {
+      const url = BACKEND_URLS['telega-crm'];
+      if (!url) {
+        toast.error('Сервис временно недоступен');
+        return;
+      }
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: project.id,
+          user_id: user.id,
+          metrika_counter_id: editFormData.metrika_counter_id
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Проект обновлён!');
+        setIsEditDialogOpen(false);
+        if (onUpdate) onUpdate();
+      } else {
+        toast.error('Ошибка обновления проекта');
+      }
+    } catch (error) {
+      toast.error('Ошибка соединения');
+    }
+  };
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -63,8 +105,44 @@ export default function TelegaCRMProject({ project }: { project: Project }) {
             <p className="text-sm text-slate-600">
               Создан {new Date(project.created_at).toLocaleDateString('ru-RU')}
             </p>
+            {project.metrika_counter_id && (
+              <p className="text-xs text-slate-500 mt-1">
+                <Icon name="TrendingUp" className="h-3 w-3 inline mr-1" />
+                Метрика: {project.metrika_counter_id}
+              </p>
+            )}
           </div>
         </div>
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Icon name="Settings" className="h-4 w-4 mr-2" />
+              Настройки
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Настройки проекта</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="metrika_edit">ID счётчика Яндекс.Метрики</Label>
+                <Input
+                  id="metrika_edit"
+                  placeholder="12345678"
+                  value={editFormData.metrika_counter_id}
+                  onChange={(e) => setEditFormData({ metrika_counter_id: e.target.value })}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Для отправки конверсий в Метрику ("Записался на пробное", "Записался на обучение")
+                </p>
+              </div>
+              <Button onClick={updateProject} className="w-full">
+                Сохранить
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="bg-slate-50 rounded-lg p-4 space-y-4">

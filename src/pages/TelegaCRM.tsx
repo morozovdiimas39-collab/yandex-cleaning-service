@@ -427,7 +427,7 @@ export default function TelegaCRM() {
 
               <div className="grid gap-4">
                 {projects.map((project) => (
-                  <TelegaCRMProject key={project.id} project={project} />
+                  <TelegaCRMProject key={project.id} project={project} onUpdate={loadProjects} />
                 ))}
               </div>
             </>

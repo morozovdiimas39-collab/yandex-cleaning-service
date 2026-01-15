@@ -61,7 +61,7 @@ def get_projects(cur, event: dict) -> dict:
         return error_response('user_id required', 400)
     
     cur.execute('''
-        SELECT id, name, bot_token, telegram_chat_id, created_at, updated_at
+        SELECT id, name, bot_token, telegram_chat_id, metrika_counter_id, created_at, updated_at
         FROM telega_crm_projects
         WHERE user_id = %s
         ORDER BY created_at DESC
@@ -74,8 +74,9 @@ def get_projects(cur, event: dict) -> dict:
             'name': row[1],
             'bot_token': row[2],
             'telegram_chat_id': row[3],
-            'created_at': row[4].isoformat() if row[4] else None,
-            'updated_at': row[5].isoformat() if row[5] else None
+            'metrika_counter_id': row[4],
+            'created_at': row[5].isoformat() if row[5] else None,
+            'updated_at': row[6].isoformat() if row[6] else None
         })
     
     return success_response({'projects': projects})
@@ -159,6 +160,9 @@ def update_project(cur, event: dict) -> dict:
     if 'telegram_chat_id' in body:
         updates.append('telegram_chat_id = %s')
         params.append(body['telegram_chat_id'])
+    if 'metrika_counter_id' in body:
+        updates.append('metrika_counter_id = %s')
+        params.append(body['metrika_counter_id'])
     
     if not updates:
         return error_response('No fields to update', 400)

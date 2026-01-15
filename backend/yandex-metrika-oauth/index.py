@@ -4,8 +4,8 @@ import psycopg2
 import requests
 from urllib.parse import urlencode
 
-CLIENT_ID = 'e552a02aea4c4edaad6128d3a5f6a85d'
-CLIENT_SECRET = '08e52b07757e49ef8d57077db67f037a'
+CLIENT_ID = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_ID', '')
+CLIENT_SECRET = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_SECRET', '')
 REDIRECT_URI = 'https://functions.poehali.dev/yandex-metrika-oauth/callback'
 
 def handler(event: dict, context) -> dict:

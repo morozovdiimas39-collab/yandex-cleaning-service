@@ -23,6 +23,7 @@ export default function TelegaCRM() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [telegramLinked, setTelegramLinked] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     bot_token: '',
@@ -32,8 +33,21 @@ export default function TelegaCRM() {
   useEffect(() => {
     if (user?.id) {
       loadProjects();
+      checkTelegramLink();
     }
   }, [user]);
+
+  const checkTelegramLink = async () => {
+    if (!user?.id) return;
+    try {
+      const url = BACKEND_URLS['api'];
+      const response = await fetch(`${url}/user/${user.id}`);
+      const data = await response.json();
+      setTelegramLinked(!!data.telegram_id);
+    } catch (error) {
+      console.error('Failed to check telegram link:', error);
+    }
+  };
 
   const loadProjects = async () => {
     if (!user?.id) return;
@@ -112,6 +126,34 @@ export default function TelegaCRM() {
       
       <main className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto p-8">
+          {/* Алерт о привязке Telegram */}
+          {!telegramLinked && projects.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <Icon name="AlertTriangle" className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-900 mb-1">
+                    Привяжите Telegram, чтобы получать заявки
+                  </h3>
+                  <p className="text-sm text-amber-700 mb-3">
+                    Бот не знает куда отправлять заявки. Нажмите на кнопку ниже и напишите /start вашему боту.
+                  </p>
+                  {projects[0]?.bot_token && (
+                    <a
+                      href={`https://t.me/${projects[0].bot_token.split(':')[0]}bot?start=user_id_${user?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button size="sm" className="bg-amber-600 hover:bg-amber-700">
+                        <Icon name="Send" className="h-4 w-4 mr-2" />
+                        Привязать Telegram
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Hero секция */}
           <div className="text-center mb-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 mb-4">

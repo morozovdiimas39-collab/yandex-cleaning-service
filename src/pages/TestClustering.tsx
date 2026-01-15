@@ -738,167 +738,168 @@ export default function TestClustering() {
   }
 
   return (
-    <>
-      <Header />
-      {step === 'results' ? (
-        <div className="relative">
-          <ResultsStep
-            clusters={clusters}
-            minusWords={minusWords}
-            onExport={exportClusters}
-            onNewProject={() => navigate('/')}
-            projectId={projectId ? parseInt(projectId) : undefined}
-            onSaveChanges={saveResultsToAPI}
-            regions={selectedCities.map(c => c.name)}
-            onWordstatClick={() => setStep('wordstat-dialog')}
-            specificAddress={specificAddress}
-          />
-          {isWordstatLoading && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-4"></div>
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">Сбор фраз из Wordstat</h3>
-                <p className="text-slate-600 mb-4">Это может занять несколько минут...</p>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${loadingProgress}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-slate-500 mt-2">{Math.round(loadingProgress)}%</p>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-4 md:p-8">
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-semibold text-slate-800 mb-2 tracking-tight">
-                Сбор ключей
-              </h1>
-              <p className="text-lg text-slate-500">
-                {projectName || 'Быстрый сбор и кластеризация ключей'}
-              </p>
-            </div>
-
-            <StepIndicator currentStep={step} />
-
-          {step === 'source' && (
-            <SourceStep
-              source={source}
-              setSource={setSource}
-              manualKeywords={manualKeywords}
-              setManualKeywords={setManualKeywords}
-              websiteUrl={websiteUrl}
-              setWebsiteUrl={setWebsiteUrl}
-              objectAddress={objectAddress}
-              setObjectAddress={setObjectAddress}
-              onNext={handleNextFromSource}
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <div className="flex-1">
+        {step === 'results' ? (
+          <div className="relative">
+            <ResultsStep
+              clusters={clusters}
+              minusWords={minusWords}
+              onExport={exportClusters}
+              onNewProject={() => navigate('/')}
+              projectId={projectId ? parseInt(projectId) : undefined}
+              onSaveChanges={saveResultsToAPI}
+              regions={selectedCities.map(c => c.name)}
               onWordstatClick={() => setStep('wordstat-dialog')}
-              isLoading={false}
-            />
-          )}
-
-          {step === 'cities' && (
-            <CitiesStep
-              selectedCities={selectedCities}
-              citySearch={citySearch}
-              setCitySearch={setCitySearch}
-              addCity={(city) => {
-                setSelectedCities([...selectedCities, city]);
-                setCitySearch('');
-              }}
-              removeCity={(cityId) => {
-                setSelectedCities(selectedCities.filter(c => c.id !== cityId));
-              }}
-              onNext={() => {
-                console.log('🔵 Cities step: onNext clicked');
-                setStep('goal');
-                console.log('🔵 Cities step: setStep(goal) called');
-              }}
-              onBack={handleBack}
-              hasManualKeywords={manualKeywords.trim().length > 0}
-              manualKeyword={manualKeywords.split('\n')[0]?.trim() || ''}
               specificAddress={specificAddress}
-              setSpecificAddress={setSpecificAddress}
             />
-          )}
-
-          {step === 'goal' && (
-            <GoalStep
-              goal={goal}
-              setGoal={setGoal}
-              onNext={() => setStep('minus-filters')}
-              onBack={handleBack}
-            />
-          )}
-
-          {step === 'minus-filters' && (
-            <MinusFiltersStep
-              selectedFilters={selectedMinusFilters}
-              toggleFilter={(filterId: string) => {
-                setSelectedMinusFilters(prev => 
-                  prev.includes(filterId) 
-                    ? prev.filter(id => id !== filterId)
-                    : [...prev, filterId]
-                );
-              }}
-              onNext={async () => {
-                const allKeywords = manualKeywords.trim();
-                if (allKeywords && selectedCities.length > 0) {
-                  setLoadingProgress(0);
-                  setIsWordstatLoading(true);
-                  setStep('processing');
-                  
-                  // Реальный таймер: основной запрос (10 сек) + геоключи (15 запросов × 10 сек) = ~160 сек
-                  const totalTime = 160000; // 160 секунд
-                  const startTime = Date.now();
-                  
-                  const progressInterval = setInterval(() => {
-                    const elapsed = Date.now() - startTime;
-                    const progress = Math.min((elapsed / totalTime) * 100, 95);
-                    setLoadingProgress(progress);
-                  }, 1000);
-                  
-                  try {
-                    // Получаем минус-слова из выбранных фильтров
-                    const autoMinusWords = getMinusWordsFromFilters(selectedMinusFilters, selectedCities);
-                    console.log('🚫 Auto minus-words:', autoMinusWords);
-                    
-                    await handleWordstatSubmit(allKeywords, selectedCities, goal, false, autoMinusWords);
-                  } finally {
-                    clearInterval(progressInterval);
-                  }
-                }
-              }}
-              onBack={handleBack}
-            />
-          )}
-
-          {(step === 'processing' || isWordstatLoading) && (
-            <ProcessingStep
-              progress={loadingProgress}
-              currentStage={Math.floor(loadingProgress / 25)}
-            />
-          )}
-
-          <WordstatDialog
-            open={step === 'wordstat-dialog'}
-            onOpenChange={(open) => setStep(open ? 'wordstat-dialog' : 'results')}
-            onSubmit={(query, cities, mode) => {
-              // ВАЖНО: определяем вызван ли из результатов по наличию данных в БД
-              const calledFromResults = clusters.length > 0;
-              console.log('🎯 WordstatDialog submit:', { clustersLength: clusters.length, calledFromResults });
-              handleWordstatSubmit(query, cities, mode, calledFromResults);
-            }}
-            isLoading={isWordstatLoading}
-            selectedCities={selectedCities}
-            setSelectedCities={setSelectedCities}
-          />
+            {isWordstatLoading && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-600 mx-auto mb-4"></div>
+                  <h3 className="text-xl font-semibold text-slate-800 mb-2">Сбор фраз из Wordstat</h3>
+                  <p className="text-slate-600 mb-4">Это может занять несколько минут...</p>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5">
+                    <div 
+                      className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${loadingProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2">{Math.round(loadingProgress)}%</p>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-4 md:p-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-8">
+                <h1 className="text-4xl font-semibold text-slate-800 mb-2 tracking-tight">
+                  Сбор ключей
+                </h1>
+                <p className="text-lg text-slate-500">
+                  {projectName || 'Быстрый сбор и кластеризация ключей'}
+                </p>
+              </div>
+
+              <StepIndicator currentStep={step} />
+
+            {step === 'source' && (
+              <SourceStep
+                source={source}
+                setSource={setSource}
+                manualKeywords={manualKeywords}
+                setManualKeywords={setManualKeywords}
+                websiteUrl={websiteUrl}
+                setWebsiteUrl={setWebsiteUrl}
+                objectAddress={objectAddress}
+                setObjectAddress={setObjectAddress}
+                onNext={handleNextFromSource}
+                onWordstatClick={() => setStep('wordstat-dialog')}
+                isLoading={false}
+              />
+            )}
+
+            {step === 'cities' && (
+              <CitiesStep
+                selectedCities={selectedCities}
+                citySearch={citySearch}
+                setCitySearch={setCitySearch}
+                addCity={(city) => {
+                  setSelectedCities([...selectedCities, city]);
+                  setCitySearch('');
+                }}
+                removeCity={(cityId) => {
+                  setSelectedCities(selectedCities.filter(c => c.id !== cityId));
+                }}
+                onNext={() => {
+                  console.log('🔵 Cities step: onNext clicked');
+                  setStep('goal');
+                  console.log('🔵 Cities step: setStep(goal) called');
+                }}
+                onBack={handleBack}
+                hasManualKeywords={manualKeywords.trim().length > 0}
+                manualKeyword={manualKeywords.split('\n')[0]?.trim() || ''}
+                specificAddress={specificAddress}
+                setSpecificAddress={setSpecificAddress}
+              />
+            )}
+
+            {step === 'goal' && (
+              <GoalStep
+                goal={goal}
+                setGoal={setGoal}
+                onNext={() => setStep('minus-filters')}
+                onBack={handleBack}
+              />
+            )}
+
+            {step === 'minus-filters' && (
+              <MinusFiltersStep
+                selectedFilters={selectedMinusFilters}
+                toggleFilter={(filterId: string) => {
+                  setSelectedMinusFilters(prev => 
+                    prev.includes(filterId) 
+                      ? prev.filter(id => id !== filterId)
+                      : [...prev, filterId]
+                  );
+                }}
+                onNext={async () => {
+                  const allKeywords = manualKeywords.trim();
+                  if (allKeywords && selectedCities.length > 0) {
+                    setLoadingProgress(0);
+                    setIsWordstatLoading(true);
+                    setStep('processing');
+                    
+                    // Реальный таймер: основной запрос (10 сек) + геоключи (15 запросов × 10 сек) = ~160 сек
+                    const totalTime = 160000; // 160 секунд
+                    const startTime = Date.now();
+                    
+                    const progressInterval = setInterval(() => {
+                      const elapsed = Date.now() - startTime;
+                      const progress = Math.min((elapsed / totalTime) * 100, 95);
+                      setLoadingProgress(progress);
+                    }, 1000);
+                    
+                    try {
+                      // Получаем минус-слова из выбранных фильтров
+                      const autoMinusWords = getMinusWordsFromFilters(selectedMinusFilters, selectedCities);
+                      console.log('🚫 Auto minus-words:', autoMinusWords);
+                      
+                      await handleWordstatSubmit(allKeywords, selectedCities, goal, false, autoMinusWords);
+                    } finally {
+                      clearInterval(progressInterval);
+                    }
+                  }
+                }}
+                onBack={handleBack}
+              />
+            )}
+
+            {(step === 'processing' || isWordstatLoading) && (
+              <ProcessingStep
+                progress={loadingProgress}
+                currentStage={Math.floor(loadingProgress / 25)}
+              />
+            )}
+
+            <WordstatDialog
+              open={step === 'wordstat-dialog'}
+              onOpenChange={(open) => setStep(open ? 'wordstat-dialog' : 'results')}
+              onSubmit={(query, cities, mode) => {
+                // ВАЖНО: определяем вызван ли из результатов по наличию данных в БД
+                const calledFromResults = clusters.length > 0;
+                console.log('🎯 WordstatDialog submit:', { clustersLength: clusters.length, calledFromResults });
+                handleWordstatSubmit(query, cities, mode, calledFromResults);
+              }}
+              isLoading={isWordstatLoading}
+              selectedCities={selectedCities}
+              setSelectedCities={setSelectedCities}
+            />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

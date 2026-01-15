@@ -158,13 +158,16 @@ def send_metrika_conversion(counter_id: str, status: str, phone: str) -> None:
     '''
     Отправка конверсии в Яндекс.Метрику через Measurement Protocol
     '''
+    print(f'[METRIKA] Starting conversion send: counter={counter_id}, status={status}, phone={phone}')
     try:
         # Генерируем client_id из телефона (уникальный идентификатор)
         import hashlib
         client_id = hashlib.md5(phone.encode()).hexdigest()
+        print(f'[METRIKA] Generated client_id: {client_id}')
         
         # Название цели в зависимости от статуса
         goal_name = 'trial_booking' if status == 'trial' else 'course_enrollment'
+        print(f'[METRIKA] Goal name: {goal_name}')
         
         # URL для отправки конверсии
         metrika_url = f'https://mc.yandex.ru/watch/{counter_id}'
@@ -177,7 +180,8 @@ def send_metrika_conversion(counter_id: str, status: str, phone: str) -> None:
             'ut': 'noindex'
         }
         
+        print(f'[METRIKA] Sending GET to {metrika_url} with params: {params}')
         response = requests.get(metrika_url, params=params, timeout=5)
-        print(f'Metrika conversion sent: {goal_name}, status: {response.status_code}')
+        print(f'[METRIKA] SUCCESS! Status: {response.status_code}, Body: {response.text[:200]}')
     except Exception as e:
-        print(f'Failed to send Metrika conversion: {e}')
+        print(f'[METRIKA] FAILED: {e}')

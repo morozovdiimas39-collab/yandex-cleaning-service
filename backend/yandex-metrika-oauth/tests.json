@@ -1,0 +1,13 @@
+{
+  "tests": [
+    {
+      "name": "GET auth start with project_id",
+      "method": "GET",
+      "path": "/?project_id=5",
+      "expectedStatus": 302,
+      "expectedHeaders": {
+        "Location": "string"
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@ interface Project {
   telegram_chat_id: string;
   created_at: string;
   metrika_counter_id?: string;
+  yandex_metrika_token?: string;
 }
 
 export default function TelegaCRMProject({ project, onUpdate }: { project: Project; onUpdate?: () => void }) {
@@ -109,40 +110,58 @@ export default function TelegaCRMProject({ project, onUpdate }: { project: Proje
               <p className="text-xs text-slate-500 mt-1">
                 <Icon name="TrendingUp" className="h-3 w-3 inline mr-1" />
                 Метрика: {project.metrika_counter_id}
+                {project.yandex_metrika_token && (
+                  <span className="ml-2 text-emerald-600">✓ подключена</span>
+                )}
               </p>
             )}
           </div>
         </div>
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Icon name="Settings" className="h-4 w-4 mr-2" />
-              Настройки
+        <div className="flex gap-2">
+          {project.metrika_counter_id && !project.yandex_metrika_token && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const oauthUrl = `https://functions.poehali.dev/61ff1445-d92e-4f1f-9900-fe5b339f3e56?project_id=${project.id}`;
+                window.open(oauthUrl, 'metrika-oauth', 'width=600,height=700');
+              }}
+            >
+              <Icon name="Link" className="h-4 w-4 mr-2" />
+              Подключить Метрику
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Настройки проекта</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="metrika_edit">ID счётчика Яндекс.Метрики</Label>
-                <Input
-                  id="metrika_edit"
-                  placeholder="12345678"
-                  value={editFormData.metrika_counter_id}
-                  onChange={(e) => setEditFormData({ metrika_counter_id: e.target.value })}
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Для отправки конверсий в Метрику ("Записался на пробное", "Записался на обучение")
-                </p>
-              </div>
-              <Button onClick={updateProject} className="w-full">
-                Сохранить
+          )}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Icon name="Settings" className="h-4 w-4 mr-2" />
+                Настройки
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Настройки проекта</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="metrika_edit">ID счётчика Яндекс.Метрики</Label>
+                  <Input
+                    id="metrika_edit"
+                    placeholder="12345678"
+                    value={editFormData.metrika_counter_id}
+                    onChange={(e) => setEditFormData({ metrika_counter_id: e.target.value })}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Для отправки конверсий в Метрику ("Записался на пробное", "Записался на обучение")
+                  </p>
+                </div>
+                <Button onClick={updateProject} className="w-full">
+                  Сохранить
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="bg-slate-50 rounded-lg p-4 space-y-4">

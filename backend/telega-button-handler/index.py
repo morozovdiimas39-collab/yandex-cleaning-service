@@ -59,7 +59,7 @@ def handler(event: dict, context) -> dict:
         
         # Получаем данные лида и проекта
         cur.execute('''
-            SELECT l.id, l.phone, l.name, l.course, p.bot_token, p.metrika_counter_id
+            SELECT l.id, l.phone, l.name, l.course, p.bot_token, p.metrika_counter_id, p.yandex_metrika_token
             FROM telega_crm_leads l
             JOIN telega_crm_projects p ON l.project_id = p.id
             WHERE l.id = %s
@@ -69,7 +69,7 @@ def handler(event: dict, context) -> dict:
         if not row:
             return error_response('Lead not found', 404)
         
-        lead_id, phone, name, course, bot_token, metrika_counter_id = row
+        lead_id, phone, name, course, bot_token, metrika_counter_id, yandex_metrika_token = row
         
         # Обновляем статус в БД
         cur.execute('''
@@ -115,8 +115,8 @@ def handler(event: dict, context) -> dict:
         }, timeout=5)
         
         # Отправляем конверсию в Яндекс.Метрику
-        if metrika_counter_id and new_status in ['trial', 'enrolled']:
-            send_metrika_conversion(metrika_counter_id, new_status, phone)
+        if metrika_counter_id and yandex_metrika_token and new_status in ['trial', 'enrolled']:
+            send_metrika_conversion_api(metrika_counter_id, yandex_metrika_token, new_status, phone)
         
         return success_response({'success': True})
         
@@ -154,34 +154,75 @@ def error_response(message: str, code: int) -> dict:
     }
 
 
-def send_metrika_conversion(counter_id: str, status: str, phone: str) -> None:
+def send_metrika_conversion_api(counter_id: str, token: str, status: str, phone: str) -> None:
     '''
-    Отправка конверсии в Яндекс.Метрику через Measurement Protocol
+    Отправка конверсии в Яндекс.Метрику через Management API
+    Автоматически создаёт цели, если их нет
     '''
-    print(f'[METRIKA] Starting conversion send: counter={counter_id}, status={status}, phone={phone}')
+    print(f'[METRIKA API] Starting: counter={counter_id}, status={status}')
+    
     try:
-        # Генерируем client_id из телефона (уникальный идентификатор)
+        goal_name = 'trial_booking' if status == 'trial' else 'course_enrollment'
+        goal_title = 'Записался на пробное' if status == 'trial' else 'Записался на обучение'
+        
+        # Проверяем, есть ли цель
+        goals_url = f'https://api-metrika.yandex.net/management/v1/counter/{counter_id}/goals'
+        headers = {'Authorization': f'OAuth {token}'}
+        
+        print(f'[METRIKA API] Checking goals...')
+        goals_response = requests.get(goals_url, headers=headers, timeout=10)
+        
+        if goals_response.status_code != 200:
+            print(f'[METRIKA API] Failed to get goals: {goals_response.status_code} {goals_response.text}')
+            return
+        
+        goals_data = goals_response.json()
+        existing_goals = {g.get('name'): g.get('id') for g in goals_data.get('goals', [])}
+        
+        goal_id = None
+        
+        # Если цели нет - создаём
+        if goal_title not in existing_goals:
+            print(f'[METRIKA API] Creating goal: {goal_title}')
+            create_response = requests.post(goals_url, headers=headers, json={
+                'goal': {
+                    'name': goal_title,
+                    'type': 'url',
+                    'conditions': [
+                        {
+                            'type': 'contain',
+                            'url': goal_name
+                        }
+                    ]
+                }
+            }, timeout=10)
+            
+            if create_response.status_code in [200, 201]:
+                goal_id = create_response.json().get('goal', {}).get('id')
+                print(f'[METRIKA API] Goal created! ID: {goal_id}')
+            else:
+                print(f'[METRIKA API] Failed to create goal: {create_response.status_code} {create_response.text}')
+                return
+        else:
+            goal_id = existing_goals[goal_title]
+            print(f'[METRIKA API] Goal exists: {goal_id}')
+        
+        # Отправляем конверсию через Measurement Protocol (с правильным goal_id)
         import hashlib
         client_id = hashlib.md5(phone.encode()).hexdigest()
-        print(f'[METRIKA] Generated client_id: {client_id}')
         
-        # Название цели в зависимости от статуса
-        goal_name = 'trial_booking' if status == 'trial' else 'course_enrollment'
-        print(f'[METRIKA] Goal name: {goal_name}')
-        
-        # URL для отправки конверсии
-        metrika_url = f'https://mc.yandex.ru/watch/{counter_id}'
-        
+        hit_url = f'https://mc.yandex.ru/watch/{counter_id}'
         params = {
-            'browser-info': f'ar:1:pv:1:ls:1:en:utf-8',
+            'browser-info': f'ar:1:pv:1:ls:1:en:utf-8:goal:{goal_id}',
             'page-url': f'https://telega-crm.conversion/{goal_name}',
             'page-ref': 'https://telega-crm.conversion/',
-            'uid': client_id,
-            'ut': 'noindex'
+            'uid': client_id
         }
         
-        print(f'[METRIKA] Sending GET to {metrika_url} with params: {params}')
-        response = requests.get(metrika_url, params=params, timeout=5)
-        print(f'[METRIKA] SUCCESS! Status: {response.status_code}, Body: {response.text[:200]}')
+        hit_response = requests.get(hit_url, params=params, timeout=5)
+        print(f'[METRIKA API] Conversion sent! Status: {hit_response.status_code}')
+        
     except Exception as e:
-        print(f'[METRIKA] FAILED: {e}')
+        print(f'[METRIKA API] ERROR: {e}')
+        import traceback
+        print(traceback.format_exc())

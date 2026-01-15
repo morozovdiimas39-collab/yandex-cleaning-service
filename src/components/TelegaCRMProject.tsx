@@ -1,6 +1,9 @@
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface Project {
   id: number;
@@ -13,6 +16,40 @@ interface Project {
 export default function TelegaCRMProject({ project }: { project: Project }) {
   const webhookUrl = BACKEND_URLS['telega-button-handler'] || '[URL not found]';
   const leadUrl = BACKEND_URLS['telega-lead-webhook'] || '[URL not found]';
+  const [webhookStatus, setWebhookStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [webhookMessage, setWebhookMessage] = useState('');
+
+  const setupWebhook = async () => {
+    setWebhookStatus('loading');
+    setWebhookMessage('');
+
+    try {
+      const response = await fetch(
+        `https://api.telegram.org/bot${project.bot_token}/setWebhook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webhookUrl })
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setWebhookStatus('success');
+        setWebhookMessage('Вебхук успешно установлен!');
+        toast.success('Вебхук установлен!');
+      } else {
+        setWebhookStatus('error');
+        setWebhookMessage(`Ошибка: ${data.description}`);
+        toast.error(`Ошибка: ${data.description}`);
+      }
+    } catch (error) {
+      setWebhookStatus('error');
+      setWebhookMessage('Ошибка подключения к Telegram API');
+      toast.error('Ошибка подключения');
+    }
+  };
 
   return (
     <Card className="p-6">
@@ -50,17 +87,36 @@ export default function TelegaCRMProject({ project }: { project: Project }) {
             <span className="bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">1</span>
             Настройте webhook для кнопок
           </h4>
-          <p className="text-xs text-slate-600 mb-2">Выполните в терминале:</p>
-          <pre className="bg-slate-900 text-slate-100 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap break-all">
-{`curl -X POST "https://api.telegram.org/bot${project.bot_token}/setWebhook" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url":"${webhookUrl}"}'`}
-          </pre>
+          <p className="text-xs text-slate-600 mb-2">Нажмите кнопку, чтобы подключить бота:</p>
+          
+          <Button 
+            onClick={setupWebhook} 
+            disabled={webhookStatus === 'loading'}
+            className="w-full mb-2"
+          >
+            {webhookStatus === 'loading' && <Icon name="Loader2" className="h-4 w-4 mr-2 animate-spin" />}
+            {webhookStatus === 'success' && <Icon name="CheckCircle2" className="h-4 w-4 mr-2" />}
+            {webhookStatus === 'error' && <Icon name="AlertCircle" className="h-4 w-4 mr-2" />}
+            {webhookStatus === 'idle' && 'Установить вебхук'}
+            {webhookStatus === 'loading' && 'Устанавливаю...'}
+            {webhookStatus === 'success' && 'Вебхук установлен!'}
+            {webhookStatus === 'error' && 'Попробовать снова'}
+          </Button>
+
+          {webhookMessage && (
+            <div className={`p-2 rounded text-xs ${
+              webhookStatus === 'success' 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}>
+              {webhookMessage}
+            </div>
+          )}
         </div>
 
         <div>
           <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2">
-            <span className="bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">2</span>
+            <span className="bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">2</span>
             Добавьте форму на сайт
           </h4>
           <p className="text-xs text-slate-600 mb-2">Вставьте этот HTML на свой сайт:</p>

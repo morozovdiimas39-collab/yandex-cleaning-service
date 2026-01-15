@@ -11,19 +11,35 @@
       "bodyMatcher": "partial"
     },
     {
-      "name": "POST create project",
+      "name": "POST create project with chat_id",
       "method": "POST",
       "path": "/",
       "body": {
         "user_id": 999,
-        "name": "Test Project",
+        "name": "Test Project with Group",
         "bot_token": "123456:ABC",
         "telegram_chat_id": "-100123"
       },
       "expectedStatus": 200,
       "expectedBody": {
         "id": "number",
-        "name": "Test Project"
+        "name": "Test Project with Group"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST create project without chat_id (personal)",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "user_id": 999,
+        "name": "Test Project Personal",
+        "bot_token": "123456:ABC"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "id": "number",
+        "name": "Test Project Personal"
       },
       "bodyMatcher": "partial"
     }

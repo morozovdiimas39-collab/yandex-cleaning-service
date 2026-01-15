@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 CLIENT_ID = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_ID', '')
 CLIENT_SECRET = os.environ.get('YANDEX_METRIKA_OAUTH_CLIENT_SECRET', '')
-REDIRECT_URI = 'https://functions.poehali.dev/yandex-metrika-oauth/callback'
+REDIRECT_URI = 'https://functions.poehali.dev/61ff1445-d92e-4f1f-9900-fe5b339f3e56/callback'
 
 def handler(event: dict, context) -> dict:
     '''

@@ -61,7 +61,7 @@ def get_projects(cur, event: dict) -> dict:
         return error_response('user_id required', 400)
     
     cur.execute('''
-        SELECT id, name, bot_token, telegram_chat_id, metrika_counter_id, created_at, updated_at
+        SELECT id, name, bot_token, telegram_chat_id, metrika_counter_id, yandex_metrika_token, created_at, updated_at
         FROM telega_crm_projects
         WHERE user_id = %s
         ORDER BY created_at DESC
@@ -75,8 +75,9 @@ def get_projects(cur, event: dict) -> dict:
             'bot_token': row[2],
             'telegram_chat_id': row[3],
             'metrika_counter_id': row[4],
-            'created_at': row[5].isoformat() if row[5] else None,
-            'updated_at': row[6].isoformat() if row[6] else None
+            'yandex_metrika_token': row[5],
+            'created_at': row[6].isoformat() if row[6] else None,
+            'updated_at': row[7].isoformat() if row[7] else None
         })
     
     return success_response({'projects': projects})

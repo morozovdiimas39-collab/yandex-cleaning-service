@@ -209,18 +209,30 @@ def send_metrika_conversion_api(counter_id: str, token: str, status: str, phone:
         
         # Отправляем конверсию через Measurement Protocol (с правильным goal_id)
         import hashlib
+        import random
         client_id = hashlib.md5(phone.encode()).hexdigest()
         
         hit_url = f'https://mc.yandex.ru/watch/{counter_id}'
         params = {
-            'browser-info': f'ar:1:pv:1:ls:1:en:utf-8:goal:{goal_id}',
+            'browser-info': f'i:1:ar:1:pv:1:en:utf-8',
             'page-url': f'https://telega-crm.conversion/{goal_name}',
             'page-ref': 'https://telega-crm.conversion/',
-            'uid': client_id
+            'rn': random.randint(1000000000, 9999999999),
+            'ut': 'noindex'
         }
         
+        # Отправляем хит страницы
         hit_response = requests.get(hit_url, params=params, timeout=5)
-        print(f'[METRIKA API] Conversion sent! Status: {hit_response.status_code}')
+        print(f'[METRIKA API] Page hit sent! Status: {hit_response.status_code}')
+        
+        # Отправляем конверсию цели
+        goal_params = params.copy()
+        goal_params['page-url'] = f'https://telega-crm.conversion/{goal_name}?goal={goal_id}'
+        goal_params['browser-info'] = f'i:1:ar:1:pv:1:en:utf-8:te:{goal_id}'
+        goal_params['rn'] = random.randint(1000000000, 9999999999)
+        
+        goal_response = requests.get(hit_url, params=goal_params, timeout=5)
+        print(f'[METRIKA API] Goal conversion sent! Goal ID: {goal_id}, Status: {goal_response.status_code}')
         
     except Exception as e:
         print(f'[METRIKA API] ERROR: {e}')

@@ -1,0 +1,9 @@
+{
+  "tests": [{
+    "name": "GET shows auth page",
+    "method": "GET",
+    "path": "/?project_id=5",
+    "expectedStatus": 200,
+    "expectedHeaders": {"Content-Type": "text/html"}
+  }]
+}

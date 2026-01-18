@@ -10,7 +10,7 @@
   "wordstat-parser": "https://functions.poehali.dev/17c36e7b-bb48-4fea-83d1-690d1b0b8802",
   "yandex-regions": "https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b",
   "rsya-batch-worker": "https://functions.yandexcloud.net/d4epnkap6516bbidjlib",
-  "rsya-scheduler": "https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9",
+  "rsya-scheduler": "https://functions.yandexcloud.net/d4evfi08dtdjl1i1gdnk",
   "rsya-health": "https://functions.yandexcloud.net/d4ed7gfejpmtk4hfkdtt",
   "rsya-rotation": "https://functions.yandexcloud.net/d4ekojeqehfer1c8rd26",
   "rsya-block-worker": "https://functions.yandexcloud.net/d4eemaq4bfurcjf3uloa",

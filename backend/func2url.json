@@ -1,9 +1,9 @@
 {
   "yandex-metrika-oauth": "https://functions.poehali.dev/61ff1445-d92e-4f1f-9900-fe5b339f3e56",
   "telega-start-handler": "https://functions.poehali.dev/7a1ec7f5-f3c4-45d7-b0d7-4ab82a094653",
-  "telega-button-handler": "https://functions.poehali.dev/2a77f28b-3726-4b01-ac43-960fb1bb00b6",
-  "telega-lead-webhook": "https://functions.poehali.dev/43d31e2d-138f-46f7-9185-ffdea93ba3ed",
-  "telega-crm": "https://functions.poehali.dev/39b2c20b-31e6-4545-bb17-b7b1cda779cc",
+  "telega-button-handler": "https://functions.yandexcloud.net/d4e9jof2v5v3up111a7h",
+  "telega-lead-webhook": "https://functions.yandexcloud.net/d4eqbfn16p7lbi7o41m0",
+  "telega-crm": "https://functions.yandexcloud.net/d4e80j0n4ef6l5oedl0c",
   "yookassa-payment": "https://functions.poehali.dev/b8412303-5e7d-4b96-89fc-59709566cf81",
   "yookassa-webhook": "https://functions.poehali.dev/46e1181a-61a8-484f-930c-a73bbb2d6ec9",
   "rsya-async-poller": "https://functions.yandexcloud.net/d4e4s904n5848beh29o2",
@@ -16,13 +16,13 @@
   "rsya-block-worker": "https://functions.yandexcloud.net/d4eemaq4bfurcjf3uloa",
   "rsya-automation": "https://functions.yandexcloud.net/d4etnqmdh9rnskkkfm08",
   "wordstat-status": "https://functions.poehali.dev/09b493ba-d477-479a-9dd0-66152410b98b",
-  "save-git-file": "https://functions.poehali.dev/6a492d6f-0eb7-46e3-afae-d167975c1d2e",
+  "save-git-file": "https://functions.yandexcloud.net/d4e7nmmrlafj5kk4oe73",
   "fetch-git-file": "https://functions.poehali.dev/a3303416-e846-4220-9585-089be8a0ccc2",
   "yandex-blocked-platforms": "https://functions.poehali.dev/1355ce0b-f645-40e8-8d3b-220b9ac9c8bf",
   "rsya-projects": "https://functions.yandexcloud.net/d4epr2d8jeq0g9m189i8",
   "yandex-oauth": "https://functions.poehali.dev/052a3544-14b2-4ce8-af5e-26f0e7d0c33a",
   "admin": "https://functions.yandexcloud.net/d4e5dm2g33767g8e1sk9",
-  "subscription": "https://functions.poehali.dev/72f69b8a-01bc-488f-a554-2105dafc6f9c",
+  "subscription": "https://functions.yandexcloud.net/d4ep95eqntg71edm1gg2",
   "api": "https://functions.yandexcloud.net/d4eh7uro3ngpfrsubpl2",
   "yandex-direct": "https://functions.poehali.dev/6b18ca7b-7f12-4758-a9db-4f774aaf2d23"
 }

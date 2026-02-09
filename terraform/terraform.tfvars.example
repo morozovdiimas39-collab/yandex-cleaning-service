@@ -1,0 +1,60 @@
+# ===== Yandex Cloud Configuration =====
+# Получите через: yc iam create-token
+yandex_token = "your-oauth-token-here"
+
+# Получите через: yc config list
+yandex_cloud_id  = "b1g..."
+yandex_folder_id = "b1g..."
+yandex_zone      = "ru-central1-a"
+
+# Имя проекта (будет использовано в названиях ресурсов)
+project_name = "rsya-automation"
+
+# ===== Database Configuration =====
+# Придумайте надёжный пароль для PostgreSQL
+db_password = "your-strong-password-here"
+db_version  = "14"
+db_disk_size = 20
+
+# ===== ОБЯЗАТЕЛЬНЫЕ API Keys =====
+# Яндекс.Директ OAuth (получите на https://oauth.yandex.ru)
+yandex_direct_client_id     = "your-direct-client-id"
+yandex_direct_client_secret = "your-direct-client-secret"
+
+# Яндекс.Метрика OAuth (получите на https://oauth.yandex.ru)
+yandex_metrika_oauth_client_id     = "your-metrika-client-id"
+yandex_metrika_oauth_client_secret = "your-metrika-client-secret"
+
+# Яндекс Wordstat API (получите токен через OAuth)
+yandex_wordstat_token = "your-wordstat-token"
+
+# ЮКасса (из личного кабинета)
+yookassa_shop_id    = "123456"
+yookassa_secret_key = "live_xxxxxxxxxxxxx"
+
+# Telegram Bot Token (получите от @BotFather)
+telegram_bot_token = "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+
+# ===== ОПЦИОНАЛЬНЫЕ Keys (оставьте пустыми если не используете) =====
+openai_api_key   = ""
+openai_proxy_url = ""
+
+gemini_api_key   = ""
+gemini_proxy_url = ""
+
+alfabank_gateway_id = ""
+alfabank_login      = ""
+alfabank_password   = ""
+
+google_sheets_credentials = ""
+
+# ===== Опциональные настройки =====
+# Автоматически деплоить фронтенд
+enable_frontend_deploy = true
+
+# Кастомный домен (если есть)
+custom_domain = ""
+
+# Использовать существующую сеть (оставьте пустым для создания новой)
+network_id = ""
+subnet_id  = ""

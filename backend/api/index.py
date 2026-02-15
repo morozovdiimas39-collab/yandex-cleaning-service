@@ -6,6 +6,9 @@ import psycopg2
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
+# Схема БД в Yandex Cloud (таблицы из V0058 и др.)
+SCHEMA = 't_p97630513_yandex_cleaning_serv'
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
     Business: Единый API для авторизации и управления проектами кластеризации v2
@@ -83,17 +86,17 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
         code = str(random.randint(1000, 9999))
         expires_at = datetime.now() + timedelta(minutes=10)
         
-        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        cur.execute(f"SELECT id FROM {SCHEMA}.users WHERE phone = %s", (phone,))
         user = cur.fetchone()
-        
+
         if user:
             cur.execute(
-                "UPDATE users SET verification_code = %s, code_expires_at = %s WHERE phone = %s",
+                f"UPDATE {SCHEMA}.users SET verification_code = %s, code_expires_at = %s WHERE phone = %s",
                 (code, expires_at, phone)
             )
         else:
             cur.execute(
-                "INSERT INTO users (phone, verification_code, code_expires_at) VALUES (%s, %s, %s)",
+                f"INSERT INTO {SCHEMA}.users (phone, verification_code, code_expires_at) VALUES (%s, %s, %s)",
                 (phone, code, expires_at)
             )
         
@@ -117,7 +120,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             }
         
         cur.execute(
-            "SELECT id, verification_code, code_expires_at FROM users WHERE phone = %s",
+            f"SELECT id, verification_code, code_expires_at FROM {SCHEMA}.users WHERE phone = %s",
             (phone,)
         )
         user = cur.fetchone()
@@ -149,7 +152,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
         token_expires = datetime.now() + timedelta(days=30)
         
         cur.execute(
-            "UPDATE users SET is_verified = TRUE, last_login_at = %s, session_token = %s, token_expires_at = %s WHERE id = %s",
+            f"UPDATE {SCHEMA}.users SET is_verified = TRUE, last_login_at = %s, session_token = %s, token_expires_at = %s WHERE id = %s",
             (datetime.now(), session_token, token_expires, user_id)
         )
         conn.commit()
@@ -190,7 +193,7 @@ def handle_verify(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
     user_id = verify_session(cur, session_token)
     
     if user_id:
-        cur.execute("SELECT phone FROM users WHERE id = %s", (user_id,))
+        cur.execute(f"SELECT phone FROM {SCHEMA}.users WHERE id = %s", (user_id,))
         result = cur.fetchone()
         phone = result[0] if result else None
         
@@ -212,7 +215,7 @@ def verify_session(cur, session_token: str) -> Optional[int]:
         return None
     
     cur.execute(
-        "SELECT id, token_expires_at FROM users WHERE session_token = %s",
+        f"SELECT id, token_expires_at FROM {SCHEMA}.users WHERE session_token = %s",
         (session_token,)
     )
     result = cur.fetchone()
@@ -256,10 +259,10 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
                 }
             
             cur.execute(
-                """
+                f"""
                 SELECT id, name, keywords_count, clusters_count, minus_words_count,
                        created_at, updated_at, results, user_id
-                FROM clustering_projects
+                FROM {SCHEMA}.clustering_projects
                 WHERE id = %s
                 """,
                 (project_id,)
@@ -299,11 +302,11 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             }
         else:
             cur.execute(
-                """
+                f"""
                 SELECT id, name, source, website_url,
                        keywords_count, clusters_count, minus_words_count,
                        created_at, updated_at
-                FROM clustering_projects
+                FROM {SCHEMA}.clustering_projects
                 WHERE user_id = %s
                 ORDER BY updated_at DESC
                 """,
@@ -343,8 +346,8 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             }
         
         cur.execute(
-            """
-            INSERT INTO clustering_projects (user_id, name)
+            f"""
+            INSERT INTO {SCHEMA}.clustering_projects (user_id, name)
             VALUES (%s, %s)
             RETURNING id, created_at, updated_at
             """,
@@ -378,7 +381,7 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'Project ID is required'})
             }
         
-        cur.execute("SELECT id FROM clustering_projects WHERE id = %s AND user_id = %s", (project_id, user_id))
+        cur.execute(f"SELECT id FROM {SCHEMA}.clustering_projects WHERE id = %s AND user_id = %s", (project_id, user_id))
         if not cur.fetchone():
             return {
                 'statusCode': 404,
@@ -411,7 +414,7 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
         update_values.append(user_id)
         
         cur.execute(
-            f"UPDATE clustering_projects SET {', '.join(update_fields)} WHERE id = %s AND user_id = %s",
+            f"UPDATE {SCHEMA}.clustering_projects SET {', '.join(update_fields)} WHERE id = %s AND user_id = %s",
             update_values
         )
         
@@ -434,7 +437,7 @@ def handle_projects(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'Project ID is required'})
             }
         
-        cur.execute("DELETE FROM clustering_projects WHERE id = %s AND user_id = %s", (project_id, user_id))
+        cur.execute(f"DELETE FROM {SCHEMA}.clustering_projects WHERE id = %s AND user_id = %s", (project_id, user_id))
         
         if cur.rowcount == 0:
             return {

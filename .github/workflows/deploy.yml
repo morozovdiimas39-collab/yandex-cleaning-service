@@ -12,6 +12,7 @@ jobs:
           - admin
           - api
           - auth
+          - rsya-async-poller
           - fetch-git-file
           - rsya-automation
           - rsya-batch-worker

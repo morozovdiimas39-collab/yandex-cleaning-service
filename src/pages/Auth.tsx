@@ -248,6 +248,11 @@ export default function Auth() {
                 <p className="text-sm text-muted-foreground">
                   Код отправлен на {phone}
                 </p>
+                {sentCode && (
+                  <p className="text-sm font-mono font-semibold text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-200">
+                    Для теста: код <span className="text-lg">{sentCode}</span>
+                  </p>
+                )}
               </div>
               <Button 
                 onClick={handleCodeSubmit}

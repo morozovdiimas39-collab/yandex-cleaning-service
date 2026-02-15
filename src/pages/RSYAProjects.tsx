@@ -18,7 +18,7 @@ interface Project {
   has_token: boolean;
 }
 
-const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || 'https://functions.poehali.dev/08f68ba6-cbbb-4ca1-841f-185671e0757d';
+const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 
 export default function RSYAProjects() {
   const [projects, setProjects] = useState<Project[]>([]);

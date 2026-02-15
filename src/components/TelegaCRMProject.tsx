@@ -123,7 +123,7 @@ export default function TelegaCRMProject({ project, onUpdate }: { project: Proje
               variant="outline"
               size="sm"
               onClick={() => {
-                const oauthUrl = `https://functions.poehali.dev/61ff1445-d92e-4f1f-9900-fe5b339f3e56?project_id=${project.id}`;
+                const oauthUrl = `${BACKEND_URLS['yandex-metrika-oauth']}?project_id=${project.id}`;
                 window.open(oauthUrl, 'metrika-oauth', 'width=600,height=700');
               }}
             >

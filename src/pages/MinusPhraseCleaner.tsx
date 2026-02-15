@@ -67,6 +67,7 @@ export default function MinusPhraseCleaner() {
     try {
       const phrasesArray = phrases.split('\n').filter(p => p.trim());
 
+      // TODO: заменить на BACKEND_URLS['minus-phrase'] после добавления в func2url
       const response = await fetch('https://functions.poehali.dev/c56fa750-bb00-4b11-ae10-3a17c5071417', {
         method: 'POST',
         headers: {

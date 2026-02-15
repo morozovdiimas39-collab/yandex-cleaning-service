@@ -1639,7 +1639,7 @@ def trigger_schedule_now(cur, conn, project_id: int) -> Dict[str, Any]:
     conn.commit()
     
     # Вызываем rsya-scheduler с конкретным project_id для немедленного запуска
-    scheduler_url = f'https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9?project_id={project_id}'
+    scheduler_url = f'https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls?project_id={project_id}'
     
     try:
         req = urllib.request.Request(scheduler_url, method='POST')

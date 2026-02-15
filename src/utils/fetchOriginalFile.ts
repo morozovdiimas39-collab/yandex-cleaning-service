@@ -1,6 +1,8 @@
-// Utility to fetch the original ResultsStep.tsx from git
+import { BACKEND_URLS } from '@/config/backend-urls';
+
+// Utility to fetch the original ResultsStep.tsx from git (uses save-git-file endpoint)
 export async function fetchOriginalResultsStep(): Promise<string> {
-  const response = await fetch('https://functions.poehali.dev/a3303416-e846-4220-9585-089be8a0ccc2');
+  const response = await fetch(BACKEND_URLS['save-git-file']);
   if (!response.ok) {
     throw new Error(`Failed to fetch: ${response.status}`);
   }

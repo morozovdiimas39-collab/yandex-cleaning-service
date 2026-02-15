@@ -284,7 +284,7 @@ def send_to_mq(message: Dict[str, Any]) -> None:
 
 def invoke_worker_sync(batch_data: Dict[str, Any]) -> None:
     '''Асинхронный вызов Worker через HTTP (fire-and-forget)'''
-    worker_url = 'https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81'
+    worker_url = os.environ.get('RSYA_BATCH_WORKER_URL', 'https://functions.yandexcloud.net/d4eq5hst4mn9mmcttib1')
     
     try:
         print(f"🚀 Invoking Worker for batch {batch_data['batch_number']}/{batch_data['total_batches']} (async)...")

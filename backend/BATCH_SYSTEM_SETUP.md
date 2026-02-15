@@ -14,10 +14,10 @@
 
 | Функция | URL | Описание |
 |---------|-----|----------|
-| **rsya-scheduler** | `https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9` | Планировщик (каждый час) |
-| **rsya-batch-worker** | `https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81` | Обработчик батчей |
-| **rsya-dlq-processor** | `https://functions.poehali.dev/e8f018ef-b008-48e9-90d4-142e067f5130` | Повторная обработка ошибок |
-| **rsya-report-poller** | `https://functions.poehali.dev/76d9ac34-ac4d-40a4-93e0-c94c46e028d6` | Поллер async отчётов |
+| **rsya-scheduler** | `https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls` | Планировщик (каждый час) |
+| **rsya-batch-worker** | `https://functions.yandexcloud.net/d4eq5hst4mn9mmcttib1` | Обработчик батчей |
+| **rsya-dlq-processor** | (см. func2url при наличии) | Повторная обработка ошибок |
+| **rsya-async-poller** | `https://functions.yandexcloud.net/d4emv493feplf9hvgkb4` | Поллер async отчётов |
 
 ---
 
@@ -51,19 +51,19 @@
 ### 1. Scheduler (каждый час)
 Сканирует проекты, создаёт батчи, отправляет в MQ:
 ```bash
-0 * * * * curl -X GET https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9
+0 * * * * curl -X GET https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls
 ```
 
 ### 2. Report Poller (каждые 5 минут)
 Обрабатывает async отчёты (201/202):
 ```bash
-*/5 * * * * curl -X GET https://functions.poehali.dev/76d9ac34-ac4d-40a4-93e0-c94c46e028d6
+*/5 * * * * curl -X GET https://functions.yandexcloud.net/d4emv493feplf9hvgkb4
 ```
 
 ### 3. DLQ Processor (каждый час)
 Повторно обрабатывает failed батчи:
 ```bash
-0 * * * * curl -X GET https://functions.poehali.dev/e8f018ef-b008-48e9-90d4-142e067f5130
+0 * * * * curl -X GET https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls
 ```
 
 ---
@@ -91,7 +91,7 @@ URL: `https://message-queue.api.cloud.yandex.net/b1gtcrip05he61994ldo/dj60000000
 
 ### Шаг 3: Запустить Scheduler вручную
 ```bash
-curl -X GET https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9
+curl -X GET https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls
 ```
 
 Проверить результат:

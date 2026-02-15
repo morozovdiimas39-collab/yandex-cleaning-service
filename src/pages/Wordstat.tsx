@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 interface Cluster {
   cluster_name: string;
@@ -81,7 +82,7 @@ export default function Wordstat() {
 
     setLoading(true);
     try {
-      const response = await fetch('https://functions.poehali.dev/8b141446-430c-4c0b-b347-a0a2057c0ee8', {
+      const response = await fetch(BACKEND_URLS['yandex-regions'], {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

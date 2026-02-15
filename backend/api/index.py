@@ -57,6 +57,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'error': 'Invalid endpoint'})
             }
+    except Exception as e:
+        import traceback
+        err_msg = str(e)
+        err_tb = traceback.format_exc()
+        print(f'API error: {err_msg}\n{err_tb}')
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Internal server error', 'detail': err_msg})
+        }
     finally:
         cur.close()
         conn.close()
@@ -71,7 +81,17 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Method not allowed'})
         }
     
-    body_data = json.loads(event.get('body', '{}'))
+    body_raw = event.get('body')
+    if body_raw is None:
+        body_raw = '{}'
+    if isinstance(body_raw, bytes):
+        body_raw = body_raw.decode('utf-8', errors='replace')
+    if not (body_raw and body_raw.strip()):
+        body_raw = '{}'
+    try:
+        body_data = json.loads(body_raw)
+    except json.JSONDecodeError:
+        body_data = {}
     action = body_data.get('action')
     
     if action == 'send_code':

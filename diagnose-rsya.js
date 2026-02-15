@@ -3,7 +3,7 @@
 
 const https = require('https');
 
-const CHECK_YC_URL = 'https://functions.poehali.dev/56553e1a-0378-4b18-bea1-de65b7498d5d';
+const CHECK_YC_URL = 'https://functions.yandexcloud.net/d4eq1q9g6hlg5q4n4t6p';
 
 console.log('🔍 Diagnosing rsya-scheduler AccessDeniedException issue...\n');
 

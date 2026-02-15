@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 
+// TODO: добавить в func2url.json ключ (напр. clustering-api) после деплоя в Yandex Cloud
 const CLUSTER_API_URL = 'https://functions.poehali.dev/816f5c03-c259-4d9d-9a4b-44d96af0e858';
 
 interface Phrase {

@@ -2,7 +2,7 @@
 const fs = require('fs');
 
 async function fetchAllChunks() {
-  const baseUrl = ''; //https://functions.poehali.dev/7f65b331-870f-4c66-97be-92631d0c8200
+  const baseUrl = 'https://functions.yandexcloud.net/d4e876drsbs7mmtsngot'; // save-git-file
   const chunkSize = 10000;
   let allContent = '';
   let chunkNum = 0;

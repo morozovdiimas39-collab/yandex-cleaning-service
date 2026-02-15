@@ -251,7 +251,7 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
                 
                 # Запускаем worker
                 try:
-                    worker_url = 'https://functions.poehali.dev/eec1c17a-e079-4e13-983b-12132a3888fd'
+                    worker_url = os.environ.get('RSYA_BLOCK_WORKER_URL', 'https://functions.yandexcloud.net/d4ecp99plhc7m6v6h0n6')
                     requests.post(worker_url, json={}, timeout=1)
                     print('🚀 Triggered worker')
                 except:

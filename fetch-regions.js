@@ -1,7 +1,7 @@
 // Script to fetch Wordstat regions
 const https = require('https');
 
-const url = 'https://functions.poehali.dev/8b141446-430c-4c0b-b347-a0a2057c0ee8';
+const url = 'https://functions.yandexcloud.net/d4er25nplih46mvmqkps';
 
 https.get(url, (res) => {
   let data = '';

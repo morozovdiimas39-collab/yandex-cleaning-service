@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 export default function RestoreFile() {
   const [status, setStatus] = useState('');
@@ -9,7 +10,7 @@ export default function RestoreFile() {
     try {
       setStatus('Fetching file from git commit 1e84b6d...');
       
-      const baseUrl = 'https://functions.poehali.dev/7f65b331-870f-4c66-97be-92631d0c8200';
+      const baseUrl = BACKEND_URLS['save-git-file'];
       const chunkSize = 10000;
       let allContent = '';
       let chunkNum = 0;

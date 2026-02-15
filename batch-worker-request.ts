@@ -1,4 +1,4 @@
-const url = 'https://functions.poehali.dev/2642bac6-6d47-4fda-86e9-a10c458a2d81';
+const url = 'https://functions.yandexcloud.net/d4eq5hst4mn9mmcttib1';
 
 const requestBody = {
   batch_id: 83,

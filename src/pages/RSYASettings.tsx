@@ -28,7 +28,7 @@ interface Goal {
 }
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
-const YANDEX_DIRECT_URL = 'https://functions.poehali.dev/6b18ca7b-7f12-4758-a9db-4f774aaf2d23';
+const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 
 export default function RSYASettings() {
   const { id: projectId } = useParams<{ id: string }>();

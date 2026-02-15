@@ -54,7 +54,7 @@ def search_regions(items, target_labels, parent=None, results=None):
     return results
 
 def main():
-    url = 'https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b'
+    url = 'https://functions.yandexcloud.net/d4er25nplih46mvmqkps'
     
     print("Fetching regions data from API...")
     try:

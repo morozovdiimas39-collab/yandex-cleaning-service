@@ -114,7 +114,7 @@ def create_project(cur, event: dict) -> dict:
     project_id = row[0]
     
     # Автоматически устанавливаем вебхук для /start команды
-    start_handler_url = 'https://functions.poehali.dev/7a1ec7f5-f3c4-45d7-b0d7-4ab82a094653'
+    start_handler_url = os.environ.get('TELEGA_START_HANDLER_URL', 'https://functions.yandexcloud.net/d4e2eqgcqg68q9qqafhc')
     try:
         webhook_response = requests.post(
             f'https://api.telegram.org/bot{bot_token}/setWebhook',

@@ -98,7 +98,7 @@ def process_from_database_fallback(dsn: str) -> Dict[str, Any]:
         # Self-triggering если обработали хоть что-то
         if processed_total > 0:
             try:
-                worker_url = 'https://functions.poehali.dev/eec1c17a-e079-4e13-983b-12132a3888fd'
+                worker_url = os.environ.get('RSYA_BLOCK_WORKER_URL', 'https://functions.yandexcloud.net/d4ecp99plhc7m6v6h0n6')
                 requests.post(worker_url, json={}, timeout=1)
                 print('🔄 Triggered next worker iteration (DB fallback)')
             except:
@@ -338,7 +338,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if len(messages) > 0:
             try:
                 # Вызываем worker снова через HTTP (асинхронно)
-                worker_url = 'https://functions.poehali.dev/eec1c17a-e079-4e13-983b-12132a3888fd'
+                worker_url = os.environ.get('RSYA_BLOCK_WORKER_URL', 'https://functions.yandexcloud.net/d4ecp99plhc7m6v6h0n6')
                 requests.post(worker_url, json={}, timeout=1)
                 print('🔄 Triggered next worker iteration')
             except:

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const https = require('https');
 
-const url = 'https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b';
+const url = 'https://functions.yandexcloud.net/d4er25nplih46mvmqkps';
 
 https.get(url, (res) => {
   let data = '';

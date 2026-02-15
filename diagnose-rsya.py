@@ -8,7 +8,7 @@ import json
 import urllib.request
 import sys
 
-CHECK_YC_URL = '' #https://functions.poehali.dev/56553e1a-0378-4b18-bea1-de65b7498d5d
+CHECK_YC_URL = 'https://functions.yandexcloud.net/d4eq1q9g6hlg5q4n4t6p'  # rsya-health
 
 def main():
     print('🔍 Diagnosing rsya-scheduler AccessDeniedException issue...\n')
@@ -104,7 +104,7 @@ def main():
                 print('\n⚠️  WARNING: No CRON trigger configured for rsya-scheduler!')
                 print('   The scheduler won\'t run automatically.')
                 print('   Add this to your crontab or Yandex Cloud Triggers:')
-                print('   0 * * * * curl -X GET https://functions.poehali.dev/e7523331-bd26-46dc-b5d0-984596fb7cc9')
+                print('   0 * * * * curl -X GET https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls')
         
         print('\n' + '=' * 80)
         print('\n✅ Diagnosis complete!')

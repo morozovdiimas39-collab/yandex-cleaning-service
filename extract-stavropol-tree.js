@@ -1,6 +1,6 @@
 const https = require('https');
 
-https.get('', (res) => { //https://functions.poehali.dev/6e6f4963-53eb-43b1-a048-822b807a734b
+https.get('https://functions.yandexcloud.net/d4er25nplih46mvmqkps', (res) => { // yandex-regions
   let data = '';
   res.on('data', (chunk) => { data += chunk; });
   res.on('end', () => {

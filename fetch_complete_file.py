@@ -8,7 +8,7 @@ import requests
 import json
 
 def fetch_all_chunks():
-    base_url = '' #https://functions.poehali.dev/7f65b331-870f-4c66-97be-92631d0c8200
+    base_url = 'https://functions.yandexcloud.net/d4e876drsbs7mmtsngot'  # save-git-file
     chunk_size = 10000
     all_content = ''
     chunk_num = 0

@@ -6,9 +6,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import BACKEND_URLS from '@/config/backend-urls';
 
-// TODO: добавить в func2url.json ключ (напр. clustering-api) после деплоя в Yandex Cloud
-const CLUSTER_API_URL = 'https://functions.poehali.dev/816f5c03-c259-4d9d-9a4b-44d96af0e858';
+// TODO: clustering-api функция не развернута в Yandex Cloud, нужно добавить в func2url.json
+// Временно используем старый URL, но функция должна быть развернута
+const CLUSTER_API_URL = BACKEND_URLS['clustering-api'] || 'https://functions.poehali.dev/816f5c03-c259-4d9d-9a4b-44d96af0e858';
 
 interface Phrase {
   phrase: string;

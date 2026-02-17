@@ -325,8 +325,9 @@ export default function TestClustering() {
         return [];
       }
 
-      // TODO: заменить на BACKEND_URLS['clustering-api'] после добавления в func2url
-      const response = await fetch('https://functions.poehali.dev/816f5c03-c259-4d9d-9a4b-44d96af0e858', {
+      // TODO: clustering-api функция не развернута в Yandex Cloud, нужно добавить в func2url.json
+      const clusteringUrl = BACKEND_URLS['clustering-api'] || 'https://functions.poehali.dev/816f5c03-c259-4d9d-9a4b-44d96af0e858';
+      const response = await fetch(clusteringUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

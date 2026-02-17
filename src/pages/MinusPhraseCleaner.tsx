@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import { Badge } from '@/components/ui/badge';
+import BACKEND_URLS from '@/config/backend-urls';
 
 interface PhraseItem {
   phrase: string;
@@ -67,8 +68,9 @@ export default function MinusPhraseCleaner() {
     try {
       const phrasesArray = phrases.split('\n').filter(p => p.trim());
 
-      // TODO: заменить на BACKEND_URLS['minus-phrase'] после добавления в func2url
-      const response = await fetch('https://functions.poehali.dev/c56fa750-bb00-4b11-ae10-3a17c5071417', {
+      // TODO: minus-phrase функция не развернута в Yandex Cloud, нужно добавить в func2url.json
+      const minusPhraseUrl = BACKEND_URLS['minus-phrase'] || 'https://functions.poehali.dev/c56fa750-bb00-4b11-ae10-3a17c5071417';
+      const response = await fetch(minusPhraseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

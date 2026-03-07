@@ -14,6 +14,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
 
+SCHEMA = 't_p97630513_yandex_cleaning_serv'
+
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
     if not dsn:
@@ -51,46 +53,44 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET' and query_params.get('action') == 'admin_all':
                 limit = int(query_params.get('limit', 100))
                 offset = int(query_params.get('offset', 0))
-                
+                # Список всех пользователей из users + подписка (схема обязательна)
                 cur.execute(
-                    """SELECT s.user_id, s.plan_type, s.status, 
+                    f"""SELECT u.id, u.phone, u.created_at,
+                              s.user_id AS sub_user_id, s.plan_type, s.status,
                               s.trial_started_at, s.trial_ends_at,
                               s.subscription_started_at, s.subscription_ends_at,
-                              s.created_at, s.updated_at,
-                              u.phone
-                       FROM subscriptions s
-                       LEFT JOIN users u ON s.user_id = CAST(u.id AS TEXT)
-                       ORDER BY s.created_at DESC
+                              s.created_at AS sub_created_at
+                       FROM {SCHEMA}.users u
+                       LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
+                       ORDER BY u.created_at DESC
                        LIMIT %s OFFSET %s""",
                     (limit, offset)
                 )
-                subscriptions = cur.fetchall()
-                
-                cur.execute("SELECT COUNT(*) as total FROM subscriptions")
+                rows = cur.fetchall()
+                cur.execute(f"SELECT COUNT(*) as total FROM {SCHEMA}.users")
                 total = cur.fetchone()['total']
-                
                 users = []
                 now = datetime.now()
-                
-                for sub in subscriptions:
+                for row in rows:
+                    sub_plan = row.get('plan_type')
+                    sub_trial_ends = row.get('trial_ends_at')
+                    sub_ends = row.get('subscription_ends_at')
                     has_access = False
                     expires_at = None
-                    
-                    if sub['plan_type'] == 'trial' and sub['trial_ends_at']:
-                        has_access = now < sub['trial_ends_at']
-                        expires_at = sub['trial_ends_at'].isoformat()
-                    elif sub['plan_type'] == 'monthly' and sub['subscription_ends_at']:
-                        has_access = now < sub['subscription_ends_at']
-                        expires_at = sub['subscription_ends_at'].isoformat()
-                    
+                    if sub_plan == 'trial' and sub_trial_ends:
+                        has_access = now < sub_trial_ends
+                        expires_at = sub_trial_ends.isoformat()
+                    elif sub_plan == 'monthly' and sub_ends:
+                        has_access = now < sub_ends
+                        expires_at = sub_ends.isoformat()
                     users.append({
-                        'userId': sub['user_id'],
-                        'phone': sub.get('phone', ''),
-                        'planType': sub['plan_type'],
-                        'status': sub['status'],
+                        'userId': str(row['id']),
+                        'phone': row.get('phone', ''),
+                        'planType': sub_plan or 'trial',
+                        'status': row.get('status') or 'active',
                         'hasAccess': has_access,
                         'expiresAt': expires_at,
-                        'createdAt': sub['created_at'].isoformat() if sub['created_at'] else None
+                        'createdAt': row['created_at'].isoformat() if row.get('created_at') else None
                     })
                 
                 return {
@@ -119,7 +119,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'body': json.dumps({'error': 'userId required'})
                     }
                 
-                cur.execute("SELECT * FROM subscriptions WHERE user_id = %s", (target_user_id,))
+                cur.execute(f"SELECT * FROM {SCHEMA}.subscriptions WHERE user_id = %s", (target_user_id,))
                 existing = cur.fetchone()
                 
                 now = datetime.now()
@@ -128,7 +128,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if existing:
                     if plan_type == 'trial':
                         cur.execute(
-                            """UPDATE subscriptions 
+                            f"""UPDATE {SCHEMA}.subscriptions 
                                SET plan_type = %s, status = %s, 
                                    trial_started_at = %s, trial_ends_at = %s,
                                    updated_at = %s
@@ -137,7 +137,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         )
                     else:
                         cur.execute(
-                            """UPDATE subscriptions 
+                            f"""UPDATE {SCHEMA}.subscriptions 
                                SET plan_type = %s, status = %s,
                                    subscription_started_at = %s, subscription_ends_at = %s,
                                    updated_at = %s
@@ -147,14 +147,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 else:
                     if plan_type == 'trial':
                         cur.execute(
-                            """INSERT INTO subscriptions 
+                            f"""INSERT INTO {SCHEMA}.subscriptions 
                                (user_id, plan_type, status, trial_started_at, trial_ends_at)
                                VALUES (%s, %s, %s, %s, %s)""",
                             (target_user_id, 'trial', 'active', now, ends_at)
                         )
                     else:
                         cur.execute(
-                            """INSERT INTO subscriptions 
+                            f"""INSERT INTO {SCHEMA}.subscriptions 
                                (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
                                VALUES (%s, %s, %s, %s, %s)""",
                             (target_user_id, 'monthly', 'active', now, ends_at)
@@ -179,7 +179,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'body': json.dumps({'error': 'userId required'})
                     }
                 
-                cur.execute("DELETE FROM subscriptions WHERE user_id = %s", (target_user_id,))
+                cur.execute(f"DELETE FROM {SCHEMA}.subscriptions WHERE user_id = %s", (target_user_id,))
                 conn.commit()
                 
                 return {
@@ -250,25 +250,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET' and query_params.get('action') == 'admin_stats':
                 now = datetime.now()
                 
-                cur.execute("SELECT COUNT(*) as total FROM subscriptions")
+                cur.execute(f"SELECT COUNT(*) as total FROM {SCHEMA}.subscriptions")
                 total = cur.fetchone()['total']
                 
                 cur.execute(
-                    """SELECT COUNT(*) as count FROM subscriptions 
+                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.subscriptions 
                        WHERE plan_type = 'trial' AND trial_ends_at > %s""",
                     (now,)
                 )
                 active_trial = cur.fetchone()['count']
                 
                 cur.execute(
-                    """SELECT COUNT(*) as count FROM subscriptions 
+                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.subscriptions 
                        WHERE plan_type = 'monthly' AND subscription_ends_at > %s""",
                     (now,)
                 )
                 active_monthly = cur.fetchone()['count']
                 
                 cur.execute(
-                    """SELECT COUNT(*) as count FROM subscriptions 
+                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.subscriptions 
                        WHERE created_at >= %s""",
                     (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),)
                 )
@@ -276,7 +276,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 week_later = now + timedelta(days=7)
                 cur.execute(
-                    """SELECT COUNT(*) as count FROM subscriptions 
+                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.subscriptions 
                        WHERE (trial_ends_at BETWEEN %s AND %s) 
                           OR (subscription_ends_at BETWEEN %s AND %s)""",
                     (now, week_later, now, week_later)
@@ -303,67 +303,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'User ID required'})
             }
         
-        # GET - проверка статуса подписки
+        # GET - проверка статуса подписки (пока сервис бесплатный — всегда доступ)
         if method == 'GET':
-            cur.execute(
-                "SELECT * FROM subscriptions WHERE user_id = %s",
-                (user_id,)
-            )
-            subscription = cur.fetchone()
-            
-            if not subscription:
-                trial_started = datetime.now()
-                trial_ends = trial_started + timedelta(days=1)
-                
-                cur.execute(
-                    """INSERT INTO subscriptions 
-                       (user_id, plan_type, status, trial_started_at, trial_ends_at)
-                       VALUES (%s, %s, %s, %s, %s)
-                       RETURNING *""",
-                    (user_id, 'trial', 'active', trial_started, trial_ends)
-                )
-                subscription = cur.fetchone()
-                conn.commit()
-            
-            now = datetime.now()
-            has_access = False
-            expires_at = None
-            
-            if subscription['plan_type'] == 'trial':
-                if subscription['trial_ends_at'] and now < subscription['trial_ends_at']:
-                    has_access = True
-                    expires_at = subscription['trial_ends_at'].isoformat()
-                elif subscription['status'] == 'active':
-                    cur.execute(
-                        "UPDATE subscriptions SET status = %s WHERE user_id = %s",
-                        ('expired', user_id)
-                    )
-                    conn.commit()
-            
-            elif subscription['plan_type'] == 'monthly':
-                if subscription['subscription_ends_at'] and now < subscription['subscription_ends_at']:
-                    has_access = True
-                    expires_at = subscription['subscription_ends_at'].isoformat()
-                elif subscription['status'] == 'active':
-                    cur.execute(
-                        "UPDATE subscriptions SET status = %s WHERE user_id = %s",
-                        ('expired', user_id)
-                    )
-                    conn.commit()
-            
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({
-                    'hasAccess': has_access,
-                    'planType': subscription['plan_type'],
-                    'status': subscription['status'],
-                    'expiresAt': expires_at,
-                    'trialEndsAt': subscription['trial_ends_at'].isoformat() if subscription['trial_ends_at'] else None
+                    'hasAccess': True,
+                    'planType': 'free',
+                    'status': 'active',
+                    'expiresAt': None
                 })
-            }
+            )
         
-        # POST - активация платной подписки или создание платежа
+        # POST - активация платной подписки или создание платежа (пока не используется)
         elif method == 'POST':
             body_data = json.loads(event.get('body', '{}'))
             action = body_data.get('action')
@@ -488,7 +441,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     is_paid = order_status == 2
                     
                     if is_paid:
-                        cur.execute("SELECT * FROM subscriptions WHERE user_id = %s", (user_id,))
+                        cur.execute(f"SELECT * FROM {SCHEMA}.subscriptions WHERE user_id = %s", (user_id,))
                         existing = cur.fetchone()
                         
                         now = datetime.now()
@@ -508,7 +461,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         
                         if existing:
                             cur.execute(
-                                """UPDATE subscriptions 
+                                f"""UPDATE {SCHEMA}.subscriptions 
                                    SET plan_type = %s, status = %s,
                                        subscription_started_at = %s, subscription_ends_at = %s,
                                        updated_at = %s
@@ -519,7 +472,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             subscription_id = cur.fetchone()['id']
                         else:
                             cur.execute(
-                                """INSERT INTO subscriptions 
+                                f"""INSERT INTO {SCHEMA}.subscriptions 
                                    (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
                                    VALUES (%s, %s, %s, %s, %s)
                                    RETURNING id""",
@@ -590,7 +543,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             if action == 'activate':
                 cur.execute(
-                    "SELECT * FROM subscriptions WHERE user_id = %s",
+                    f"SELECT * FROM {SCHEMA}.subscriptions WHERE user_id = %s",
                     (user_id,)
                 )
                 existing = cur.fetchone()
@@ -600,7 +553,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 if existing:
                     cur.execute(
-                        """UPDATE subscriptions 
+                        f"""UPDATE {SCHEMA}.subscriptions 
                            SET plan_type = %s, status = %s, 
                                subscription_started_at = %s, subscription_ends_at = %s
                            WHERE user_id = %s
@@ -609,7 +562,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     )
                 else:
                     cur.execute(
-                        """INSERT INTO subscriptions 
+                        f"""INSERT INTO {SCHEMA}.subscriptions 
                            (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
                            VALUES (%s, %s, %s, %s, %s)
                            RETURNING *""",

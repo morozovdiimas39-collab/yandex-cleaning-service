@@ -19,7 +19,6 @@ import { BACKEND_URLS } from '@/config/backend-urls';
 const API_URL = BACKEND_URLS.api;
 const WORDSTAT_API_URL = BACKEND_URLS['wordstat-parser'];
 const WORDSTAT_STATUS_URL = BACKEND_URLS['wordstat-status'];
-const SUBSCRIPTION_URL = BACKEND_URLS.subscription;
 
 // Версия для отладки кэширования
 const APP_VERSION = '2025-01-03-v2';
@@ -64,7 +63,6 @@ export default function TestClustering() {
   const [minusWords, setMinusWords] = useState<Phrase[]>([]);
   const [projectName, setProjectName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
 
   const { user, sessionToken, isLoading: authLoading } = useAuth();
 
@@ -155,24 +153,6 @@ export default function TestClustering() {
         toast.error('Ошибка: пользователь не авторизован');
         navigate('/auth');
         return;
-      }
-
-      // Проверяем подписку
-      if (user?.id) {
-        try {
-          const subResponse = await fetch(SUBSCRIPTION_URL, {
-            headers: {
-              'X-User-Id': user.id.toString()
-            }
-          });
-
-          if (subResponse.ok) {
-            const subData = await subResponse.json();
-            setHasAccess(subData.hasAccess || false);
-          }
-        } catch (error) {
-          console.error('Error checking subscription:', error);
-        }
       }
 
       try {
@@ -356,18 +336,6 @@ export default function TestClustering() {
 
   const handleWordstatSubmit = async (query: string, cities: City[], mode: string, calledFromResults = false, autoMinusWords: string[] = []) => {
     console.log('🎬 handleWordstatSubmit STARTED', { calledFromResults, autoMinusWords: autoMinusWords.length });
-    
-    if (!hasAccess) {
-      toast.error('Подписка закончилась', {
-        description: 'Продлите подписку чтобы собирать ключи',
-        action: {
-          label: 'Подписка',
-          onClick: () => navigate('/subscription')
-        }
-      });
-      setIsWordstatLoading(false);
-      return;
-    }
     
     if (!sessionToken) {
       toast.error('Ошибка: пользователь не авторизован');
@@ -668,17 +636,6 @@ export default function TestClustering() {
   };
 
   const handleNextFromSource = async () => {
-    if (!hasAccess) {
-      toast.error('Подписка закончилась', {
-        description: 'Продлите подписку чтобы добавлять ключи',
-        action: {
-          label: 'Подписка',
-          onClick: () => navigate('/subscription')
-        }
-      });
-      return;
-    }
-
     if (!manualKeywords.trim()) {
       toast.error('Введите ключевые слова или соберите из Wordstat');
       return;

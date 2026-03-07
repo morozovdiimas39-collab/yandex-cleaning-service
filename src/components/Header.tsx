@@ -49,15 +49,6 @@ export default function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/subscription')}
-                className="text-slate-600 hover:text-slate-800"
-              >
-                <Icon name="CreditCard" className="h-4 w-4 mr-2" />
-                Подписка
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
                 onClick={() => navigate('/how-to-use')}
                 className="text-slate-600 hover:text-slate-800"
               >

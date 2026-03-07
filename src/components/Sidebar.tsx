@@ -31,11 +31,6 @@ export default function Sidebar() {
       path: '/telega-crm',
     },
     {
-      icon: 'CreditCard',
-      label: 'Подписка',
-      path: '/subscription',
-    },
-    {
       icon: 'HelpCircle',
       label: 'Как пользоваться',
       path: '/how-to-use',

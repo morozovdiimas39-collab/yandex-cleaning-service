@@ -60,48 +60,6 @@ export default function WordstatNew() {
     { id: '172', name: 'Уфа' }
   ];
 
-  // Проверка подписки при монтировании компонента
-  useEffect(() => {
-    const checkSubscription = async () => {
-      if (authLoading) return;
-      if (!user?.id) return;
-
-      try {
-        const response = await fetch(BACKEND_URLS.subscription, {
-          method: 'GET',
-          headers: {
-            'X-User-Id': user.id
-          }
-        });
-
-        if (response.status === 403) {
-          toast({
-            title: 'Доступ ограничен',
-            description: 'Требуется активная подписка',
-            variant: 'destructive'
-          });
-          navigate('/subscription');
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.code === 'SUBSCRIPTION_REQUIRED' || data.hasAccess === false) {
-          toast({
-            title: 'Доступ ограничен',
-            description: 'Требуется активная подписка',
-            variant: 'destructive'
-          });
-          navigate('/subscription');
-        }
-      } catch (error) {
-        console.error('Ошибка проверки подписки:', error);
-      }
-    };
-
-    checkSubscription();
-  }, [authLoading, user, navigate, toast]);
-
   const fetchClusters = async () => {
     if (!keywords.trim()) {
       toast({ title: 'Ошибка', description: 'Введите ключевые слова', variant: 'destructive' });
@@ -133,16 +91,6 @@ export default function WordstatNew() {
           devices: ['all']
         })
       });
-
-      if (response.status === 403) {
-        toast({
-          title: 'Доступ ограничен',
-          description: 'Требуется активная подписка',
-          variant: 'destructive'
-        });
-        navigate('/subscription');
-        return;
-      }
 
       if (!response.ok) throw new Error('Ошибка запроса');
 

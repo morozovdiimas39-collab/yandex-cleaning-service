@@ -39,13 +39,6 @@ export default function AppSidebar() {
           <span>Сбор ключей</span>
         </button>
 
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          onClick={() => navigate('/subscription')}
-        >
-          <Icon name="CreditCard" size={20} />
-          <span>Подписка</span>
-        </button>
       </nav>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">

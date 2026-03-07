@@ -144,28 +144,6 @@ export default function Auth() {
         
         setAuthData(user, data.sessionToken);
         
-        // Регистрируем реферала если есть код
-        const savedReferralCode = referralCode || localStorage.getItem('referral_code');
-        if (savedReferralCode) {
-          try {
-            await fetch(BACKEND_URLS.subscription, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Id': data.userId.toString()
-              },
-              body: JSON.stringify({
-                action: 'register_referral',
-                referral_code: savedReferralCode,
-                new_user_id: data.userId
-              })
-            });
-            localStorage.removeItem('referral_code');
-          } catch (err) {
-            console.error('Failed to register referral:', err);
-          }
-        }
-        
         toast({ 
           title: '✅ Вход выполнен', 
           description: 'Добро пожаловать!' 

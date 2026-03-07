@@ -12,7 +12,6 @@ import Sidebar from '@/components/Sidebar';
 import { BACKEND_URLS } from '@/config/backend-urls';
 
 const API_URL = BACKEND_URLS.api;
-const SUBSCRIPTION_URL = BACKEND_URLS.subscription;
 
 interface Project {
   id: number;
@@ -36,40 +35,13 @@ export default function ClusteringProjects() {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<number | null>(null);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [checkingSubscription, setCheckingSubscription] = useState(true);
   const navigate = useNavigate();
   const { user, sessionToken, isLoading: authLoading } = useAuth();
 
   useEffect(() => {
     if (authLoading) return;
-    checkSubscription();
     loadProjects();
   }, [authLoading]);
-
-  const checkSubscription = async () => {
-    if (!user?.id) {
-      setCheckingSubscription(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(SUBSCRIPTION_URL, {
-        headers: {
-          'X-User-Id': user.id.toString()
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setHasAccess(data.hasAccess || false);
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-    } finally {
-      setCheckingSubscription(false);
-    }
-  };
 
   const loadProjects = async () => {
     if (!sessionToken || !user?.id) {
@@ -129,17 +101,6 @@ export default function ClusteringProjects() {
   );
 
   const handleCreateProject = async () => {
-    if (!hasAccess) {
-      toast.error('Подписка закончилась', {
-        description: 'Продлите подписку чтобы создавать новые проекты',
-        action: {
-          label: 'Подписка',
-          onClick: () => navigate('/subscription')
-        }
-      });
-      return;
-    }
-
     if (!newProjectName.trim()) {
       toast.error('Введите название проекта');
       return;

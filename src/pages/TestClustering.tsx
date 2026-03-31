@@ -194,8 +194,9 @@ export default function TestClustering() {
             const convertedClusters = project.results.clusters.map((cluster: any) => ({
               ...cluster,
               phrases: cluster.phrases.map((phrase: any) => ({
+                ...phrase,
                 phrase: phrase.phrase,
-                count: phrase.frequency || phrase.count || 0
+                count: phrase.frequency ?? phrase.count ?? 0,
               }))
             }));
             

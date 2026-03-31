@@ -183,7 +183,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   
   const [history, setHistory] = useState<{ clusters: Cluster[]; minusWords: Phrase[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyRef = useRef<{ clusters: Cluster[]; minusWords: Phrase[] }[]>([]);
   const historyIndexRef = useRef(-1);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
   useEffect(() => {
     historyIndexRef.current = historyIndex;
   }, [historyIndex]);
@@ -313,6 +317,8 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
           setOriginalClusters([]);
           setHistory(hydrated);
           setHistoryIndex(loaded.historyIndex);
+          historyRef.current = hydrated;
+          historyIndexRef.current = loaded.historyIndex;
           setClusters(at.clusters);
           setMinusWords(at.minusWords);
           setIsInitialized(true);
@@ -366,12 +372,15 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       }
       
       setIsInitialized(true);
-      
-      setHistory([{
+
+      const initialSnapshot = {
         clusters: mappedClusters,
         minusWords: filteredMinus,
-      }]);
+      };
+      setHistory([initialSnapshot]);
       setHistoryIndex(0);
+      historyRef.current = [initialSnapshot];
+      historyIndexRef.current = 0;
     }
   }, [propsClusters.length, propsMinusWords.length, isInitialized, clusters.length, projectId]);
 
@@ -1668,28 +1677,27 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       minusWords: JSON.parse(JSON.stringify(minusWordsToSave)),
     };
 
+    const prevHistory = historyRef.current;
+    const pi = historyIndexRef.current;
+    const newHistory = prevHistory.slice(0, pi + 1);
+    newHistory.push(entry);
+    if (newHistory.length > 30) {
+      newHistory.shift();
+    }
+    const nextIndex = newHistory.length - 1;
+
+    historyRef.current = newHistory;
+    historyIndexRef.current = nextIndex;
+
     console.log("💾 saveToHistory called:", {
       clustersCount: entry.clusters.length,
       minusWordsCount: entry.minusWords.length,
-      historyIndexRef: historyIndexRef.current,
+      nextIndex,
       stackTrace: new Error().stack?.split("\n")[2]?.trim(),
     });
 
-    setHistory((prevHistory) => {
-      const pi = historyIndexRef.current;
-      const newHistory = prevHistory.slice(0, pi + 1);
-      newHistory.push(entry);
-
-      if (newHistory.length > 30) {
-        newHistory.shift();
-      }
-
-      const nextIndex = newHistory.length - 1;
-      setHistoryIndex(nextIndex);
-      historyIndexRef.current = nextIndex;
-
-      return newHistory;
-    });
+    setHistory(newHistory);
+    setHistoryIndex(nextIndex);
   };
 
   const saveToHistoryRef = useRef(saveToHistory);
@@ -1740,10 +1748,12 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       minusWordsCount: previousState.minusWords.length
     });
     
+    const nextIdx = historyIndex - 1;
     setClusters(JSON.parse(JSON.stringify(previousState.clusters)));
     setMinusWords(JSON.parse(JSON.stringify(previousState.minusWords)));
-    setHistoryIndex(historyIndex - 1);
-    
+    setHistoryIndex(nextIdx);
+    historyIndexRef.current = nextIdx;
+
     await saveToAPI(previousState.clusters, previousState.minusWords);
     
     toast({
@@ -1756,10 +1766,12 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     if (historyIndex >= history.length - 1) return;
     
     const nextState = history[historyIndex + 1];
+    const nextIdx = historyIndex + 1;
     setClusters(JSON.parse(JSON.stringify(nextState.clusters)));
     setMinusWords(JSON.parse(JSON.stringify(nextState.minusWords)));
-    setHistoryIndex(historyIndex + 1);
-    
+    setHistoryIndex(nextIdx);
+    historyIndexRef.current = nextIdx;
+
     await saveToAPI(nextState.clusters, nextState.minusWords);
     
     toast({
@@ -1985,8 +1997,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       phraseIdx,
       currentClustersCount: clusters.length
     });
-    
-    saveToHistory();
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     const newClusters = [...clusters];
     const sourceCluster = newClusters[sourceClusterIdx];

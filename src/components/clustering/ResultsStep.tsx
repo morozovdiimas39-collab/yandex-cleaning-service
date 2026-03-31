@@ -107,7 +107,7 @@ const VirtualClusterPhrases = memo(function VirtualClusterPhrases({
   return (
     <div
       ref={parentRef}
-      className="flex-1 min-h-0 overflow-y-auto"
+      className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
       onDragOver={(e) => {
         e.preventDefault();
       }}
@@ -255,7 +255,7 @@ const VirtualMinusWordsList = memo(function VirtualMinusWordsList({
   });
 
   return (
-    <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
+    <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
       <div
         style={{
           height: virtualizer.getTotalSize(),
@@ -2136,8 +2136,10 @@ export default function ResultsStep({
         </div>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex h-full min-h-0 w-max min-w-full px-4 py-1 sm:px-6 sm:py-2">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+          <div className="min-h-full overflow-x-auto overscroll-x-contain">
+            <div className="flex h-full min-h-0 w-max min-w-full px-4 py-1 sm:px-6 sm:py-2">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}
@@ -2371,6 +2373,8 @@ Enter или кнопка ✓ - зафиксировать перенос'
               onStartEdit={startEditingMinusWord}
               onRemove={removeMinusWord}
             />
+          </div>
+            </div>
           </div>
         </div>
       </div>

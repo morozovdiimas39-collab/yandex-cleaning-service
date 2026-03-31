@@ -2162,14 +2162,14 @@ export default function ResultsStep({
                   backgroundColor: cluster.bgColor
                 }}
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="mb-2 flex w-full min-w-0 items-center gap-2">
                   <div
                     draggable
                     onDragStart={(e) => {
                       e.stopPropagation();
                       handleClusterDragStart(idx);
                     }}
-                    className="cursor-move"
+                    className="cursor-move shrink-0"
                   >
                     <Icon
                       name="GripVertical"
@@ -2180,38 +2180,58 @@ export default function ResultsStep({
                   <Input
                     value={cluster.name}
                     onChange={(e) => renameCluster(idx, e.target.value)}
-                    className="font-semibold text-sm h-7 border-transparent hover:border-gray-300 focus:border-gray-400 bg-transparent flex-1"
+                    className="min-w-0 flex-1 font-semibold text-sm h-7 border-transparent hover:border-gray-300 focus:border-gray-400 bg-transparent"
                   />
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex shrink-0 items-center gap-1">
                     {selectedClusterIndex === null ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            console.log('🔵 FolderOpen clicked for cluster:', idx);
-                            openCluster(idx);
-                          }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                          title="Открыть сегмент"
-                        >
-                          <Icon 
-                            name={clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0 ? "FolderClosed" : "FolderInput"} 
-                            size={16} 
-                          />
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          console.log('🔵 FolderOpen clicked for cluster:', idx);
+                          openCluster(idx);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-600 transition-colors hover:bg-blue-50"
+                        title="Открыть сегмент"
+                      >
+                        <Icon
+                          name={
+                            clusterSubClusters.get(idx) && clusterSubClusters.get(idx)! > 0
+                              ? "FolderClosed"
+                              : "FolderInput"
+                          }
+                          size={16}
+                        />
+                      </button>
                     ) : (
                       <button
+                        type="button"
                         onClick={() => {
                           console.log('🔴 Back button clicked from card');
                           closeCluster();
                         }}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-orange-50 text-orange-600 transition-colors"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-orange-600 transition-colors hover:bg-orange-50"
                         title="Вернуться назад"
                       >
                         <Icon name="ArrowLeft" size={16} />
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => copyClusterPhrases(cluster.phrases)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white/90"
+                      title="Копировать фразы сегмента"
+                    >
+                      <Icon name="Copy" size={16} />
+                    </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCluster(idx)}
+                    className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-l border-gray-200/90 pl-3 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-700"
+                    title="Удалить сегмент"
+                  >
+                    <Icon name="Trash2" size={16} />
+                  </button>
                 </div>
 
                 <div className="flex gap-1.5 mb-2">
@@ -2248,26 +2268,6 @@ Enter или кнопка ✓ - зафиксировать перенос'
 
                 <div className="text-xs text-gray-500 mb-2">
                   {getFilteredPhrases(idx, cluster.searchText).length} фраз
-                </div>
-
-                <div className="flex gap-1.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => copyClusterPhrases(cluster.phrases)}
-                    className="flex-1 text-xs h-7 hover:bg-white/80"
-                  >
-                    <Icon name="Copy" size={12} className="mr-1.5" />
-                    Копировать
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteCluster(idx)}
-                    className="text-xs h-7 px-2 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <Icon name="Trash2" size={12} />
-                  </Button>
                 </div>
               </div>
 

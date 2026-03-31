@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
@@ -36,12 +36,9 @@ interface ResultsStepProps {
   specificAddress?: string;
   /** Название проекта для заголовка «Проект: …» */
   projectName?: string;
+  /** Увеличивается родителем после внешнего обновления кластеров (например слияние Wordstat) */
   clustersMergeEpoch?: number;
 }
-
-export type ResultsStepHandle = {
-  captureUndoSnapshot: () => void;
-};
 
 const CLUSTER_BG_COLORS = [
   "#E8F4F8",
@@ -57,98 +54,19 @@ const CLUSTER_BG_COLORS = [
 /** Словоформы в поиске/минусах всегда учитываются; частотность всегда в выгрузке */
 const USE_WORD_FORMS = true;
 
-const UNDO_STORAGE_VERSION = 1;
-
-function undoStorageKey(projectId: number) {
-  return `clustering_undo_v${UNDO_STORAGE_VERSION}_${projectId}`;
-}
-
-/** Сравнение только бизнес-данных (без bgColor/searchText), чтобы совпадать с API после перезагрузки */
-function canonicalUndoPayload(clusters: any[], minusWords: Phrase[]): string {
-  const stripPhrase = (p: Phrase & { frequency?: number }) => ({
-    phrase: p.phrase,
-    count: p.count,
-    frequency: p.frequency,
-    sourceCluster: p.sourceCluster,
-    sourceColor: p.sourceColor,
-    isTemporary: p.isTemporary,
-    removedPhrases: p.removedPhrases,
-    isMinusWord: p.isMinusWord,
-    minusTerm: p.minusTerm,
-  });
-  const stripCluster = (c: any): any => ({
-    name: c.name,
-    intent: c.intent,
-    color: c.color,
-    icon: c.icon,
-    phrases: (c.phrases || []).map(stripPhrase),
-    subClusters: c.subClusters?.map(stripCluster),
-  });
-  return JSON.stringify({
-    c: clusters.map(stripCluster),
-    m: minusWords.map(stripPhrase),
-  });
-}
-
-function tryLoadPersistedUndoStack(
-  projectId: number,
-  mappedClusters: any[],
-  filteredMinus: Phrase[],
-): { history: { clusters: any[]; minusWords: Phrase[] }[]; historyIndex: number } | null {
-  try {
-    const raw = localStorage.getItem(undoStorageKey(projectId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (
-      !parsed ||
-      parsed.v !== UNDO_STORAGE_VERSION ||
-      !Array.isArray(parsed.history) ||
-      parsed.history.length === 0
-    ) {
-      return null;
-    }
-    const historyIndex = parsed.historyIndex;
-    if (
-      typeof historyIndex !== "number" ||
-      historyIndex < 0 ||
-      historyIndex >= parsed.history.length
-    ) {
-      return null;
-    }
-    const at = parsed.history[historyIndex];
-    if (!at?.clusters || !Array.isArray(at.minusWords)) return null;
-
-    const fromDb = canonicalUndoPayload(mappedClusters, filteredMinus);
-    const fromStack = canonicalUndoPayload(at.clusters, at.minusWords);
-    if (fromDb !== fromStack) {
-      console.log(
-        "clustering undo: persisted stack head does not match server state, ignoring",
-      );
-      return null;
-    }
-    return { history: parsed.history, historyIndex };
-  } catch (e) {
-    console.warn("clustering undo: failed to load", e);
-    return null;
-  }
-}
-
-const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function ResultsStep(
-  {
-    clusters: propsClusters,
-    minusWords: propsMinusWords,
-    onExport,
-    onNewProject,
-    projectId,
-    onSaveChanges,
-    regions = [],
-    onWordstatClick,
-    specificAddress = '',
-    projectName = '',
-    clustersMergeEpoch = 0,
-  },
-  ref,
-) {
+export default function ResultsStep({
+  clusters: propsClusters,
+  minusWords: propsMinusWords,
+  onExport,
+  onNewProject,
+  projectId,
+  onSaveChanges,
+  regions = [],
+  onWordstatClick,
+  specificAddress = '',
+  projectName = '',
+  clustersMergeEpoch = 0,
+}: ResultsStepProps) {
   const initialClusters = propsClusters.map((c, idx) => ({
     ...c,
     bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
@@ -179,18 +97,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   }[]>([]);
   const { toast } = useToast();
   const renameDebounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const renameHistorySessionRef = useRef<number | null>(null);
-  
-  const [history, setHistory] = useState<{ clusters: Cluster[]; minusWords: Phrase[] }[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const historyRef = useRef<{ clusters: Cluster[]; minusWords: Phrase[] }[]>([]);
-  const historyIndexRef = useRef(-1);
-  useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
-  useEffect(() => {
-    historyIndexRef.current = historyIndex;
-  }, [historyIndex]);
 
   const [selectedClusterIndex, setSelectedClusterIndex] = useState<number | null>(null);
   const [originalClusters, setOriginalClusters] = useState<Cluster[]>([]);
@@ -291,51 +197,10 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       
       const filteredMinus = propsMinusWords.filter((p) => p.phrase && p.phrase.trim() !== "");
 
-      const rehydrateAllSnapshots = (
-        snapshots: { clusters: any[]; minusWords: Phrase[] }[],
-      ) =>
-        snapshots.map((snap) => ({
-          clusters: snap.clusters.map((c, idx) => ({
-            ...c,
-            bgColor: c.bgColor ?? CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
-            searchText: c.searchText ?? "",
-            hovering: c.hovering ?? false,
-          })),
-          minusWords: snap.minusWords,
-        }));
-
-      // Проверяем есть ли сохранённое состояние "внутри сегмента"
       const savedIndex = localStorage.getItem('cluster_view_index');
 
-      let undoRestored = false;
-      if (projectId && savedIndex === null) {
-        const loaded = tryLoadPersistedUndoStack(projectId, mappedClusters, filteredMinus);
-        if (loaded) {
-          const hydrated = rehydrateAllSnapshots(loaded.history);
-          const at = hydrated[loaded.historyIndex];
-          setSelectedClusterIndex(null);
-          setOriginalClusters([]);
-          setHistory(hydrated);
-          setHistoryIndex(loaded.historyIndex);
-          historyRef.current = hydrated;
-          historyIndexRef.current = loaded.historyIndex;
-          setClusters(at.clusters);
-          setMinusWords(at.minusWords);
-          setIsInitialized(true);
-          console.log('↩️ Restored undo stack from localStorage', {
-            snapshots: hydrated.length,
-            historyIndex: loaded.historyIndex,
-          });
-          undoRestored = true;
-        }
-      }
-
-      if (undoRestored) {
-        return;
-      }
-
       setMinusWords(filteredMinus);
-      
+
       if (savedIndex !== null) {
         try {
           const clusterIdx = parseInt(savedIndex);
@@ -370,35 +235,10 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       } else {
         setClusters(mappedClusters);
       }
-      
-      setIsInitialized(true);
 
-      const initialSnapshot = {
-        clusters: mappedClusters,
-        minusWords: filteredMinus,
-      };
-      setHistory([initialSnapshot]);
-      setHistoryIndex(0);
-      historyRef.current = [initialSnapshot];
-      historyIndexRef.current = 0;
+      setIsInitialized(true);
     }
   }, [propsClusters.length, propsMinusWords.length, isInitialized, clusters.length, projectId]);
-
-  useEffect(() => {
-    if (!projectId || !isInitialized || history.length === 0) return;
-    try {
-      localStorage.setItem(
-        undoStorageKey(projectId),
-        JSON.stringify({
-          v: UNDO_STORAGE_VERSION,
-          historyIndex,
-          history,
-        }),
-      );
-    } catch (e) {
-      console.warn("clustering undo: persist failed (storage full?)", e);
-    }
-  }, [projectId, isInitialized, history, historyIndex]);
 
   const matchesSearch = (phrase: string, searchTerm: string, useWordFormsParam = USE_WORD_FORMS): boolean => {
     if (!searchTerm.trim()) return false;
@@ -717,11 +557,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     setClusters(newClusters);
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     if (onSaveChanges) {
       await onSaveChanges(
         newClusters.map((c) => ({
@@ -867,11 +702,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       setMinusWords(newMinusWords);
       setClusters(newClusters);
       setMinusSearchText("");
-
-      saveToHistory(
-        JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-        JSON.parse(JSON.stringify(newMinusWords)),
-      );
 
       await saveToAPI(newClusters, newMinusWords);
 
@@ -1170,11 +1000,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       setClusters(updatedClusters);
       setMinusWords(newMinusWords);
 
-      saveToHistory(
-        JSON.parse(JSON.stringify(updatedClusters)) as ClusterWithUI[],
-        JSON.parse(JSON.stringify(newMinusWords)),
-      );
-
       await saveToAPI(updatedClusters, newMinusWords);
 
       toast({
@@ -1185,18 +1010,9 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   };
 
   const renameCluster = (clusterIndex: number, newName: string) => {
-    if (renameHistorySessionRef.current !== clusterIndex) {
-      renameHistorySessionRef.current = clusterIndex;
-    }
-
     const newClusters = [...clusters];
     newClusters[clusterIndex].name = newName;
     setClusters(newClusters);
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
 
     if (renameDebounceTimer.current) {
       clearTimeout(renameDebounceTimer.current);
@@ -1204,7 +1020,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     renameDebounceTimer.current = setTimeout(async () => {
       await saveToAPI(newClusters, minusWords);
-      renameHistorySessionRef.current = null;
     }, 800);
   };
 
@@ -1224,11 +1039,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     const newClusters = clusters.filter((_, idx) => idx !== clusterIndex);
     setClusters(newClusters);
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1259,13 +1069,8 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     
     setClusters(newClusters);
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     await saveToAPI(newClusters, minusWords);
-    
+
     toast({
       title: "🚫 Фраза помечена",
       description: "Фраза отмечена как минус-слово",
@@ -1301,7 +1106,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     });
     
     setClusters(newClusters);
-    saveToHistory(newClusters); // Сохраняем НОВОЕ состояние (после создания)
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1370,11 +1174,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     setClusters(newClusters);
     setMinusWords(newMinusWords);
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(newMinusWords)),
-    );
-
     await saveToAPI(newClusters, newMinusWords);
 
     toast({
@@ -1410,11 +1209,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     setMinusWords(newMinusWords);
     setEditingMinusIndex(null);
     setEditingMinusText("");
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(newMinusWords)),
-    );
 
     await saveToAPI(clusters, newMinusWords);
 
@@ -1467,11 +1261,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     });
 
     setClusters(newClusters);
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1569,11 +1358,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     }
 
     setClusters(newClusters);
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1691,46 +1475,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     }
   };
 
-  const saveToHistory = (customClusters?: ClusterWithUI[], customMinusWords?: MinusPhrase[]) => {
-    const clustersToSave = customClusters || clusters;
-    const minusWordsToSave = customMinusWords || minusWords;
-
-    const entry = {
-      clusters: JSON.parse(JSON.stringify(clustersToSave)),
-      minusWords: JSON.parse(JSON.stringify(minusWordsToSave)),
-    };
-
-    const prevHistory = historyRef.current;
-    const pi = historyIndexRef.current;
-    const newHistory = prevHistory.slice(0, pi + 1);
-    newHistory.push(entry);
-    if (newHistory.length > 30) {
-      newHistory.shift();
-    }
-    const nextIndex = newHistory.length - 1;
-
-    historyRef.current = newHistory;
-    historyIndexRef.current = nextIndex;
-
-    console.log("💾 saveToHistory called:", {
-      clustersCount: entry.clusters.length,
-      minusWordsCount: entry.minusWords.length,
-      nextIndex,
-      stackTrace: new Error().stack?.split("\n")[2]?.trim(),
-    });
-
-    setHistory(newHistory);
-    setHistoryIndex(nextIndex);
-  };
-
-  const saveToHistoryRef = useRef(saveToHistory);
-  saveToHistoryRef.current = saveToHistory;
-  useImperativeHandle(ref, () => ({
-    captureUndoSnapshot: () => {
-      saveToHistoryRef.current();
-    },
-  }));
-
   useEffect(() => {
     if (!clustersMergeEpoch || propsClusters.length === 0 || !isInitialized) return;
     if (selectedClusterIndex !== null) return;
@@ -1752,56 +1496,7 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     setMinusWords(filteredMinus);
     setClusters(mappedClusters);
-    saveToHistoryRef.current(mappedClusters, filteredMinus);
   }, [clustersMergeEpoch]);
-
-  const handleUndo = async () => {
-    if (historyIndex <= 0) return;
-    
-    console.log('⏮️ handleUndo called:', {
-      currentIndex: historyIndex,
-      historyLength: history.length,
-      willGoToIndex: historyIndex - 1
-    });
-    
-    const previousState = history[historyIndex - 1];
-    
-    console.log('⏮️ Restoring state:', {
-      clustersCount: previousState.clusters.length,
-      minusWordsCount: previousState.minusWords.length
-    });
-    
-    const nextIdx = historyIndex - 1;
-    setClusters(JSON.parse(JSON.stringify(previousState.clusters)));
-    setMinusWords(JSON.parse(JSON.stringify(previousState.minusWords)));
-    setHistoryIndex(nextIdx);
-    historyIndexRef.current = nextIdx;
-
-    await saveToAPI(previousState.clusters, previousState.minusWords);
-    
-    toast({
-      title: "↩️ Отменено",
-      description: "Изменения отменены",
-    });
-  };
-
-  const handleRedo = async () => {
-    if (historyIndex >= history.length - 1) return;
-    
-    const nextState = history[historyIndex + 1];
-    const nextIdx = historyIndex + 1;
-    setClusters(JSON.parse(JSON.stringify(nextState.clusters)));
-    setMinusWords(JSON.parse(JSON.stringify(nextState.minusWords)));
-    setHistoryIndex(nextIdx);
-    historyIndexRef.current = nextIdx;
-
-    await saveToAPI(nextState.clusters, nextState.minusWords);
-    
-    toast({
-      title: "↪️ Возвращено",
-      description: "Изменения возвращены",
-    });
-  };
 
   const removeStrikethroughPhrases = async () => {
     const strikethroughCount = clusters.reduce(
@@ -1826,13 +1521,8 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     
     setClusters(newClusters);
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-    
     await saveToAPI(newClusters, minusWords);
-    
+
     toast({
       title: "🗑️ Удалено",
       description: `${strikethroughCount} зачёркнутых фраз удалено`,
@@ -1866,11 +1556,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     setClusters(newClusters);
     setDraggedCluster(null);
-
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
 
     console.log("🔄 Cluster moved, saving...");
 
@@ -2043,11 +1728,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     setClusters(newClusters);
     setDraggedPhrase(null);
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     await saveToAPI(newClusters, minusWords);
 
     toast({
@@ -2111,16 +1791,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
                 Новый сегмент
               </Button>
             )}
-            <Button
-              onClick={handleUndo}
-              size="sm"
-              variant="outline"
-              disabled={historyIndex <= 0}
-              className="gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
-            >
-              <Icon name="Undo" size={16} />
-              Отменить
-            </Button>
             <Button
               onClick={removeDuplicates}
               size="sm"
@@ -2261,9 +1931,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
                   <Input
                     value={cluster.name}
                     onChange={(e) => renameCluster(idx, e.target.value)}
-                    onBlur={() => {
-                      renameHistorySessionRef.current = null;
-                    }}
                     className="font-semibold text-sm h-7 border-transparent hover:border-gray-300 focus:border-gray-400 bg-transparent flex-1"
                   />
                   <div className="flex items-center gap-1 shrink-0">
@@ -2602,6 +2269,4 @@ Enter или кнопка ✓ - зафиксировать перенос'
       </div>
     </div>
   );
-});
-
-export default ResultsStep;
+}

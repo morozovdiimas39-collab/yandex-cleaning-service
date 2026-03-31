@@ -2073,50 +2073,50 @@ export default function ResultsStep({
           </div>
 
           <div className="mt-4 grid grid-cols-4 gap-4 mb-3">
-            <div className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Icon name="Key" size={16} className="text-blue-600" />
+            <div className="bg-blue-50 rounded-lg px-5 py-5 min-h-[120px] border border-blue-200 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name="Key" size={18} className="text-blue-600" />
                 <span className="text-xs font-medium text-blue-600">
                   Всего ключей
                 </span>
               </div>
-              <div className="text-2xl font-bold text-blue-900">
+              <div className="text-3xl font-bold text-blue-900">
                 {totalPhrases.toLocaleString()}
               </div>
             </div>
 
-            <div className="bg-purple-50 rounded-lg px-4 py-3 border border-purple-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Icon name="Folder" size={16} className="text-purple-600" />
+            <div className="bg-purple-50 rounded-lg px-5 py-5 min-h-[120px] border border-purple-200 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name="Folder" size={18} className="text-purple-600" />
                 <span className="text-xs font-medium text-purple-600">
                   Сегментов
                 </span>
               </div>
-              <div className="text-2xl font-bold text-purple-900">
+              <div className="text-3xl font-bold text-purple-900">
                 {clusters.length}
               </div>
             </div>
 
-            <div className="bg-orange-50 rounded-lg px-4 py-3 border border-orange-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Icon name="Slash" size={16} className="text-orange-600" />
+            <div className="bg-orange-50 rounded-lg px-5 py-5 min-h-[120px] border border-orange-200 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name="Slash" size={18} className="text-orange-600" />
                 <span className="text-xs font-medium text-orange-600">
                   Зачёркнутых фраз
                 </span>
               </div>
-              <div className="text-2xl font-bold text-orange-900">
+              <div className="text-3xl font-bold text-orange-900">
                 {strikethroughPhrases.toLocaleString()}
               </div>
             </div>
 
-            <div className="bg-red-50 rounded-lg px-4 py-3 border border-red-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Icon name="Ban" size={16} className="text-red-600" />
+            <div className="bg-red-50 rounded-lg px-5 py-5 min-h-[120px] border border-red-200 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon name="Ban" size={18} className="text-red-600" />
                 <span className="text-xs font-medium text-red-600">
                   Минус-слов
                 </span>
               </div>
-              <div className="text-2xl font-bold text-red-900">
+              <div className="text-3xl font-bold text-red-900">
                 {minusWords.length}
               </div>
             </div>

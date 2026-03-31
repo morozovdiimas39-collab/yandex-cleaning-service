@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
@@ -23,6 +24,11 @@ interface Cluster {
   phrases: Phrase[];
   subClusters?: Cluster[];
 }
+
+type ClusterWithUI = Cluster & {
+  bgColor: string;
+  searchText: string;
+};
 
 interface ResultsStepProps {
   clusters: Cluster[];
@@ -54,6 +60,285 @@ const CLUSTER_BG_COLORS = [
 /** Словоформы в поиске/минусах всегда учитываются; частотность всегда в выгрузке */
 const USE_WORD_FORMS = true;
 
+/** Не мутирует исходный массив (раньше sort на месте вызывал лишние перерисовки и гонки). */
+function sortPhrasesCopy(phrases: Phrase[]): Phrase[] {
+  return [...phrases].sort((a, b) => {
+    const aIsMinusConfirmed = a.isMinusWord && a.minusTerm === undefined;
+    const bIsMinusConfirmed = b.isMinusWord && b.minusTerm === undefined;
+
+    if (aIsMinusConfirmed && !bIsMinusConfirmed) return 1;
+    if (!aIsMinusConfirmed && bIsMinusConfirmed) return -1;
+
+    return b.count - a.count;
+  });
+}
+
+const VirtualClusterPhrases = memo(function VirtualClusterPhrases({
+  clusterIdx,
+  cluster,
+  onDragStart,
+  onPhraseDropOnCluster,
+  onRemovePhrase,
+  addQuickMinusWord,
+}: {
+  clusterIdx: number;
+  cluster: ClusterWithUI;
+  onDragStart: (clusterIdx: number, phraseIdx: number) => void;
+  onPhraseDropOnCluster: (targetClusterIdx: number) => void;
+  onRemovePhrase: (clusterIdx: number, phraseIdx: number) => void;
+  addQuickMinusWord: (word: string) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const sortedPhrases = useMemo(
+    () => sortPhrasesCopy(cluster.phrases),
+    [cluster.phrases],
+  );
+
+  const virtualizer = useVirtualizer({
+    count: sortedPhrases.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 56,
+    overscan: 12,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="flex-1 min-h-0 overflow-y-auto"
+      onDragOver={(e) => {
+        e.preventDefault();
+      }}
+      onDrop={(e) => {
+        e.stopPropagation();
+        onPhraseDropOnCluster(clusterIdx);
+      }}
+    >
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const phrase = sortedPhrases[virtualRow.index];
+                const actualPhraseIdx = cluster.phrases.findIndex(
+                  (p) => p.phrase === phrase.phrase,
+                );
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    className="absolute left-0 top-0 w-full box-border px-3 py-2 border-b border-gray-200 hover:bg-white/40 group/phrase"
+                    style={{
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+              draggable={!phrase.isTemporary && !phrase.isMinusWord}
+              onDragStart={() => onDragStart(clusterIdx, actualPhraseIdx)}
+            >
+              <div
+                className={`${phrase.isMinusWord ? "bg-red-50 border-l-4 border-l-red-500 -mx-3 px-3 py-2" : ""} ${phrase.isTemporary ? "opacity-60 border-2 border-dashed border-emerald-400 rounded" : ""} ${!phrase.isTemporary && !phrase.isMinusWord ? "cursor-move" : ""}`}
+                style={
+                  !phrase.isMinusWord && phrase.sourceColor
+                    ? {
+                        backgroundColor: phrase.sourceColor,
+                        borderLeft: phrase.isTemporary
+                          ? `3px dashed ${phrase.sourceColor}`
+                          : `3px solid ${phrase.sourceColor}`,
+                      }
+                    : undefined
+                }
+              >
+                <div className="flex items-center gap-2">
+                  {!phrase.isTemporary && !phrase.isMinusWord && (
+                    <Icon
+                      name="GripVertical"
+                      size={12}
+                      className="text-gray-400 flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`text-sm leading-snug mb-1 ${phrase.isMinusWord ? "text-red-700 line-through" : "text-gray-800"}`}
+                    >
+                      {!phrase.isMinusWord
+                        ? phrase.phrase.split(" ").map((word, wIdx) => (
+                            <span
+                              key={wIdx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addQuickMinusWord(word);
+                              }}
+                              className="hover:bg-red-100 hover:text-red-700 rounded px-0.5 cursor-pointer transition-colors"
+                            >
+                              {word}
+                              {wIdx < phrase.phrase.split(" ").length - 1
+                                ? " "
+                                : ""}
+                            </span>
+                          ))
+                        : phrase.phrase}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`text-xs font-mono ${phrase.isMinusWord ? "text-red-600" : "text-gray-500"}`}
+                      >
+                        {(
+                          phrase.frequency ||
+                          phrase.count ||
+                          0
+                        ).toLocaleString()}
+                      </div>
+                      {phrase.sourceCluster && !phrase.isMinusWord && (
+                        <div className="text-xs text-gray-600 italic">
+                          из "{phrase.sourceCluster}"
+                        </div>
+                      )}
+                      {phrase.isMinusWord && (
+                        <div className="text-xs text-red-600 italic">
+                          минус-слово
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {!phrase.isTemporary && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRemovePhrase(clusterIdx, actualPhraseIdx)
+                      }
+                      className="opacity-0 group-hover/phrase:opacity-100 text-gray-700 hover:text-gray-900 flex-shrink-0"
+                    >
+                      <Icon name="X" size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+const VirtualMinusWordsList = memo(function VirtualMinusWordsList({
+  minusWords,
+  editingMinusIndex,
+  editingMinusText,
+  setEditingMinusText,
+  onSaveEdit,
+  onCancelEdit,
+  onStartEdit,
+  onRemove,
+}: {
+  minusWords: Phrase[];
+  editingMinusIndex: number | null;
+  editingMinusText: string;
+  setEditingMinusText: (v: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onStartEdit: (idx: number) => void;
+  onRemove: (idx: number) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: minusWords.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 52,
+    overscan: 8,
+  });
+
+  return (
+    <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
+      <div
+        style={{
+          height: virtualizer.getTotalSize(),
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const pIdx = virtualRow.index;
+          const phrase = minusWords[pIdx];
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className="absolute left-0 top-0 w-full box-border px-3 py-2 border-b border-gray-200 hover:bg-white/40 group/minus"
+              style={{
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {editingMinusIndex === pIdx ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editingMinusText}
+                    onChange={(e) => setEditingMinusText(e.target.value)}
+                    className="flex-1 h-8 text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") onSaveEdit();
+                      if (e.key === "Escape") onCancelEdit();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={onSaveEdit}
+                    className="text-green-700 hover:text-green-900"
+                  >
+                    <Icon name="Check" size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCancelEdit}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <Icon name="X" size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-800 leading-snug mb-1">
+                      {phrase.phrase}
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono">
+                      {(phrase.frequency || phrase.count || 0) > 0
+                        ? (phrase.frequency || phrase.count || 0).toLocaleString()
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover/minus:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => onStartEdit(pIdx)}
+                      className="text-blue-700 hover:text-blue-900 flex-shrink-0"
+                    >
+                      <Icon name="Pencil" size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemove(pIdx)}
+                      className="text-red-700 hover:text-red-900 flex-shrink-0"
+                    >
+                      <Icon name="X" size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export default function ResultsStep({
   clusters: propsClusters,
   minusWords: propsMinusWords,
@@ -71,7 +356,6 @@ export default function ResultsStep({
     ...c,
     bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
     searchText: "",
-    hovering: false,
   }));
 
   const [clusters, setClusters] = useState(initialClusters);
@@ -89,12 +373,6 @@ export default function ResultsStep({
     phraseIdx: number;
   } | null>(null);
 
-  const [temporaryMoves, setTemporaryMoves] = useState<{
-    phrase: Phrase;
-    fromClusterIdx: number;
-    toClusterIdx: number;
-    originalIndex: number;
-  }[]>([]);
   const { toast } = useToast();
   const renameDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -181,7 +459,6 @@ export default function ResultsStep({
         ...c,
         bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
         searchText: "",
-        hovering: false,
       }));
       
       // Вычисляем количество подкластеров для каждого кластера
@@ -216,7 +493,6 @@ export default function ResultsStep({
               ...targetCluster,
               bgColor: CLUSTER_BG_COLORS[0],
               searchText: "",
-              hovering: false,
             }]);
             console.log('✅ Restored cluster view with fresh DB data:', {
               clusterName: targetCluster.name,
@@ -437,18 +713,6 @@ export default function ResultsStep({
     }
   };
 
-  const sortPhrases = (phrases: Phrase[]) => {
-    return phrases.sort((a, b) => {
-      const aIsMinusConfirmed = a.isMinusWord && a.minusTerm === undefined;
-      const bIsMinusConfirmed = b.isMinusWord && b.minusTerm === undefined;
-
-      if (aIsMinusConfirmed && !bIsMinusConfirmed) return 1;
-      if (!aIsMinusConfirmed && bIsMinusConfirmed) return -1;
-
-      return b.count - a.count;
-    });
-  };
-
   const handleSearchChange = (clusterIndex: number, value: string) => {
     const newClusters = [...clusters];
     const oldSearchText = newClusters[clusterIndex].searchText;
@@ -471,7 +735,7 @@ export default function ResultsStep({
           delete restoredPhrase.sourceCluster;
           delete restoredPhrase.sourceColor;
           sourceCluster.phrases.push(restoredPhrase);
-          sourceCluster.phrases = sortPhrases(sourceCluster.phrases);
+          sourceCluster.phrases = sortPhrasesCopy(sourceCluster.phrases);
         }
       });
       
@@ -518,17 +782,15 @@ export default function ResultsStep({
         targetCluster.phrases.push(...matchingPhrases);
       });
       
-      targetCluster.phrases = sortPhrases(targetCluster.phrases);
+      targetCluster.phrases = sortPhrasesCopy(targetCluster.phrases);
     }
     
     setClusters(newClusters);
   };
 
-  const getFilteredPhrases = (clusterIndex: number, searchText: string) => {
+  const getFilteredPhrases = (clusterIndex: number, _searchText: string) => {
     const cluster = clusters[clusterIndex];
-    // Просто возвращаем все фразы кластера (включая временные)
-    // т.к. handleSearchChange уже физически перенёс временные фразы
-    return sortPhrases(cluster.phrases);
+    return sortPhrasesCopy(cluster.phrases);
   };
 
   const handleConfirmSearch = async (targetIndex: number) => {
@@ -586,7 +848,7 @@ export default function ResultsStep({
       // НЕ трогаем подтверждённые минус-слова (minusTerm === undefined && isMinusWord === true)
       const newClusters = clusters.map((cluster) => ({
         ...cluster,
-        phrases: sortPhrases(
+        phrases: sortPhrasesCopy(
           cluster.phrases.map((p) => {
             // Если это временная подсветка (есть minusTerm) — снимаем
             if (p.minusTerm !== undefined) {
@@ -1092,7 +1354,6 @@ export default function ResultsStep({
       phrases: [],
       bgColor: CLUSTER_BG_COLORS[clusters.length % CLUSTER_BG_COLORS.length],
       searchText: "",
-      hovering: false,
     };
     
     const newClusters = [
@@ -1167,7 +1428,7 @@ export default function ResultsStep({
 
       return {
         ...cluster,
-        phrases: sortPhrases(updatedPhrases),
+        phrases: sortPhrasesCopy(updatedPhrases),
       };
     });
 
@@ -1484,7 +1745,6 @@ export default function ResultsStep({
       ...c,
       bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
       searchText: "",
-      hovering: false,
     }));
 
     const subClustersMap = new Map<number, number>();
@@ -1593,13 +1853,11 @@ export default function ResultsStep({
         ...cluster,
         bgColor: CLUSTER_BG_COLORS[0],
         searchText: "",
-        hovering: false,
       },
       ...(cluster.subClusters || []).map((subCluster, idx) => ({
         ...subCluster,
         bgColor: CLUSTER_BG_COLORS[(idx + 1) % CLUSTER_BG_COLORS.length],
         searchText: "",
-        hovering: false,
       }))
     ];
     
@@ -1723,7 +1981,7 @@ export default function ResultsStep({
     movedPhrase.sourceColor = sourceCluster.bgColor;
 
     targetCluster.phrases.push(movedPhrase);
-    targetCluster.phrases = sortPhrases(targetCluster.phrases);
+    targetCluster.phrases = sortPhrasesCopy(targetCluster.phrases);
 
     setClusters(newClusters);
     setDraggedPhrase(null);
@@ -1875,8 +2133,8 @@ export default function ResultsStep({
         </div>
       </div>
 
-      <div className="overflow-x-auto overflow-y-hidden" style={{ height: '100vh' }}>
-        <div className="flex h-full px-6 py-4">
+      <div className="min-h-0 overflow-x-auto overflow-y-hidden" style={{ height: '100vh' }}>
+        <div className="flex h-full min-h-0 px-6 py-4">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}
@@ -1886,23 +2144,13 @@ export default function ResultsStep({
               <div
                 onDragOver={(e) => handleClusterDragOver(e, idx)}
                 onDrop={() => handleClusterDrop(idx)}
-                className={`flex-shrink-0 border-r border-gray-300 flex flex-col group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
+                className={`flex-shrink-0 border-r border-gray-300 flex min-h-0 flex-col group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
                 style={{
                   width: "280px",
                   backgroundColor: cluster.bgColor,
                   height: "100vh",
                   zIndex: 1,
                   position: 'relative'
-                }}
-                onMouseEnter={() => {
-                  const newClusters = [...clusters];
-                  newClusters[idx].hovering = true;
-                  setClusters(newClusters);
-                }}
-                onMouseLeave={() => {
-                  const newClusters = [...clusters];
-                  newClusters[idx].hovering = false;
-                  setClusters(newClusters);
                 }}
               >
 
@@ -2022,106 +2270,14 @@ Enter или кнопка ✓ - зафиксировать перенос'
                 </div>
               </div>
 
-              <div
-                className="flex-1 overflow-y-auto"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                }}
-                onDrop={(e) => {
-                  e.stopPropagation();
-                  handlePhraseDrop(idx);
-                }}
-              >
-                {getFilteredPhrases(idx, cluster.searchText).map(
-                  (phrase, pIdx) => {
-                    const actualPhraseIdx = cluster.phrases.findIndex(
-                      (p) => p.phrase === phrase.phrase,
-                    );
-                    return (
-                      <div
-                        key={pIdx}
-                        draggable={!phrase.isTemporary && !phrase.isMinusWord}
-                        onDragStart={() =>
-                          handlePhraseDragStart(idx, actualPhraseIdx)
-                        }
-                        className={`px-3 py-2 border-b border-gray-200 hover:bg-white/40 group/phrase ${phrase.isMinusWord ? "bg-red-50 border-l-4 border-l-red-500" : ""} ${phrase.isTemporary ? "opacity-60 border-2 border-dashed border-emerald-400" : ""} ${!phrase.isTemporary && !phrase.isMinusWord ? "cursor-move" : ""}`}
-                        style={
-                          !phrase.isMinusWord && phrase.sourceColor
-                            ? {
-                                backgroundColor: phrase.sourceColor,
-                                borderLeft: phrase.isTemporary ? `3px dashed ${phrase.sourceColor}` : `3px solid ${phrase.sourceColor}`,
-                              }
-                            : {}
-                        }
-                      >
-                        <div className="flex items-center gap-2">
-                          {!phrase.isTemporary && !phrase.isMinusWord && (
-                            <Icon
-                              name="GripVertical"
-                              size={12}
-                              className="text-gray-400 flex-shrink-0"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={`text-sm leading-snug mb-1 ${phrase.isMinusWord ? "text-red-700 line-through" : "text-gray-800"}`}
-                            >
-                              {!phrase.isMinusWord
-                                ? phrase.phrase.split(" ").map((word, wIdx) => (
-                                    <span
-                                      key={wIdx}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        addQuickMinusWord(word);
-                                      }}
-                                      className="hover:bg-red-100 hover:text-red-700 rounded px-0.5 cursor-pointer transition-colors"
-                                    >
-                                      {word}
-                                      {wIdx <
-                                      phrase.phrase.split(" ").length - 1
-                                        ? " "
-                                        : ""}
-                                    </span>
-                                  ))
-                                : phrase.phrase}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`text-xs font-mono ${phrase.isMinusWord ? "text-red-600" : "text-gray-500"}`}
-                              >
-                                {(phrase.frequency || phrase.count || 0).toLocaleString()}
-                              </div>
-                              {phrase.sourceCluster && !phrase.isMinusWord && (
-                                <div className="text-xs text-gray-600 italic">
-                                  из "{phrase.sourceCluster}"
-                                </div>
-                              )}
-                              {phrase.isMinusWord && (
-                                <div className="text-xs text-red-600 italic">
-                                  минус-слово
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {!phrase.isTemporary && (
-                            <button
-                              onClick={() => {
-                                const originalIndex = cluster.phrases.findIndex(
-                                  (p) => p.phrase === phrase.phrase,
-                                );
-                                removePhrase(idx, originalIndex);
-                              }}
-                              className="opacity-0 group-hover/phrase:opacity-100 text-gray-700 hover:text-gray-900 flex-shrink-0"
-                            >
-                              <Icon name="X" size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  },
-                )}
-              </div>
+              <VirtualClusterPhrases
+                clusterIdx={idx}
+                cluster={cluster as ClusterWithUI}
+                onDragStart={handlePhraseDragStart}
+                onPhraseDropOnCluster={handlePhraseDrop}
+                onRemovePhrase={removePhrase}
+                addQuickMinusWord={addQuickMinusWord}
+              />
             </div>
           </div>
           ))}
@@ -2151,7 +2307,7 @@ Enter или кнопка ✓ - зафиксировать перенос'
           </div>
 
           <div
-            className="flex-shrink-0 border-r border-gray-300 flex flex-col mr-6"
+            className="flex min-h-0 flex-shrink-0 flex-col border-r border-gray-300 mr-6"
             style={{
               width: "280px",
               backgroundColor: "#FFE8E8",
@@ -2202,68 +2358,16 @@ Enter или кнопка ✓ - зафиксировать перенос'
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {minusWords.map((phrase, pIdx) => (
-                <div
-                  key={pIdx}
-                  className="px-3 py-2 border-b border-gray-200 hover:bg-white/40 group/minus"
-                >
-                  {editingMinusIndex === pIdx ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editingMinusText}
-                        onChange={(e) => setEditingMinusText(e.target.value)}
-                        className="flex-1 h-8 text-sm"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEditingMinusWord();
-                          if (e.key === "Escape") cancelEditingMinusWord();
-                        }}
-                      />
-                      <button
-                        onClick={saveEditingMinusWord}
-                        className="text-green-700 hover:text-green-900"
-                      >
-                        <Icon name="Check" size={16} />
-                      </button>
-                      <button
-                        onClick={cancelEditingMinusWord}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        <Icon name="X" size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="text-sm text-gray-800 leading-snug mb-1">
-                          {phrase.phrase}
-                        </div>
-                        <div className="text-xs text-gray-500 font-mono">
-                          {(phrase.frequency || phrase.count || 0) > 0
-                            ? (phrase.frequency || phrase.count || 0).toLocaleString()
-                            : "—"}
-                        </div>
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover/minus:opacity-100">
-                        <button
-                          onClick={() => startEditingMinusWord(pIdx)}
-                          className="text-blue-700 hover:text-blue-900 flex-shrink-0"
-                        >
-                          <Icon name="Pencil" size={14} />
-                        </button>
-                        <button
-                          onClick={() => removeMinusWord(pIdx)}
-                          className="text-red-700 hover:text-red-900 flex-shrink-0"
-                        >
-                          <Icon name="X" size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <VirtualMinusWordsList
+              minusWords={minusWords}
+              editingMinusIndex={editingMinusIndex}
+              editingMinusText={editingMinusText}
+              setEditingMinusText={setEditingMinusText}
+              onSaveEdit={saveEditingMinusWord}
+              onCancelEdit={cancelEditingMinusWord}
+              onStartEdit={startEditingMinusWord}
+              onRemove={removeMinusWord}
+            />
           </div>
         </div>
       </div>

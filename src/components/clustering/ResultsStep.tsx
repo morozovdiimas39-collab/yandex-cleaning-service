@@ -698,8 +698,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     if (!searchTerm) return;
 
-    saveToHistory();
-
     console.log('✅ Confirming temporary moves');
     
     // Убираем флаг isTemporary у всех временных фраз в целевом кластере
@@ -718,6 +716,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     targetCluster.searchText = "";
 
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     if (onSaveChanges) {
       await onSaveChanges(
@@ -801,8 +804,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   const handleConfirmMinusSearch = async () => {
     const searchTerm = minusSearchText.toLowerCase().trim();
     if (!searchTerm) return;
-    
-    saveToHistory();
 
     // Проверка дубля
     const isDuplicate = minusWords.some(
@@ -866,6 +867,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       setMinusWords(newMinusWords);
       setClusters(newClusters);
       setMinusSearchText("");
+
+      saveToHistory(
+        JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+        JSON.parse(JSON.stringify(newMinusWords)),
+      );
 
       await saveToAPI(newClusters, newMinusWords);
 
@@ -1142,8 +1148,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     });
 
     if (affectedPhrases.length > 0) {
-      saveToHistory();
-
       const totalCount = affectedPhrases.reduce(
         (sum, p) => sum + (p.count || 0),
         0,
@@ -1166,6 +1170,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       setClusters(updatedClusters);
       setMinusWords(newMinusWords);
 
+      saveToHistory(
+        JSON.parse(JSON.stringify(updatedClusters)) as ClusterWithUI[],
+        JSON.parse(JSON.stringify(newMinusWords)),
+      );
+
       await saveToAPI(updatedClusters, newMinusWords);
 
       toast({
@@ -1177,13 +1186,17 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
   const renameCluster = (clusterIndex: number, newName: string) => {
     if (renameHistorySessionRef.current !== clusterIndex) {
-      saveToHistory();
       renameHistorySessionRef.current = clusterIndex;
     }
 
     const newClusters = [...clusters];
     newClusters[clusterIndex].name = newName;
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     if (renameDebounceTimer.current) {
       clearTimeout(renameDebounceTimer.current);
@@ -1209,13 +1222,13 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     if (!confirm(`Удалить сегмент "${cluster.name}"?`)) return;
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     const newClusters = clusters.filter((_, idx) => idx !== clusterIndex);
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1234,11 +1247,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       return;
     }
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     const phrase = clusters[clusterIndex].phrases[phraseIndex];
     const newClusters = [...clusters];
     
@@ -1250,6 +1258,12 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     };
     
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
+
     await saveToAPI(newClusters, minusWords);
     
     toast({
@@ -1308,8 +1322,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   };
 
   const removeMinusWord = async (minusIndex: number) => {
-    saveToHistory();
-    
     const minusWord = minusWords[minusIndex];
     const newMinusWords = minusWords.filter((_, idx) => idx !== minusIndex);
 
@@ -1358,6 +1370,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     setClusters(newClusters);
     setMinusWords(newMinusWords);
 
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(newMinusWords)),
+    );
+
     await saveToAPI(newClusters, newMinusWords);
 
     toast({
@@ -1384,8 +1401,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       return;
     }
 
-    saveToHistory();
-
     const newMinusWords = [...minusWords];
     newMinusWords[editingMinusIndex] = {
       ...newMinusWords[editingMinusIndex],
@@ -1395,6 +1410,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     setMinusWords(newMinusWords);
     setEditingMinusIndex(null);
     setEditingMinusText("");
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(newMinusWords)),
+    );
 
     await saveToAPI(clusters, newMinusWords);
 
@@ -1410,8 +1430,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
   };
 
   const removeDuplicates = async () => {
-    saveToHistory();
-    
     const normalizePhrase = (phrase: string) => {
       return phrase.toLowerCase().split(/\s+/).sort().join(" ");
     };
@@ -1449,6 +1467,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     });
 
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1545,12 +1568,12 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       return;
     }
 
+    setClusters(newClusters);
+
     saveToHistory(
-      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
       JSON.parse(JSON.stringify(minusWords)),
     );
-
-    setClusters(newClusters);
 
     await saveToAPI(newClusters, minusWords);
 
@@ -1795,15 +1818,18 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
     }
     
     if (!confirm(`Удалить ${strikethroughCount} зачёркнутых фраз?`)) return;
-    
-    saveToHistory();
-    
+
     const newClusters = clusters.map(cluster => ({
       ...cluster,
       phrases: cluster.phrases.filter(p => !p.isMinusWord)
     }));
     
     setClusters(newClusters);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
     
     await saveToAPI(newClusters, minusWords);
     
@@ -1834,14 +1860,17 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       return;
     }
 
-    saveToHistory();
-
     const newClusters = [...clusters];
     const [movedCluster] = newClusters.splice(draggedCluster, 1);
     newClusters.splice(targetIdx, 0, movedCluster);
 
     setClusters(newClusters);
     setDraggedCluster(null);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     console.log("🔄 Cluster moved, saving...");
 
@@ -1998,11 +2027,6 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
       currentClustersCount: clusters.length
     });
 
-    saveToHistory(
-      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
-      JSON.parse(JSON.stringify(minusWords)),
-    );
-
     const newClusters = [...clusters];
     const sourceCluster = newClusters[sourceClusterIdx];
     const targetCluster = newClusters[targetClusterIdx];
@@ -2018,6 +2042,11 @@ const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function Res
 
     setClusters(newClusters);
     setDraggedPhrase(null);
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(newClusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     await saveToAPI(newClusters, minusWords);
 

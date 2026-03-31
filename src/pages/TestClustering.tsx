@@ -701,11 +701,11 @@ export default function TestClustering() {
   }
 
   return (
-    <div className="flex min-h-screen min-w-0">
+    <div className="flex h-[100dvh] min-h-0 min-w-0">
       <Sidebar collapsible />
-      <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {step === 'results' ? (
-          <div className="relative h-full min-h-0 min-w-0">
+          <div className="relative min-h-0 flex-1 min-w-0">
             <ResultsStep
               clusters={clusters}
               minusWords={minusWords}

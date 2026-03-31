@@ -46,6 +46,9 @@ interface ResultsStepProps {
   clustersMergeEpoch?: number;
 }
 
+/** Фиксированная ширина колонки сегмента (горизонтальный скролл рабочей области) */
+const SEGMENT_COLUMN_WIDTH_PX = 320;
+
 const CLUSTER_BG_COLORS = [
   "#E8F4F8",
   "#F5E8F8",
@@ -1995,9 +1998,9 @@ export default function ResultsStep({
   };
 
   return (
-    <div className="flex h-screen min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-gray-50">
+    <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
-        <div className="w-full max-w-none px-6 py-5">
+        <div className="w-full max-w-none px-6 py-4">
           <div className="mb-4">
             <h2 className="text-xl font-bold tracking-tight text-gray-900">
               {selectedClusterIndex !== null
@@ -2134,19 +2137,21 @@ export default function ResultsStep({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex h-full min-h-0 w-max px-6 py-4">
+        <div className="flex h-full min-h-0 w-max min-w-full px-6 py-3">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}
-              className="relative h-full min-h-0"
-              style={{ width: "280px" }}
+              className="relative h-full min-h-0 shrink-0"
+              style={{
+                width: SEGMENT_COLUMN_WIDTH_PX,
+                minWidth: SEGMENT_COLUMN_WIDTH_PX,
+              }}
             >
               <div
                 onDragOver={(e) => handleClusterDragOver(e, idx)}
                 onDrop={() => handleClusterDrop(idx)}
-                className={`flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300 group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
+                className={`flex h-full min-h-0 w-full shrink-0 flex-col border-r border-gray-300 group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
                 style={{
-                  width: "280px",
                   backgroundColor: cluster.bgColor,
                   zIndex: 1,
                 }}
@@ -2281,9 +2286,10 @@ Enter или кнопка ✓ - зафиксировать перенос'
           ))}
 
           <div
-            className="flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300"
+            className="flex h-full min-h-0 shrink-0 flex-col border-r border-gray-300"
             style={{
-              width: "280px",
+              width: SEGMENT_COLUMN_WIDTH_PX,
+              minWidth: SEGMENT_COLUMN_WIDTH_PX,
               backgroundColor: "#F5F5F5",
             }}
           >
@@ -2304,9 +2310,10 @@ Enter или кнопка ✓ - зафиксировать перенос'
           </div>
 
           <div
-            className="mr-6 flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300"
+            className="mr-6 flex h-full min-h-0 shrink-0 flex-col border-r border-gray-300"
             style={{
-              width: "280px",
+              width: SEGMENT_COLUMN_WIDTH_PX,
+              minWidth: SEGMENT_COLUMN_WIDTH_PX,
               backgroundColor: "#FFE8E8",
             }}
           >

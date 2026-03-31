@@ -20,9 +20,11 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(() => {
     if (!collapsible) return false;
     try {
-      return localStorage.getItem(COLLAPSED_STORAGE_KEY) === '1';
+      const v = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+      if (v === null) return true;
+      return v === '1';
     } catch {
-      return false;
+      return true;
     }
   });
 

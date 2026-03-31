@@ -1826,56 +1826,63 @@ export default function ResultsStep({
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-      <div className="flex-shrink-0 border-b bg-white shadow-sm">
-        <div className="w-full max-w-none px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
+      <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
+        <div className="w-full max-w-none px-6 py-5">
+          <div className="mb-5">
+            <h2 className="text-xl font-bold tracking-tight text-gray-900">
+              {selectedClusterIndex !== null 
+                ? `Сегмент: ${clusters[0]?.name || ''}` 
+                : 'Результаты кластеризации'}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Параметры выгрузки и действия со списками фраз
+            </p>
+          </div>
 
-              <h2 className="text-xl font-bold text-gray-800">
-                {selectedClusterIndex !== null 
-                  ? `Сегмент: ${clusters[0]?.name || ''}` 
-                  : 'Результаты кластеризации'}
-              </h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-4 text-sm bg-white rounded-lg px-4 py-2 border border-gray-200">
-                <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8">
+            <div className="min-w-0 flex-1 max-w-3xl rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Параметры выгрузки
+              </p>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+                <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
                     checked={quickMinusMode}
                     onChange={(e) => setQuickMinusMode(e.target.checked)}
-                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500 accent-green-600"
+                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-gray-700">
-                    Режим быстрых минус-слов
-                  </span>
+                  <span className="text-slate-700">Режим быстрых минус-слов</span>
                 </label>
-                <div className="h-4 w-px bg-gray-300" />
-                <label className="flex items-center gap-2 cursor-pointer">
+                <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+                <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
                     checked={useWordForms}
                     onChange={(e) => setUseWordForms(e.target.checked)}
-                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500 accent-green-600"
+                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-gray-700">Учитывать словоформы</span>
+                  <span className="text-slate-700">Учитывать словоформы</span>
                 </label>
-                <div className="h-4 w-px bg-gray-300" />
-                <label className="flex items-center gap-2 cursor-pointer">
+                <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+                <label className="flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
                     checked={includeFrequency}
                     onChange={(e) => setIncludeFrequency(e.target.checked)}
-                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500 accent-green-600"
+                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-gray-700">Выгрузить частотность</span>
+                  <span className="text-slate-700">Выгрузить частотность</span>
                 </label>
               </div>
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <Button
                 onClick={onWordstatClick}
                 size="sm"
                 variant="outline"
-                className="gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                className="gap-2 border-slate-200 text-slate-700 hover:bg-slate-50"
               >
                 <Icon name="Plus" size={16} />
                 Добавить фразы
@@ -1884,7 +1891,8 @@ export default function ResultsStep({
                 <Button
                   onClick={applyGeoFilter}
                   size="sm"
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  variant="outline"
+                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
                 >
                   <Icon name="MapPin" size={16} />
                   Убрать чужие города
@@ -1900,14 +1908,14 @@ export default function ResultsStep({
               </Button>
             </div>
           </div>
-          
-          <div className="flex items-center justify-end gap-2 mb-3">
+
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
             {selectedClusterIndex !== null && (
               <Button
                 onClick={() => addNewCluster(0)}
                 size="sm"
                 variant="outline"
-                className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
               >
                 <Icon name="Plus" size={16} />
                 Новый сегмент
@@ -1918,7 +1926,7 @@ export default function ResultsStep({
               size="sm"
               variant="outline"
               disabled={historyIndex <= 0}
-              className="gap-2"
+              className="gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <Icon name="Undo" size={16} />
               Отменить
@@ -1926,7 +1934,8 @@ export default function ResultsStep({
             <Button
               onClick={removeDuplicates}
               size="sm"
-              className="gap-2 bg-orange-600 hover:bg-orange-700"
+              variant="outline"
+              className="gap-2 border-amber-200 text-amber-800 hover:bg-amber-50"
             >
               <Icon name="Trash2" size={16} />
               Удалить дубли
@@ -1935,14 +1944,14 @@ export default function ResultsStep({
               onClick={removeStrikethroughPhrases}
               size="sm"
               variant="outline"
-              className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
+              className="gap-2 border-amber-200 text-amber-800 hover:bg-amber-50"
             >
               <Icon name="Trash2" size={16} />
               Удалить зачёркнутые
             </Button>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 mb-3">
+          <div className="mt-4 grid grid-cols-4 gap-4 mb-3">
             <div className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200">
               <div className="flex items-center gap-2 mb-1">
                 <Icon name="Key" size={16} className="text-blue-600" />

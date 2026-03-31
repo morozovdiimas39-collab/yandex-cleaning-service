@@ -713,6 +713,7 @@ export default function TestClustering() {
               regions={selectedCities.map(c => c.name)}
               onWordstatClick={() => setStep('wordstat-dialog')}
               specificAddress={specificAddress}
+              projectName={projectName}
             />
             {isWordstatLoading && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

@@ -3,17 +3,13 @@ import Icon from "@/components/ui/icon";
 
 interface ExportPanelProps {
   excludeRedPhrases: boolean;
-  includeFrequency: boolean;
   onToggleExcludeRed: () => void;
-  onToggleIncludeFrequency: () => void;
   onExport: () => void;
 }
 
 export default function ExportPanel({
   excludeRedPhrases,
-  includeFrequency,
   onToggleExcludeRed,
-  onToggleIncludeFrequency,
   onExport,
 }: ExportPanelProps) {
   return (
@@ -34,15 +30,9 @@ export default function ExportPanel({
           <span className="text-sm">Исключить красные фразы</span>
         </label>
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={includeFrequency}
-            onChange={onToggleIncludeFrequency}
-            className="w-4 h-4"
-          />
-          <span className="text-sm">Включить частотность</span>
-        </label>
+        <p className="text-xs text-muted-foreground">
+          Частотность в файле всегда включается
+        </p>
 
         <Button onClick={onExport} className="w-full">
           <Icon name="Download" size={16} className="mr-2" />

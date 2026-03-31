@@ -34,6 +34,8 @@ interface ResultsStepProps {
   regions?: string[];
   onWordstatClick?: () => void;
   specificAddress?: string;
+  /** Название проекта для заголовка «Проект: …» */
+  projectName?: string;
 }
 
 const CLUSTER_BG_COLORS = [
@@ -47,6 +49,85 @@ const CLUSTER_BG_COLORS = [
   "#E1F5FE",
 ];
 
+/** Словоформы в поиске/минусах всегда учитываются; частотность всегда в выгрузке */
+const USE_WORD_FORMS = true;
+
+const UNDO_STORAGE_VERSION = 1;
+
+function undoStorageKey(projectId: number) {
+  return `clustering_undo_v${UNDO_STORAGE_VERSION}_${projectId}`;
+}
+
+/** Сравнение только бизнес-данных (без bgColor/searchText), чтобы совпадать с API после перезагрузки */
+function canonicalUndoPayload(clusters: any[], minusWords: Phrase[]): string {
+  const stripPhrase = (p: Phrase & { frequency?: number }) => ({
+    phrase: p.phrase,
+    count: p.count,
+    frequency: p.frequency,
+    sourceCluster: p.sourceCluster,
+    sourceColor: p.sourceColor,
+    isTemporary: p.isTemporary,
+    removedPhrases: p.removedPhrases,
+    isMinusWord: p.isMinusWord,
+    minusTerm: p.minusTerm,
+  });
+  const stripCluster = (c: any): any => ({
+    name: c.name,
+    intent: c.intent,
+    color: c.color,
+    icon: c.icon,
+    phrases: (c.phrases || []).map(stripPhrase),
+    subClusters: c.subClusters?.map(stripCluster),
+  });
+  return JSON.stringify({
+    c: clusters.map(stripCluster),
+    m: minusWords.map(stripPhrase),
+  });
+}
+
+function tryLoadPersistedUndoStack(
+  projectId: number,
+  mappedClusters: any[],
+  filteredMinus: Phrase[],
+): { history: { clusters: any[]; minusWords: Phrase[] }[]; historyIndex: number } | null {
+  try {
+    const raw = localStorage.getItem(undoStorageKey(projectId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      parsed.v !== UNDO_STORAGE_VERSION ||
+      !Array.isArray(parsed.history) ||
+      parsed.history.length === 0
+    ) {
+      return null;
+    }
+    const historyIndex = parsed.historyIndex;
+    if (
+      typeof historyIndex !== "number" ||
+      historyIndex < 0 ||
+      historyIndex >= parsed.history.length
+    ) {
+      return null;
+    }
+    const at = parsed.history[historyIndex];
+    if (!at?.clusters || !Array.isArray(at.minusWords)) return null;
+
+    const fromDb = canonicalUndoPayload(mappedClusters, filteredMinus);
+    const fromStack = canonicalUndoPayload(at.clusters, at.minusWords);
+    if (fromDb !== fromStack) {
+      console.log(
+        "clustering undo: persisted stack head does not match server state, ignoring",
+      );
+      return null;
+    }
+    return { history: parsed.history, historyIndex };
+  } catch (e) {
+    console.warn("clustering undo: failed to load", e);
+    return null;
+  }
+}
+
 export default function ResultsStep({
   clusters: propsClusters,
   minusWords: propsMinusWords,
@@ -57,6 +138,7 @@ export default function ResultsStep({
   regions = [],
   onWordstatClick,
   specificAddress = '',
+  projectName = '',
 }: ResultsStepProps) {
   const initialClusters = propsClusters.map((c, idx) => ({
     ...c,
@@ -80,9 +162,6 @@ export default function ResultsStep({
     phraseIdx: number;
   } | null>(null);
 
-  const [includeFrequency, setIncludeFrequency] = useState(false);
-  const [quickMinusMode, setQuickMinusMode] = useState(true);
-  const [useWordForms, setUseWordForms] = useState(true);
   const [temporaryMoves, setTemporaryMoves] = useState<{
     phrase: Phrase;
     fromClusterIdx: number;
@@ -192,8 +271,50 @@ export default function ResultsStep({
       });
       setClusterSubClusters(subClustersMap);
       
+      const filteredMinus = propsMinusWords.filter((p) => p.phrase && p.phrase.trim() !== "");
+
+      const rehydrateAllSnapshots = (
+        snapshots: { clusters: any[]; minusWords: Phrase[] }[],
+      ) =>
+        snapshots.map((snap) => ({
+          clusters: snap.clusters.map((c, idx) => ({
+            ...c,
+            bgColor: c.bgColor ?? CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
+            searchText: c.searchText ?? "",
+            hovering: c.hovering ?? false,
+          })),
+          minusWords: snap.minusWords,
+        }));
+
       // Проверяем есть ли сохранённое состояние "внутри сегмента"
       const savedIndex = localStorage.getItem('cluster_view_index');
+
+      let undoRestored = false;
+      if (projectId && savedIndex === null) {
+        const loaded = tryLoadPersistedUndoStack(projectId, mappedClusters, filteredMinus);
+        if (loaded) {
+          const hydrated = rehydrateAllSnapshots(loaded.history);
+          const at = hydrated[loaded.historyIndex];
+          setSelectedClusterIndex(null);
+          setOriginalClusters([]);
+          setHistory(hydrated);
+          setHistoryIndex(loaded.historyIndex);
+          setClusters(at.clusters);
+          setMinusWords(at.minusWords);
+          setIsInitialized(true);
+          console.log('↩️ Restored undo stack from localStorage', {
+            snapshots: hydrated.length,
+            historyIndex: loaded.historyIndex,
+          });
+          undoRestored = true;
+        }
+      }
+
+      if (undoRestored) {
+        return;
+      }
+
+      setMinusWords(filteredMinus);
       
       if (savedIndex !== null) {
         try {
@@ -201,11 +322,9 @@ export default function ResultsStep({
           
           console.log('🔄 Restoring cluster view from localStorage:', { clusterIdx });
           
-          // ВАЖНО: используем СВЕЖИЕ данные из БД (mappedClusters), а не старые из localStorage
           setOriginalClusters(mappedClusters);
           setSelectedClusterIndex(clusterIdx);
           
-          // Показываем только выбранный сегмент (берём из свежих данных БД)
           const targetCluster = mappedClusters[clusterIdx];
           if (targetCluster) {
             setClusters([{
@@ -232,25 +351,38 @@ export default function ResultsStep({
         setClusters(mappedClusters);
       }
       
-      setMinusWords(
-        propsMinusWords.filter((p) => p.phrase && p.phrase.trim() !== ""),
-      );
       setIsInitialized(true);
       
       setHistory([{
         clusters: mappedClusters,
-        minusWords: propsMinusWords.filter((p) => p.phrase && p.phrase.trim() !== ""),
+        minusWords: filteredMinus,
       }]);
       setHistoryIndex(0);
     }
-  }, [propsClusters.length, propsMinusWords.length, isInitialized, clusters.length]);
+  }, [propsClusters.length, propsMinusWords.length, isInitialized, clusters.length, projectId]);
 
-  const matchesSearch = (phrase: string, searchTerm: string, useWordFormsParam = useWordForms): boolean => {
+  useEffect(() => {
+    if (!projectId || !isInitialized || history.length === 0) return;
+    try {
+      localStorage.setItem(
+        undoStorageKey(projectId),
+        JSON.stringify({
+          v: UNDO_STORAGE_VERSION,
+          historyIndex,
+          history,
+        }),
+      );
+    } catch (e) {
+      console.warn("clustering undo: persist failed (storage full?)", e);
+    }
+  }, [projectId, isInitialized, history, historyIndex]);
+
+  const matchesSearch = (phrase: string, searchTerm: string, useWordFormsParam = USE_WORD_FORMS): boolean => {
     if (!searchTerm.trim()) return false;
     return matchWithYandexOperators(phrase, searchTerm, useWordFormsParam);
   };
 
-  const matchWithYandexOperators = (phrase: string, query: string, useWordFormsParam = useWordForms): boolean => {
+  const matchWithYandexOperators = (phrase: string, query: string, useWordFormsParam = USE_WORD_FORMS): boolean => {
     const phraseLower = phrase.toLowerCase();
     const queryLower = query.toLowerCase().trim();
 
@@ -498,7 +630,7 @@ export default function ResultsStep({
         const remainingPhrases: Phrase[] = [];
         
         sourceCluster.phrases.forEach(phrase => {
-          if (matchWithYandexOperators(phrase.phrase, searchTerm, useWordForms)) {
+          if (matchWithYandexOperators(phrase.phrase, searchTerm, USE_WORD_FORMS)) {
             // Проверяем что фразы нет в целевом кластере
             const alreadyInTarget = targetCluster.phrases.some(p => p.phrase === phrase.phrase);
             if (!alreadyInTarget) {
@@ -625,9 +757,7 @@ export default function ResultsStep({
           return p;
         }
 
-        const matches = useWordForms
-          ? matchesWordForm(p.phrase, searchTerm)
-          : p.phrase.toLowerCase().split(/\s+/).includes(searchTerm);
+        const matches = matchesWordForm(p.phrase, searchTerm);
 
         return {
           ...p,
@@ -936,21 +1066,13 @@ export default function ResultsStep({
       .split(/\s+/)
       .filter((w) => w.length > 0);
 
-    if (useWordForms) {
-      // С учётом словоформ, НО для очень коротких слов (<= 3 символа) только точное совпадение
-      return minusPhraseWords.every((minusWord) => {
-        if (minusWord.length <= 3) {
-          // Для коротких слов только точное совпадение
-          return phraseWords.includes(minusWord);
-        }
-        return matchesWordForm(phraseLower, minusWord);
-      });
-    } else {
-      // Точное совпадение целых слов
-      return minusPhraseWords.every((minusWord) =>
-        phraseWords.includes(minusWord)
-      );
-    }
+    // С учётом словоформ; для очень коротких слов (<= 3 символа) — точное совпадение
+    return minusPhraseWords.every((minusWord) => {
+      if (minusWord.length <= 3) {
+        return phraseWords.includes(minusWord);
+      }
+      return matchesWordForm(phraseLower, minusWord);
+    });
   };
 
   const addQuickMinusWord = async (word: string) => {
@@ -1133,12 +1255,12 @@ export default function ResultsStep({
 
   const copyClusterPhrases = (phrases: Phrase[]) => {
     const text = phrases
-      .map((p) => (includeFrequency ? `${p.phrase}\t${p.count}` : p.phrase))
+      .map((p) => `${p.phrase}\t${p.count}`)
       .join("\n");
     navigator.clipboard.writeText(text);
     toast({
       title: "📋 Скопировано",
-      description: `${phrases.length} фраз${includeFrequency ? " с частотностью" : ""}`,
+      description: `${phrases.length} фраз с частотностью`,
     });
   };
 
@@ -1435,11 +1557,7 @@ export default function ResultsStep({
         // Заголовки
         const headers: string[] = [];
         clusterData.forEach((c) => {
-          if (includeFrequency) {
-            headers.push(c.name, 'Частотность');
-          } else {
-            headers.push(c.name);
-          }
+          headers.push(c.name, 'Частотность');
         });
         data.push(headers);
         
@@ -1450,11 +1568,7 @@ export default function ResultsStep({
           clusterData.forEach((cluster) => {
             const phrase = cluster.phrases[row];
             if (!phrase) {
-              if (includeFrequency) {
-                rowData.push('', '');
-              } else {
-                rowData.push('');
-              }
+              rowData.push('', '');
             } else {
               totalExported++;
               
@@ -1462,11 +1576,7 @@ export default function ResultsStep({
                 ? phrase.phrase.split('').join('\u0336') + '\u0336'
                 : phrase.phrase;
               
-              if (includeFrequency) {
-                rowData.push(phraseText, phrase.count || 0);
-              } else {
-                rowData.push(phraseText);
-              }
+              rowData.push(phraseText, phrase.count || 0);
             }
           });
           
@@ -1828,56 +1938,15 @@ export default function ResultsStep({
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
         <div className="w-full max-w-none px-6 py-5">
-          <div className="mb-5">
+          <div className="mb-4">
             <h2 className="text-xl font-bold tracking-tight text-gray-900">
-              {selectedClusterIndex !== null 
-                ? `Сегмент: ${clusters[0]?.name || ''}` 
-                : 'Результаты кластеризации'}
+              {selectedClusterIndex !== null
+                ? `Сегмент: ${clusters[0]?.name || ''}`
+                : `Проект: ${projectName.trim() || 'Без названия'}`}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Параметры выгрузки и действия со списками фраз
-            </p>
           </div>
 
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8">
-            <div className="min-w-0 flex-1 max-w-3xl rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Параметры выгрузки
-              </p>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={quickMinusMode}
-                    onChange={(e) => setQuickMinusMode(e.target.checked)}
-                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-slate-700">Режим быстрых минус-слов</span>
-                </label>
-                <div className="hidden h-4 w-px bg-slate-200 sm:block" />
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={useWordForms}
-                    onChange={(e) => setUseWordForms(e.target.checked)}
-                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-slate-700">Учитывать словоформы</span>
-                </label>
-                <div className="hidden h-4 w-px bg-slate-200 sm:block" />
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={includeFrequency}
-                    onChange={(e) => setIncludeFrequency(e.target.checked)}
-                    className="h-4 w-4 rounded accent-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-slate-700">Выгрузить частотность</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <Button
                 onClick={onWordstatClick}
                 size="sm"
@@ -1904,9 +1973,8 @@ export default function ResultsStep({
                 className="gap-2 bg-emerald-600 hover:bg-emerald-700"
               >
                 <Icon name="FileSpreadsheet" size={16} />
-                Выгрузить в Excel
+                Выгрузить .xlsx
               </Button>
-            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
@@ -2206,7 +2274,7 @@ Enter или кнопка ✓ - зафиксировать перенос'
                             <div
                               className={`text-sm leading-snug mb-1 ${phrase.isMinusWord ? "text-red-700 line-through" : "text-gray-800"}`}
                             >
-                              {quickMinusMode && !phrase.isMinusWord
+                              {!phrase.isMinusWord
                                 ? phrase.phrase.split(" ").map((word, wIdx) => (
                                     <span
                                       key={wIdx}

@@ -30,7 +30,6 @@ interface ClusterCardProps {
   searchText: string;
   filteredPhrases: Phrase[];
   isDragging: boolean;
-  quickMinusMode: boolean;
   onSearchChange: (index: number, value: string) => void;
   onConfirmSearch: (index: number) => void;
   onDragStart: (index: number) => void;
@@ -54,7 +53,6 @@ export default function ClusterCard({
   searchText,
   filteredPhrases,
   isDragging,
-  quickMinusMode,
   onSearchChange,
   onConfirmSearch,
   onDragStart,
@@ -222,19 +220,17 @@ export default function ClusterCard({
                         <Icon name="Undo" size={14} />
                       </Button>
                     ) : (
-                      quickMinusMode && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAddToMinus(phrase, index, phraseIdx);
-                          }}
-                          className="h-6 px-2 text-red-600 hover:text-red-700"
-                        >
-                          <Icon name="Minus" size={14} />
-                        </Button>
-                      )
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddToMinus(phrase, index, phraseIdx);
+                        }}
+                        className="h-6 px-2 text-red-600 hover:text-red-700"
+                      >
+                        <Icon name="Minus" size={14} />
+                      </Button>
                     )}
                   </div>
                 )}

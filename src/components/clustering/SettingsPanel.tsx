@@ -2,21 +2,13 @@ import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 
 interface SettingsPanelProps {
-  quickMinusMode: boolean;
-  useWordForms: boolean;
   hasChanges: boolean;
-  onToggleQuickMinus: () => void;
-  onToggleWordForms: () => void;
   onSaveChanges?: () => void;
   onNewProject: () => void;
 }
 
 export default function SettingsPanel({
-  quickMinusMode,
-  useWordForms,
   hasChanges,
-  onToggleQuickMinus,
-  onToggleWordForms,
   onSaveChanges,
   onNewProject,
 }: SettingsPanelProps) {
@@ -28,26 +20,6 @@ export default function SettingsPanel({
       </div>
 
       <div className="space-y-3">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={quickMinusMode}
-            onChange={onToggleQuickMinus}
-            className="w-4 h-4"
-          />
-          <span className="text-sm">Быстрое добавление минус-слов</span>
-        </label>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useWordForms}
-            onChange={onToggleWordForms}
-            className="w-4 h-4"
-          />
-          <span className="text-sm">Учитывать словоформы</span>
-        </label>
-
         {onSaveChanges && (
           <Button
             onClick={onSaveChanges}

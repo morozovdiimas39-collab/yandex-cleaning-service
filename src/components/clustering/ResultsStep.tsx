@@ -2133,24 +2133,22 @@ export default function ResultsStep({
         </div>
       </div>
 
-      <div className="min-h-0 overflow-x-auto overflow-y-hidden" style={{ height: '100vh' }}>
+      <div className="min-h-0 flex-1 overflow-x-auto">
         <div className="flex h-full min-h-0 px-6 py-4">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}
-              className="relative"
+              className="relative h-full min-h-0"
               style={{ width: "280px" }}
             >
               <div
                 onDragOver={(e) => handleClusterDragOver(e, idx)}
                 onDrop={() => handleClusterDrop(idx)}
-                className={`flex-shrink-0 border-r border-gray-300 flex min-h-0 flex-col group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
+                className={`flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300 group relative ${draggedCluster === idx ? "opacity-50" : ""}`}
                 style={{
                   width: "280px",
                   backgroundColor: cluster.bgColor,
-                  height: "100vh",
                   zIndex: 1,
-                  position: 'relative'
                 }}
               >
 
@@ -2283,14 +2281,13 @@ Enter или кнопка ✓ - зафиксировать перенос'
           ))}
 
           <div
-            className="flex-shrink-0 border-r border-gray-300 flex flex-col"
+            className="flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300"
             style={{
               width: "280px",
               backgroundColor: "#F5F5F5",
-              height: "100%",
             }}
           >
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
               <button
                 onClick={() => addNewCluster(clusters.length - 1)}
                 className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center mb-4 hover:bg-gray-400 transition-colors cursor-pointer"
@@ -2307,11 +2304,10 @@ Enter или кнопка ✓ - зафиксировать перенос'
           </div>
 
           <div
-            className="flex min-h-0 flex-shrink-0 flex-col border-r border-gray-300 mr-6"
+            className="mr-6 flex h-full min-h-0 flex-shrink-0 flex-col border-r border-gray-300"
             style={{
               width: "280px",
               backgroundColor: "#FFE8E8",
-              height: "100%",
             }}
           >
             <div className="p-3 border-b border-gray-200 bg-white/60">

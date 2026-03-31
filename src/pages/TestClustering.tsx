@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import { City } from '@/data/russian-cities';
 import SourceStep from '@/components/clustering/SourceStep';
 import CitiesStep from '@/components/clustering/CitiesStep';

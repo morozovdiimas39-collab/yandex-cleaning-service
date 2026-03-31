@@ -1,9 +1,12 @@
 import json
+import logging
 import os
+import sys
 import time
 import io
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+import boto3  # нужен в рантайме при вызове по триггеру MQ
 import psycopg2
 import psycopg2.extras
 import requests
@@ -13,6 +16,28 @@ RETRY_DELAYS = [5, 10, 20, 40, 60]  # Exponential backoff
 MAX_WAIT_FOR_429 = 60  # Максимум ждём 60 сек при 429
 API_DELAY = 0.6  # Задержка между API запросами (лимит: 20 req / 10 sec)
 
+
+def mark_batch_failed_fresh_conn(batch_id: int, error_message: str) -> bool:
+    """Обновить статус батча на failed через новое подключение (если основное мёртвое, напр. при 499)."""
+    dsn = os.environ.get('DATABASE_URL')
+    if not dsn:
+        return False
+    try:
+        conn = psycopg2.connect(dsn)
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+            SET status = 'failed', error_message = %s, retry_count = retry_count + 1
+            WHERE id = %s
+        """, (error_message[:500], batch_id))
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ mark_batch_failed_fresh_conn: {e}")
+        return False
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
     Business: Worker для обработки батча кампаний (чистка площадок РСЯ)
@@ -20,6 +45,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
           context - объект с request_id
     Returns: HTTP response с результатами обработки
     '''
+    # Платформа может не показывать stdout — дублируем в stderr и logging
+    msg = "[RSYA-BATCH-WORKER] handler invoked"
+    print(msg, flush=True)
+    print(msg, file=sys.stderr, flush=True)
+    logging.getLogger().setLevel(logging.INFO)
+    logging.info(msg)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
     method: str = event.get('httpMethod', 'POST')
     
     if method == 'OPTIONS':
@@ -76,14 +110,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         conn.autocommit = False
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
-        # Обновляем статус батча
+        # Забираем батч только если он ещё pending (чтобы один батч не обрабатывали несколько воркеров)
         cursor.execute("""
             UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
             SET status = 'processing', started_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND status = 'pending'
         """, (batch_id,))
         conn.commit()
+        if cursor.rowcount == 0:
+            conn.close()
+            print(f"⏭️ Batch {batch_id} already taken by another worker, skipping", flush=True)
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({
+                    'success': True,
+                    'batch_id': batch_id,
+                    'skipped': True,
+                    'reason': 'batch_already_processing'
+                })
+            }
         
+        # Очищаем устаревшие локи (от отменённых/упавших прошлых запусков), чтобы кампании были доступны
+        cursor.execute("""
+            DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks 
+            WHERE expires_at < NOW()
+        """)
+        cleared = cursor.rowcount
+        conn.commit()
+        if cleared > 0:
+            print(f"🔓 Cleared {cleared} expired campaign locks", flush=True)
+        
+        print(f"📦 rsya-batch-worker: processing batch {batch_id}, {len(campaign_ids)} campaigns", flush=True)
         # Обрабатываем каждую кампанию в батче
         results = []
         for campaign_id in campaign_ids:
@@ -99,6 +157,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 results.append(result)
             except Exception as e:
                 print(f"❌ Error processing campaign {campaign_id}: {str(e)}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
                 results.append({
                     'campaign_id': campaign_id,
                     'status': 'error',
@@ -109,6 +171,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         successful = sum(1 for r in results if r.get('status') == 'success')
         failed = sum(1 for r in results if r.get('status') == 'error')
         skipped = sum(1 for r in results if r.get('status') == 'skipped')
+        total_blocked = sum(r.get('blocked', 0) or 0 for r in results)
         
         processing_time = int(time.time() - start_time)
         
@@ -125,7 +188,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cursor.close()
         conn.close()
         
-        print(f"✅ Batch {batch_id}: {successful} success, {failed} failed, {skipped} skipped ({processing_time}s)")
+        summary = f"✅ Batch {batch_id}: {successful} success, {failed} failed, {skipped} skipped | blocked in Yandex: {total_blocked} ({processing_time}s)"
+        print(summary, flush=True)
+        print(summary, file=sys.stderr, flush=True)
+        logging.info(summary)
         
         return {
             'statusCode': 200,
@@ -149,10 +215,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if conn:
             try:
                 conn.rollback()
-            except:
+            except Exception:
                 pass
         
-        # Пытаемся обновить статус батча в БД
+        # Пытаемся обновить статус батча в БД (сначала текущее подключение, при ошибке — новое)
+        updated = False
         if conn and cursor:
             try:
                 cursor.execute("""
@@ -161,14 +228,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         error_message = %s,
                         retry_count = retry_count + 1
                     WHERE id = %s
-                """, (str(e), batch_id))
+                """, (str(e)[:500], batch_id))
                 conn.commit()
+                updated = True
             except Exception as db_error:
                 print(f"❌ Failed to update batch status: {str(db_error)}")
                 try:
                     conn.rollback()
-                except:
+                except Exception:
                     pass
+        if not updated and batch_id:
+            updated = mark_batch_failed_fresh_conn(batch_id, str(e))
+        if not updated:
+            print(f"⚠️ Could not mark batch {batch_id} as failed in DB")
         
         return {
             'statusCode': 500,
@@ -189,16 +261,7 @@ def process_campaign(
     Обработка одной кампании: получение площадок, фильтрация по задачам, блокировка
     '''
     
-    # 1. Блокировка кампании (избегаем race condition)
-    lock_acquired = acquire_campaign_lock(campaign_id, context.request_id, cursor, conn, project_id)
-    if not lock_acquired:
-        print(f"⚠️ Campaign {campaign_id} is locked by another worker, skipping")
-        return {
-            'campaign_id': campaign_id,
-            'status': 'skipped',
-            'reason': 'locked'
-        }
-    
+    # Батч уже забран одним воркером (UPDATE pending→processing), дубли кампаний убираются в планировщике — локи на уровне кампании не нужны
     try:
         # 2. Получаем активные задачи проекта
         cursor.execute("""
@@ -217,11 +280,12 @@ def process_campaign(
             }
         
         print(f"📋 Found {len(tasks)} active tasks for project {project_id}")
+        first_task_id = tasks[0]['id']
         
         # 3. Получаем площадки за 3 периода (сегодня, вчера, 7 дней)
-        platforms_today = get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id)
-        platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id)
-        platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id)
+        platforms_today = get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id, first_task_id)
+        platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id, first_task_id)
+        platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id, first_task_id)
         
         # Если все отчёты async (201/202) → пропускаем (обработает поллер)
         if platforms_today is None and platforms_yesterday is None and platforms_7d is None:
@@ -260,7 +324,7 @@ def process_campaign(
                 'reason': 'no_candidates'
             }
         
-        print(f"📊 Campaign {campaign_id}: {len(candidates)} candidates to check")
+        print(f"📊 Campaign {campaign_id}: {len(candidates)} candidates to check", flush=True)
         
         # 5. Получаем уже заблокированные площадки
         blocked_sites = get_blocked_sites(campaign_id, yandex_token)
@@ -283,7 +347,7 @@ def process_campaign(
         to_block = list({p['domain']: p for p in matched_platforms}.values())
         
         if not to_block:
-            print(f"ℹ️ Campaign {campaign_id}: no platforms matched task filters")
+            print(f"ℹ️ Campaign {campaign_id}: no platforms matched task filters", flush=True)
             return {
                 'campaign_id': campaign_id,
                 'status': 'success',
@@ -309,21 +373,29 @@ def process_campaign(
                 unblock_sites(campaign_id, yandex_token, [s['domain'] for s in to_unblock])
                 print(f"🔄 Campaign {campaign_id}: rotated {len(to_unblock)} platforms")
         
-        # 8. Добавляем новые блокировки
+        # 8. Добавляем новые блокировки в Директе
+        actually_blocked = 0
         if to_block:
-            block_sites(campaign_id, yandex_token, [p['domain'] for p in to_block])
-            print(f"🚫 Campaign {campaign_id}: blocked {len(to_block)} platforms")
+            if block_sites(campaign_id, yandex_token, [p['domain'] for p in to_block]):
+                actually_blocked = len(to_block)
+                print(f"🚫 Campaign {campaign_id}: blocked {actually_blocked} platforms in Yandex", flush=True)
+            else:
+                print(f"❌ Campaign {campaign_id}: block_sites API failed, 0 blocked", flush=True)
+                return {
+                    'campaign_id': campaign_id,
+                    'status': 'error',
+                    'blocked': 0,
+                    'error': 'ExcludedSites API failed'
+                }
         
         return {
             'campaign_id': campaign_id,
             'status': 'success',
-            'blocked': len(to_block),
+            'blocked': actually_blocked,
             'candidates': len(candidates)
         }
-        
     finally:
-        # Снимаем блокировку кампании
-        release_campaign_lock(campaign_id, cursor, conn, project_id)
+        pass
 
 
 def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bool:
@@ -477,7 +549,7 @@ def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn, proje
     try:
         cursor.execute("""
             INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_campaign_locks (campaign_id, locked_by, expires_at)
-            VALUES (%s, %s, NOW() + INTERVAL '5 minutes')
+            VALUES (%s, %s, NOW() + INTERVAL '1 minute')
             ON CONFLICT (campaign_id) DO UPDATE
             SET locked_by = EXCLUDED.locked_by,
                 locked_at = NOW(),
@@ -488,7 +560,11 @@ def acquire_campaign_lock(campaign_id: str, request_id: str, cursor, conn, proje
         conn.commit()
         result = cursor.fetchone()
         return result is not None
-    except:
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return False
 
 
@@ -501,8 +577,11 @@ def release_campaign_lock(campaign_id: str, cursor, conn, project_id: int) -> No
             WHERE campaign_id = %s
         """, (campaign_id,))
         conn.commit()
-    except:
-        pass
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def get_platforms_with_retry(
@@ -512,7 +591,8 @@ def get_platforms_with_retry(
     days_end: int,
     cursor,
     conn,
-    project_id: int
+    project_id: int,
+    task_id: int
 ) -> Optional[List[Dict[str, Any]]]:
     '''
     Получает площадки с clicks >= 1 за период с retry при 429
@@ -532,30 +612,35 @@ def get_platforms_with_retry(
                 return platforms
             
             elif response['status'] in [201, 202]:
-                # Отчёт готовится → сохраняем в pending
-                report_name = response.get('report_name', f"report_{campaign_id}_{date_from}")
+                # Отчёт готовится → сохраняем в pending (task_id и report_id NOT NULL в таблице)
+                report_name = response.get('report_name', f"platforms_{campaign_id}_{date_from}")
+                report_id = report_name
                 cursor.execute("""
                     INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
-                    (project_id, campaign_ids, date_from, date_to, report_name, status)
-                    VALUES (%s, %s, %s, %s, %s, 'pending')
-                    ON CONFLICT DO NOTHING
-                """, (project_id, json.dumps([campaign_id]), date_from, date_to, report_name))
+                    (project_id, task_id, report_id, campaign_ids, date_from, date_to, report_name, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
+                    ON CONFLICT (report_id) DO NOTHING
+                """, (project_id, task_id, report_id, json.dumps([campaign_id]), date_from, date_to, report_name))
                 conn.commit()
                 print(f"⏳ Report {report_name} is pending (campaign {campaign_id})")
                 return None
             
             elif response['status'] == 429:
-                # Rate limit → retry с backoff
+                # 429 или 400 с кодом 56 (create_report возвращает 429) → retry с backoff
                 if delay > MAX_WAIT_FOR_429:
-                    print(f"⚠️ Rate limit exceeded, skipping campaign {campaign_id}")
+                    print(f"⚠️ Rate/limit exceeded, skipping campaign {campaign_id}")
                     return None
-                print(f"⏱️ Rate limit, waiting {delay}s... (attempt {attempt + 1}/{len(RETRY_DELAYS)})")
+                print(f"⏱️ Limit exceeded, waiting {delay}s... (attempt {attempt + 1}/{len(RETRY_DELAYS)})")
                 time.sleep(delay)
                 continue
             
             else:
-                # Другая ошибка
-                print(f"❌ API error {response['status']}: {response.get('error')}")
+                err = response.get('error', '')
+                try:
+                    err = err[:500] if isinstance(err, str) else json.dumps(err, ensure_ascii=False)[:500]
+                except Exception:
+                    err = str(err)[:500]
+                print(f"❌ API error {response['status']}: {err}")
                 return None
         
         except Exception as e:
@@ -617,6 +702,16 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
             return {'status': resp.status_code, 'report_name': payload['params']['ReportName']}
         elif resp.status_code == 429:
             return {'status': 429, 'error': 'Rate limit exceeded'}
+        elif resp.status_code == 400:
+            # 400 с кодом 56 = "Превышен лимит" (лимит отчётов) — обрабатываем как 429, retry с backoff
+            try:
+                err = resp.json()
+                code = err.get('error', {}).get('error_code') or err.get('error', {}).get('error_code')
+                if str(code) == '56':
+                    return {'status': 429, 'error': err.get('error', {}).get('error_string') or 'Limit exceeded (56)'}
+            except Exception:
+                pass
+            return {'status': 400, 'error': resp.text}
         else:
             return {'status': resp.status_code, 'error': resp.text}
     
@@ -637,14 +732,22 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
         parts = line.split('\t')
         if len(parts) >= 4:
             domain = parts[0].strip()
-            # Пропускаем домены с пробелами или другими недопустимыми символами
             if ' ' in domain or not domain:
                 continue
+            clicks = int(parts[1] or 0)
+            cost = float(parts[2] or 0)
+            conversions = int(parts[3] or 0)
+            impressions = int(parts[4] or 0) if len(parts) > 4 else 0
+            cpc = cost / clicks if clicks else 0
+            ctr = (clicks / impressions * 100) if impressions else 0
             platforms.append({
                 'domain': domain,
-                'clicks': int(parts[1] or 0),
-                'cost': float(parts[2] or 0),
-                'conversions': int(parts[3] or 0)
+                'clicks': clicks,
+                'cost': cost,
+                'conversions': conversions,
+                'impressions': impressions,
+                'cpc': cpc,
+                'ctr': ctr
             })
     
     return platforms

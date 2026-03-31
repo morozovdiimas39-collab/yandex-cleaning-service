@@ -13,6 +13,8 @@ from typing import Dict, Any, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+SCHEMA = 't_p97630513_yandex_cleaning_serv'
+
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
     if not dsn:
@@ -276,7 +278,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
         
         # Проверяем права администратора для остальных операций
-        cur.execute("SELECT is_admin FROM users WHERE id = %s", (user_id,))
+        cur.execute("SELECT is_admin FROM " + SCHEMA + ".users WHERE id = %s", (user_id,))
         admin_check = cur.fetchone()
         
         if not admin_check or not admin_check.get('is_admin'):
@@ -302,8 +304,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.subscription_ends_at,
                     s.is_infinite,
                     s.allowed_services
-                FROM users u
-                LEFT JOIN subscriptions s ON u.id = s.user_id
+                FROM """ + SCHEMA + """.users u
+                LEFT JOIN """ + SCHEMA + """.subscriptions s ON u.id::text = s.user_id
                 ORDER BY u.created_at DESC
             """)
             
@@ -370,22 +372,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 services = body_data.get('services', [])
                 
                 # Проверяем существование подписки
-                cur.execute("SELECT * FROM subscriptions WHERE user_id = %s", (target_user_id,))
+                cur.execute("SELECT * FROM " + SCHEMA + ".subscriptions WHERE user_id = %s", (str(target_user_id),))
                 existing = cur.fetchone()
                 
                 if existing:
                     cur.execute(
-                        """UPDATE subscriptions 
+                        """UPDATE """ + SCHEMA + """.subscriptions 
                            SET is_infinite = %s, allowed_services = %s, status = %s
                            WHERE user_id = %s""",
-                        (is_infinite, services, 'active' if is_infinite else existing['status'], target_user_id)
+                        (is_infinite, services, 'active' if is_infinite else existing['status'], str(target_user_id))
                     )
                 else:
                     cur.execute(
-                        """INSERT INTO subscriptions 
+                        """INSERT INTO """ + SCHEMA + """.subscriptions 
                            (user_id, plan_type, status, is_infinite, allowed_services)
                            VALUES (%s, %s, %s, %s, %s)""",
-                        (target_user_id, 'infinite', 'active', is_infinite, services)
+                        (str(target_user_id), 'infinite', 'active', is_infinite, services)
                     )
                 
                 conn.commit()
@@ -400,7 +402,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             elif action == 'extendSubscription':
                 days = body_data.get('days', 30)
                 
-                cur.execute("SELECT * FROM subscriptions WHERE user_id = %s", (target_user_id,))
+                cur.execute("SELECT * FROM " + SCHEMA + ".subscriptions WHERE user_id = %s", (str(target_user_id),))
                 existing = cur.fetchone()
                 
                 now = datetime.now()
@@ -412,18 +414,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         new_end_date = existing['subscription_ends_at'] + timedelta(days=days)
                     
                     cur.execute(
-                        """UPDATE subscriptions 
+                        """UPDATE """ + SCHEMA + """.subscriptions 
                            SET plan_type = %s, status = %s, 
                                subscription_started_at = %s, subscription_ends_at = %s
                            WHERE user_id = %s""",
-                        ('monthly', 'active', now, new_end_date, target_user_id)
+                        ('monthly', 'active', now, new_end_date, str(target_user_id))
                     )
                 else:
                     cur.execute(
-                        """INSERT INTO subscriptions 
+                        """INSERT INTO """ + SCHEMA + """.subscriptions 
                            (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
                            VALUES (%s, %s, %s, %s, %s)""",
-                        (target_user_id, 'monthly', 'active', now, new_end_date)
+                        (str(target_user_id), 'monthly', 'active', now, new_end_date)
                     )
                 
                 conn.commit()
@@ -483,7 +485,7 @@ def get_overview_stats(cur) -> Dict[str, Any]:
             SUM(placements_sent_to_queue) as total_sent,
             SUM(placements_blocked) as total_blocked,
             COUNT(CASE WHEN status = 'error' THEN 1 END) as errors
-        FROM rsya_cleaning_execution_logs
+        FROM """ + SCHEMA + """.rsya_cleaning_execution_logs
         WHERE started_at > NOW() - INTERVAL '24 hours'
         GROUP BY execution_type
     """)
@@ -497,7 +499,7 @@ def get_overview_stats(cur) -> Dict[str, Any]:
             COUNT(*) as count,
             SUM(cost) as total_cost,
             SUM(clicks) as total_clicks
-        FROM block_queue
+        FROM """ + SCHEMA + """.block_queue
         GROUP BY status
     """)
     
@@ -520,9 +522,9 @@ def get_overview_stats(cur) -> Dict[str, Any]:
             l.placements_sent_to_queue,
             l.placements_blocked,
             l.error_message
-        FROM rsya_cleaning_execution_logs l
-        LEFT JOIN rsya_projects p ON l.project_id = p.id
-        LEFT JOIN rsya_tasks t ON l.task_id = t.id
+        FROM """ + SCHEMA + """.rsya_cleaning_execution_logs l
+        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON l.project_id = p.id
+        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON l.task_id = t.id
         ORDER BY l.started_at DESC
         LIMIT 10
     """)
@@ -537,7 +539,7 @@ def get_overview_stats(cur) -> Dict[str, Any]:
             MAX(error_message) as last_error,
             SUM(cost) as total_cost,
             SUM(clicks) as total_clicks
-        FROM block_queue
+        FROM """ + SCHEMA + """.block_queue
         WHERE status = 'failed'
         GROUP BY domain
         ORDER BY attempts DESC
@@ -590,9 +592,9 @@ def get_execution_logs(cur, params: Dict) -> Dict[str, Any]:
                 THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
                 ELSE NULL 
             END as duration_seconds
-        FROM rsya_cleaning_execution_logs l
-        LEFT JOIN rsya_projects p ON l.project_id = p.id
-        LEFT JOIN rsya_tasks t ON l.task_id = t.id
+        FROM {SCHEMA}.rsya_cleaning_execution_logs l
+        LEFT JOIN {SCHEMA}.rsya_projects p ON l.project_id = p.id
+        LEFT JOIN {SCHEMA}.rsya_tasks t ON l.task_id = t.id
         {where_clause}
         ORDER BY l.started_at DESC
         LIMIT %s
@@ -631,7 +633,7 @@ def get_blocking_logs(cur, params: Dict) -> Dict[str, Any]:
     
     cur.execute(f"""
         SELECT *
-        FROM rsya_blocking_logs
+        FROM {SCHEMA}.rsya_blocking_logs
         {where_clause}
         ORDER BY created_at DESC
         LIMIT %s
@@ -648,7 +650,7 @@ def get_blocking_logs(cur, params: Dict) -> Dict[str, Any]:
             SUM(cost) as total_cost,
             SUM(clicks) as total_clicks,
             SUM(conversions) as total_conversions
-        FROM rsya_blocking_logs
+        FROM {SCHEMA}.rsya_blocking_logs
         {where_clause}
         GROUP BY action
     """, where_params)
@@ -674,7 +676,7 @@ def get_queue_status(cur) -> Dict[str, Any]:
             SUM(clicks) as total_clicks,
             SUM(conversions) as total_conversions,
             AVG(attempts) as avg_attempts
-        FROM block_queue
+        FROM """ + SCHEMA + """.block_queue
         GROUP BY status
     """)
     
@@ -686,9 +688,9 @@ def get_queue_status(cur) -> Dict[str, Any]:
             bq.*,
             p.name as project_name,
             t.description as task_description
-        FROM block_queue bq
-        LEFT JOIN rsya_projects p ON bq.project_id = p.id
-        LEFT JOIN rsya_tasks t ON bq.task_id = t.id
+        FROM """ + SCHEMA + """.block_queue bq
+        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON bq.project_id = p.id
+        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON bq.task_id = t.id
         WHERE bq.status = 'pending'
         ORDER BY bq.created_at ASC
         LIMIT 20
@@ -702,9 +704,9 @@ def get_queue_status(cur) -> Dict[str, Any]:
             bq.*,
             p.name as project_name,
             t.description as task_description
-        FROM block_queue bq
-        LEFT JOIN rsya_projects p ON bq.project_id = p.id
-        LEFT JOIN rsya_tasks t ON bq.task_id = t.id
+        FROM """ + SCHEMA + """.block_queue bq
+        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON bq.project_id = p.id
+        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON bq.task_id = t.id
         WHERE bq.attempts > 3
         ORDER BY bq.attempts DESC
         LIMIT 20
@@ -720,7 +722,7 @@ def get_queue_status(cur) -> Dict[str, Any]:
     failed = next((s['count'] for s in status_breakdown if s['status'] == 'failed'), 0)
     
     cur.execute("""
-        INSERT INTO rsya_queue_snapshots 
+        INSERT INTO """ + SCHEMA + """.rsya_queue_snapshots 
         (pending_count, processing_count, blocked_count, failed_count, total_count)
         VALUES (%s, %s, %s, %s, %s)
     """, (pending, processing, blocked, failed, total))
@@ -748,8 +750,8 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
             p.*,
             COUNT(DISTINCT t.id) as tasks_count,
             COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count
-        FROM rsya_projects p
-        LEFT JOIN rsya_tasks t ON t.project_id = p.id
+        FROM """ + SCHEMA + """.rsya_projects p
+        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON t.project_id = p.id
         WHERE p.id = %s
         GROUP BY p.id
     """, (project_id,))
@@ -764,7 +766,7 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
             SUM(placements_found) as total_found,
             SUM(placements_blocked) as total_blocked,
             COUNT(CASE WHEN status = 'error' THEN 1 END) as errors
-        FROM rsya_cleaning_execution_logs
+        FROM """ + SCHEMA + """.rsya_cleaning_execution_logs
         WHERE project_id = %s 
           AND started_at > NOW() - INTERVAL '7 days'
         GROUP BY DATE(started_at)
@@ -783,8 +785,8 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
             COUNT(DISTINCT l.id) as total_executions,
             SUM(l.placements_blocked) as total_blocked,
             COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors
-        FROM rsya_tasks t
-        LEFT JOIN rsya_cleaning_execution_logs l ON l.task_id = t.id
+        FROM """ + SCHEMA + """.rsya_tasks t
+        LEFT JOIN """ + SCHEMA + """.rsya_cleaning_execution_logs l ON l.task_id = t.id
         WHERE t.project_id = %s
         GROUP BY t.id, t.description, t.enabled, t.last_executed_at
         ORDER BY t.id
@@ -798,7 +800,7 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
             status,
             COUNT(*) as count,
             SUM(cost) as total_cost
-        FROM block_queue
+        FROM """ + SCHEMA + """.block_queue
         WHERE project_id = %s
         GROUP BY status
     """, (project_id,))

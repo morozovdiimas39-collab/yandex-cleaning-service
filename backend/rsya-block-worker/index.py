@@ -288,7 +288,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Получаем токен проекта
                 cursor.execute("""
                     SELECT yandex_token, user_id 
-                    FROM rsya_projects 
+                    FROM t_p97630513_yandex_cleaning_serv.rsya_projects 
                     WHERE id = %s
                 """, (project_id,))
                 
@@ -407,7 +407,7 @@ def block_placements_for_campaign(
         # Помечаем площадки как failed (rotation их освободит)
         for item in items:
             cursor.execute("""
-                UPDATE block_queue 
+                UPDATE t_p97630513_yandex_cleaning_serv.block_queue 
                 SET status = 'failed', 
                     attempts = attempts + 1,
                     error_message = 'Campaign at limit, waiting for rotation'
@@ -460,7 +460,7 @@ def block_placements_for_campaign(
         # Удаляем уже заблокированные
         for item in already_blocked_items:
             cursor.execute("""
-                DELETE FROM block_queue WHERE id = %s
+                DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE id = %s
             """, (item['id'],))
         
         print(f'✅ Blocked {blocked_count} placements in campaign {campaign_id}, deleted {len(already_blocked_items)} already blocked')
@@ -504,7 +504,7 @@ def block_placements_batch(
         print(f'🗑️ Campaign {campaign_id} cannot be modified, removing {len(placements)} placements from queue')
         for placement in placements:
             cursor.execute("""
-                DELETE FROM block_queue 
+                DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue 
                 WHERE project_id = %s 
                   AND campaign_id = %s 
                   AND domain = %s
@@ -541,7 +541,7 @@ def block_placements_batch(
         # Удаляем из block_queue
         for placement in placements:
             cursor.execute("""
-                DELETE FROM block_queue 
+                DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue 
                 WHERE project_id = %s 
                   AND campaign_id = %s 
                   AND domain = %s
@@ -564,7 +564,7 @@ def block_placements_batch(
         for placement in placements:
             if placement['domain'] in domains_to_add or placement['domain'] in current_excluded_set:
                 cursor.execute("""
-                    DELETE FROM block_queue 
+                    DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue 
                     WHERE project_id = %s 
                       AND campaign_id = %s 
                       AND domain = %s

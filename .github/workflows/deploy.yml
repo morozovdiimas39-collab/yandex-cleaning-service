@@ -68,17 +68,30 @@ jobs:
             exit 1
           fi
       
+      - name: Install Python dependencies
+        if: steps.detect.outputs.runtime == 'python311'
+        run: |
+          FUNCTION_PATH="backend/${{ matrix.function }}"
+          if [ -f "$FUNCTION_PATH/requirements.txt" ]; then
+            python3 -m pip install --upgrade pip --quiet
+            python3 -m pip install -r "$FUNCTION_PATH/requirements.txt" -t "$FUNCTION_PATH" --no-cache-dir
+            if [ -d "$FUNCTION_PATH/boto3" ]; then
+              echo "✓ boto3 installed"
+            fi
+            ls -la "$FUNCTION_PATH"
+          fi
+      
       - name: Deploy function
         run: |
           FUNCTION_PATH="backend/${{ matrix.function }}"
           
-          # Создаём архив с кодом функции
+          # Создаём архив с кодом функции (для Python уже с установленными пакетами)
           cd "$FUNCTION_PATH"
           zip -r ../../function.zip .
           cd ../..
           
           # Проверяем существует ли функция
-          FUNCTION_EXISTS=$(yc serverless function list --format json | jq -r '.[] | select(.name=="${{ matrix.function }}") | .id')
+          FUNCTION_EXISTS=$(yc serverless function list --format json | jq -r --arg fn "${{ matrix.function }}" '.[] | select(.name==$fn) | .id')
           
           if [ -z "$FUNCTION_EXISTS" ]; then
             echo "Creating new function: ${{ matrix.function }}"

@@ -123,7 +123,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         for project in projects:
             try:
-                batches_created = schedule_project(project, cursor, conn, context)
+                batches_created = schedule_project(project, cursor, conn, context, force_all=force_all)
                 total_batches += batches_created
                 
                 # Обновляем next_run_at
@@ -178,7 +178,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
 
-def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int:
+def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_all: bool = False) -> int:
     '''
     Создаёт батчи кампаний для проекта и отправляет в Message Queue
     Returns: количество созданных батчей
@@ -187,25 +187,48 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
     campaign_ids = project['campaign_ids']
     yandex_token = project['yandex_token']
     
-    # Парсим campaign_ids если это строка
     if isinstance(campaign_ids, str):
         campaign_ids = json.loads(campaign_ids)
+    # Один campaign_id — один батч, иначе воркеры разных батчей дерутся за одни и те же кампании (locked by another worker)
+    campaign_ids = list(dict.fromkeys(campaign_ids))
     
     if not campaign_ids:
         print(f"⚠️ Project {project_id} has no campaigns")
         return 0
     
-    # Проверяем, что батчи не созданы недавно (защита от дублей)
-    cursor.execute("""
-        SELECT COUNT(*) as count 
-        FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches 
-        WHERE project_id = %s AND created_at > NOW() - INTERVAL '5 minutes'
-    """, (project_id,))
+    if force_all:
+        cursor.execute("""
+            DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+            WHERE project_id = %s
+        """, (project_id,))
+        print(f"🗑️ Project {project_id}: cleared existing batches (force_all)")
+    else:
+        # Не создаём новые батчи, если есть свежие (последние 5 минут)
+        cursor.execute("""
+            SELECT COUNT(*) as count 
+            FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches 
+            WHERE project_id = %s AND created_at > NOW() - INTERVAL '5 minutes'
+        """, (project_id,))
+        if cursor.fetchone()['count'] > 0:
+            print(f"⚠️ Project {project_id} already has batches in last 5 minutes, skipping")
+            return 0
+        # Удаляем ВСЕ батчи проекта, иначе при INSERT будет duplicate key
+        cursor.execute("""
+            DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+            WHERE project_id = %s
+        """, (project_id,))
+        if cursor.rowcount and cursor.rowcount > 0:
+            print(f"🗑️ Project {project_id}: cleared {cursor.rowcount} batches")
     
-    recent_batches = cursor.fetchone()['count']
-    if recent_batches > 0:
-        print(f"⚠️ Project {project_id} already has {recent_batches} batches created in last 5 minutes, skipping")
-        return 0
+    # Сбрасываем локи кампаний этого проекта, чтобы новый запуск не упирался в старые (от прошлого run/499)
+    if campaign_ids:
+        cursor.execute("""
+            DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks
+            WHERE campaign_id = ANY(%s)
+        """, ([str(c) for c in campaign_ids],))
+        if cursor.rowcount and cursor.rowcount > 0:
+            print(f"🔓 Project {project_id}: cleared {cursor.rowcount} campaign locks")
+        conn.commit()
     
     # Разбиваем на батчи
     batches = []
@@ -241,11 +264,8 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any) -> int
             'total_batches': total_batches
         }
         
-        # Отправляем в Message Queue (для истории)
+        # Отправляем в MQ — воркер вызовется триггером. HTTP с timeout=0.5 приводил к 499 (клиент рвал соединение → платформа отменяла вызов).
         send_to_mq(batch_data)
-        
-        # СРАЗУ вызываем Worker через HTTP (синхронно)
-        invoke_worker_sync(batch_data)
     
     return total_batches
 

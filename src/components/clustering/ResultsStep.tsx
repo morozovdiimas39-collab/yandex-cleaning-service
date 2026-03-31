@@ -1995,7 +1995,7 @@ export default function ResultsStep({
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
         <div className="w-full max-w-none px-6 py-5">
           <div className="mb-4">
@@ -2133,8 +2133,8 @@ export default function ResultsStep({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-auto">
-        <div className="flex h-full min-h-0 px-6 py-4">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-h-0 w-max px-6 py-4">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}

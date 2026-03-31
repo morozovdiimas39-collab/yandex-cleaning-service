@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Icon from "@/components/ui/icon";
@@ -36,7 +36,12 @@ interface ResultsStepProps {
   specificAddress?: string;
   /** Название проекта для заголовка «Проект: …» */
   projectName?: string;
+  clustersMergeEpoch?: number;
 }
+
+export type ResultsStepHandle = {
+  captureUndoSnapshot: () => void;
+};
 
 const CLUSTER_BG_COLORS = [
   "#E8F4F8",
@@ -128,18 +133,22 @@ function tryLoadPersistedUndoStack(
   }
 }
 
-export default function ResultsStep({
-  clusters: propsClusters,
-  minusWords: propsMinusWords,
-  onExport,
-  onNewProject,
-  projectId,
-  onSaveChanges,
-  regions = [],
-  onWordstatClick,
-  specificAddress = '',
-  projectName = '',
-}: ResultsStepProps) {
+const ResultsStep = forwardRef<ResultsStepHandle, ResultsStepProps>(function ResultsStep(
+  {
+    clusters: propsClusters,
+    minusWords: propsMinusWords,
+    onExport,
+    onNewProject,
+    projectId,
+    onSaveChanges,
+    regions = [],
+    onWordstatClick,
+    specificAddress = '',
+    projectName = '',
+    clustersMergeEpoch = 0,
+  },
+  ref,
+) {
   const initialClusters = propsClusters.map((c, idx) => ({
     ...c,
     bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
@@ -170,10 +179,15 @@ export default function ResultsStep({
   }[]>([]);
   const { toast } = useToast();
   const renameDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const renameHistorySessionRef = useRef<number | null>(null);
   
   const [history, setHistory] = useState<{ clusters: Cluster[]; minusWords: Phrase[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  
+  const historyIndexRef = useRef(-1);
+  useEffect(() => {
+    historyIndexRef.current = historyIndex;
+  }, [historyIndex]);
+
   const [selectedClusterIndex, setSelectedClusterIndex] = useState<number | null>(null);
   const [originalClusters, setOriginalClusters] = useState<Cluster[]>([]);
   const [clusterSubClusters, setClusterSubClusters] = useState<Map<number, number>>(new Map());
@@ -1119,6 +1133,8 @@ export default function ResultsStep({
     });
 
     if (affectedPhrases.length > 0) {
+      saveToHistory();
+
       const totalCount = affectedPhrases.reduce(
         (sum, p) => sum + (p.count || 0),
         0,
@@ -1151,8 +1167,12 @@ export default function ResultsStep({
   };
 
   const renameCluster = (clusterIndex: number, newName: string) => {
+    if (renameHistorySessionRef.current !== clusterIndex) {
+      saveToHistory();
+      renameHistorySessionRef.current = clusterIndex;
+    }
+
     const newClusters = [...clusters];
-    const oldName = newClusters[clusterIndex].name;
     newClusters[clusterIndex].name = newName;
     setClusters(newClusters);
 
@@ -1161,9 +1181,8 @@ export default function ResultsStep({
     }
 
     renameDebounceTimer.current = setTimeout(async () => {
-      // НЕ сохраняем в историю - переименование это мелкое действие
-      // История будет сохранена при следующем "большом" действии
       await saveToAPI(newClusters, minusWords);
+      renameHistorySessionRef.current = null;
     }, 800);
   };
 
@@ -1180,8 +1199,11 @@ export default function ResultsStep({
     }
 
     if (!confirm(`Удалить сегмент "${cluster.name}"?`)) return;
-    
-    saveToHistory();
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     const newClusters = clusters.filter((_, idx) => idx !== clusterIndex);
     setClusters(newClusters);
@@ -1194,8 +1216,20 @@ export default function ResultsStep({
   };
 
   const removePhrase = async (clusterIndex: number, phraseIndex: number) => {
-    saveToHistory();
-    
+    const cluster = clusters[clusterIndex];
+    if (
+      !cluster ||
+      phraseIndex < 0 ||
+      phraseIndex >= cluster.phrases.length
+    ) {
+      return;
+    }
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
+
     const phrase = clusters[clusterIndex].phrases[phraseIndex];
     const newClusters = [...clusters];
     
@@ -1341,6 +1375,8 @@ export default function ResultsStep({
       return;
     }
 
+    saveToHistory();
+
     const newMinusWords = [...minusWords];
     newMinusWords[editingMinusIndex] = {
       ...newMinusWords[editingMinusIndex],
@@ -1414,8 +1450,6 @@ export default function ResultsStep({
   };
 
   const applyGeoFilter = async () => {
-    saveToHistory();
-
     const selectedRegionsLower = regions.map(r => r.toLowerCase());
     
     // РСЯ мусорные паттерны (вопросы, сравнения, инфо-запросы)
@@ -1501,6 +1535,11 @@ export default function ResultsStep({
       });
       return;
     }
+
+    saveToHistory(
+      JSON.parse(JSON.stringify(clusters)) as ClusterWithUI[],
+      JSON.parse(JSON.stringify(minusWords)),
+    );
 
     setClusters(newClusters);
 
@@ -1623,30 +1662,67 @@ export default function ResultsStep({
   const saveToHistory = (customClusters?: ClusterWithUI[], customMinusWords?: MinusPhrase[]) => {
     const clustersToSave = customClusters || clusters;
     const minusWordsToSave = customMinusWords || minusWords;
-    
-    console.log('💾 saveToHistory called:', {
-      clustersCount: clustersToSave.length,
-      minusWordsCount: minusWordsToSave.length,
-      currentHistoryIndex: historyIndex,
-      historyLength: history.length,
-      stackTrace: new Error().stack?.split('\n')[2]?.trim()
-    });
-    
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push({
+
+    const entry = {
       clusters: JSON.parse(JSON.stringify(clustersToSave)),
       minusWords: JSON.parse(JSON.stringify(minusWordsToSave)),
+    };
+
+    console.log("💾 saveToHistory called:", {
+      clustersCount: entry.clusters.length,
+      minusWordsCount: entry.minusWords.length,
+      historyIndexRef: historyIndexRef.current,
+      stackTrace: new Error().stack?.split("\n")[2]?.trim(),
     });
-    
-    if (newHistory.length > 30) {
-      newHistory.shift();
-      setHistoryIndex(29);
-    } else {
-      setHistoryIndex(newHistory.length - 1);
-    }
-    
-    setHistory(newHistory);
+
+    setHistory((prevHistory) => {
+      const pi = historyIndexRef.current;
+      const newHistory = prevHistory.slice(0, pi + 1);
+      newHistory.push(entry);
+
+      if (newHistory.length > 30) {
+        newHistory.shift();
+      }
+
+      const nextIndex = newHistory.length - 1;
+      setHistoryIndex(nextIndex);
+      historyIndexRef.current = nextIndex;
+
+      return newHistory;
+    });
   };
+
+  const saveToHistoryRef = useRef(saveToHistory);
+  saveToHistoryRef.current = saveToHistory;
+  useImperativeHandle(ref, () => ({
+    captureUndoSnapshot: () => {
+      saveToHistoryRef.current();
+    },
+  }));
+
+  useEffect(() => {
+    if (!clustersMergeEpoch || propsClusters.length === 0 || !isInitialized) return;
+    if (selectedClusterIndex !== null) return;
+
+    const filteredMinus = propsMinusWords.filter((p) => p.phrase && p.phrase.trim() !== "");
+    const mappedClusters = propsClusters.map((c, idx) => ({
+      ...c,
+      bgColor: CLUSTER_BG_COLORS[idx % CLUSTER_BG_COLORS.length],
+      searchText: "",
+      hovering: false,
+    }));
+
+    const subClustersMap = new Map<number, number>();
+    propsClusters.forEach((cluster, idx) => {
+      const n = cluster.subClusters?.length || 0;
+      if (n > 0) subClustersMap.set(idx, n);
+    });
+    setClusterSubClusters(subClustersMap);
+
+    setMinusWords(filteredMinus);
+    setClusters(mappedClusters);
+    saveToHistoryRef.current(mappedClusters, filteredMinus);
+  }, [clustersMergeEpoch]);
 
   const handleUndo = async () => {
     if (historyIndex <= 0) return;
@@ -1745,6 +1821,8 @@ export default function ResultsStep({
       setDraggedCluster(null);
       return;
     }
+
+    saveToHistory();
 
     const newClusters = [...clusters];
     const [movedCluster] = newClusters.splice(draggedCluster, 1);
@@ -2139,6 +2217,9 @@ export default function ResultsStep({
                   <Input
                     value={cluster.name}
                     onChange={(e) => renameCluster(idx, e.target.value)}
+                    onBlur={() => {
+                      renameHistorySessionRef.current = null;
+                    }}
                     className="font-semibold text-sm h-7 border-transparent hover:border-gray-300 focus:border-gray-400 bg-transparent flex-1"
                   />
                   <div className="flex items-center gap-1 shrink-0">
@@ -2477,4 +2558,6 @@ Enter или кнопка ✓ - зафиксировать перенос'
       </div>
     </div>
   );
-}
+});
+
+export default ResultsStep;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Sidebar from '@/components/Sidebar';
@@ -9,7 +9,7 @@ import CitiesStep from '@/components/clustering/CitiesStep';
 import GoalStep from '@/components/clustering/GoalStep';
 import MinusFiltersStep from '@/components/clustering/MinusFiltersStep';
 import ProcessingStep from '@/components/clustering/ProcessingStep';
-import ResultsStep from '@/components/clustering/ResultsStep';
+import ResultsStep, { type ResultsStepHandle } from '@/components/clustering/ResultsStep';
 import StepIndicator from '@/components/clustering/StepIndicator';
 import WordstatDialog from '@/components/clustering/WordstatDialog';
 
@@ -64,6 +64,8 @@ export default function TestClustering() {
   const [minusWords, setMinusWords] = useState<Phrase[]>([]);
   const [projectName, setProjectName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const resultsStepRef = useRef<ResultsStepHandle>(null);
+  const [clustersMergeEpoch, setClustersMergeEpoch] = useState(0);
 
   const { user, sessionToken, isLoading: authLoading } = useAuth();
 
@@ -550,8 +552,11 @@ export default function TestClustering() {
               totalAdded,
               citiesCount: mergedCities.length
             });
+
+            resultsStepRef.current?.captureUndoSnapshot();
             
             setClusters(updatedClusters);
+            setClustersMergeEpoch((e) => e + 1);
             
             await saveResultsToAPI(updatedClusters, existingMinusWords);
             
@@ -704,6 +709,7 @@ export default function TestClustering() {
         {step === 'results' ? (
           <div className="relative">
             <ResultsStep
+              ref={resultsStepRef}
               clusters={clusters}
               minusWords={minusWords}
               onExport={exportClusters}
@@ -714,6 +720,7 @@ export default function TestClustering() {
               onWordstatClick={() => setStep('wordstat-dialog')}
               specificAddress={specificAddress}
               projectName={projectName}
+              clustersMergeEpoch={clustersMergeEpoch}
             />
             {isWordstatLoading && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

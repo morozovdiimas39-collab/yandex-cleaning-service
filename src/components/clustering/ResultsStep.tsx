@@ -2001,15 +2001,13 @@ export default function ResultsStep({
     <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
         <div className="w-full max-w-none px-4 py-2 sm:px-6 sm:py-3">
-          <div className="mb-2">
-            <h2 className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <h2 className="min-w-0 shrink text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
               {selectedClusterIndex !== null
                 ? `Сегмент: ${clusters[0]?.name || ''}`
                 : `Проект: ${projectName.trim() || 'Без названия'}`}
             </h2>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
               <Button
                 onClick={onWordstatClick}
                 size="sm"
@@ -2038,6 +2036,7 @@ export default function ResultsStep({
                 <Icon name="FileSpreadsheet" size={16} />
                 Выгрузить .xlsx
               </Button>
+            </div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">

@@ -2073,7 +2073,10 @@ export default function ResultsStep({
           </div>
 
           <div className="mt-4 grid grid-cols-4 gap-4 mb-3">
-            <div className="bg-blue-50 rounded-xl px-6 py-7 min-h-[168px] border border-blue-200 flex flex-col justify-center">
+            <div
+              className="bg-blue-50 rounded-xl px-6 py-7 border border-blue-200 flex flex-col justify-center"
+              style={{ minHeight: 232 }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <Icon name="Key" size={20} className="text-blue-600" />
                 <span className="text-sm font-medium text-blue-600">
@@ -2085,7 +2088,10 @@ export default function ResultsStep({
               </div>
             </div>
 
-            <div className="bg-purple-50 rounded-xl px-6 py-7 min-h-[168px] border border-purple-200 flex flex-col justify-center">
+            <div
+              className="bg-purple-50 rounded-xl px-6 py-7 border border-purple-200 flex flex-col justify-center"
+              style={{ minHeight: 232 }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <Icon name="Folder" size={20} className="text-purple-600" />
                 <span className="text-sm font-medium text-purple-600">
@@ -2097,7 +2103,10 @@ export default function ResultsStep({
               </div>
             </div>
 
-            <div className="bg-orange-50 rounded-xl px-6 py-7 min-h-[168px] border border-orange-200 flex flex-col justify-center">
+            <div
+              className="bg-orange-50 rounded-xl px-6 py-7 border border-orange-200 flex flex-col justify-center"
+              style={{ minHeight: 232 }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <Icon name="Slash" size={20} className="text-orange-600" />
                 <span className="text-sm font-medium text-orange-600">
@@ -2109,7 +2118,10 @@ export default function ResultsStep({
               </div>
             </div>
 
-            <div className="bg-red-50 rounded-xl px-6 py-7 min-h-[168px] border border-red-200 flex flex-col justify-center">
+            <div
+              className="bg-red-50 rounded-xl px-6 py-7 border border-red-200 flex flex-col justify-center"
+              style={{ minHeight: 232 }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <Icon name="Ban" size={20} className="text-red-600" />
                 <span className="text-sm font-medium text-red-600">

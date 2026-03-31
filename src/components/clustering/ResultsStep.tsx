@@ -2001,13 +2001,24 @@ export default function ResultsStep({
     <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
         <div className="w-full max-w-none px-4 py-2 sm:px-6 sm:py-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <h2 className="min-w-0 shrink text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
-              {selectedClusterIndex !== null
-                ? `Сегмент: ${clusters[0]?.name || ''}`
-                : `Проект: ${projectName.trim() || 'Без названия'}`}
-            </h2>
-            <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="min-w-0 shrink text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
+                {selectedClusterIndex !== null
+                  ? `Сегмент: ${clusters[0]?.name || ''}`
+                  : `Проект: ${projectName.trim() || 'Без названия'}`}
+              </h2>
+              {regions.length > 0 && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                  <Icon name="MapPin" size={12} className="shrink-0 text-slate-400" />
+                  <span className="leading-snug">
+                    <span className="font-medium text-slate-600">Регионы:</span>{" "}
+                    {regions.join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end sm:pt-0.5">
               <Button
                 onClick={onWordstatClick}
                 size="sm"
@@ -2120,18 +2131,6 @@ export default function ResultsStep({
               </div>
             </div>
           </div>
-
-          {regions.length > 0 && (
-            <div className="mt-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-md px-3 py-1.5 border border-emerald-200">
-              <div className="flex items-center gap-2">
-                <Icon name="MapPin" size={16} className="text-emerald-600" />
-                <span className="font-semibold text-emerald-800">Регионы:</span>
-                <span className="text-emerald-700 font-medium">
-                  {regions.join(", ")}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

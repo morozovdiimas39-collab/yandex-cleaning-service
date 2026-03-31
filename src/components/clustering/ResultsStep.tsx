@@ -2000,9 +2000,9 @@ export default function ResultsStep({
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
-        <div className="w-full max-w-none px-6 py-4">
-          <div className="mb-4">
-            <h2 className="text-xl font-bold tracking-tight text-gray-900">
+        <div className="w-full max-w-none px-4 py-2 sm:px-6 sm:py-3">
+          <div className="mb-2">
+            <h2 className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
               {selectedClusterIndex !== null
                 ? `Сегмент: ${clusters[0]?.name || ''}`
                 : `Проект: ${projectName.trim() || 'Без названия'}`}
@@ -2040,7 +2040,7 @@ export default function ResultsStep({
               </Button>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">
             {selectedClusterIndex !== null && (
               <Button
                 onClick={() => addNewCluster(0)}
@@ -2072,70 +2072,58 @@ export default function ResultsStep({
             </Button>
           </div>
 
-          <div className="mt-4 grid grid-cols-4 gap-4 mb-3">
-            <div
-              className="bg-blue-50 rounded-xl px-6 py-7 border border-blue-200 flex flex-col justify-center"
-              style={{ minHeight: 232 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon name="Key" size={20} className="text-blue-600" />
-                <span className="text-sm font-medium text-blue-600">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 mb-2">
+            <div className="bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Icon name="Key" size={14} className="text-blue-600 shrink-0" />
+                <span className="text-[11px] font-medium text-blue-600 leading-tight">
                   Всего ключей
                 </span>
               </div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight text-blue-900">
+              <div className="text-xl font-bold tabular-nums text-blue-900 leading-none">
                 {totalPhrases.toLocaleString()}
               </div>
             </div>
 
-            <div
-              className="bg-purple-50 rounded-xl px-6 py-7 border border-purple-200 flex flex-col justify-center"
-              style={{ minHeight: 232 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon name="Folder" size={20} className="text-purple-600" />
-                <span className="text-sm font-medium text-purple-600">
+            <div className="bg-purple-50 rounded-lg px-3 py-2 border border-purple-200">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Icon name="Folder" size={14} className="text-purple-600 shrink-0" />
+                <span className="text-[11px] font-medium text-purple-600 leading-tight">
                   Сегментов
                 </span>
               </div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight text-purple-900">
+              <div className="text-xl font-bold tabular-nums text-purple-900 leading-none">
                 {clusters.length}
               </div>
             </div>
 
-            <div
-              className="bg-orange-50 rounded-xl px-6 py-7 border border-orange-200 flex flex-col justify-center"
-              style={{ minHeight: 232 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon name="Slash" size={20} className="text-orange-600" />
-                <span className="text-sm font-medium text-orange-600">
+            <div className="bg-orange-50 rounded-lg px-3 py-2 border border-orange-200">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Icon name="Slash" size={14} className="text-orange-600 shrink-0" />
+                <span className="text-[11px] font-medium text-orange-600 leading-tight">
                   Зачёркнутых фраз
                 </span>
               </div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight text-orange-900">
+              <div className="text-xl font-bold tabular-nums text-orange-900 leading-none">
                 {strikethroughPhrases.toLocaleString()}
               </div>
             </div>
 
-            <div
-              className="bg-red-50 rounded-xl px-6 py-7 border border-red-200 flex flex-col justify-center"
-              style={{ minHeight: 232 }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Icon name="Ban" size={20} className="text-red-600" />
-                <span className="text-sm font-medium text-red-600">
+            <div className="bg-red-50 rounded-lg px-3 py-2 border border-red-200">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Icon name="Ban" size={14} className="text-red-600 shrink-0" />
+                <span className="text-[11px] font-medium text-red-600 leading-tight">
                   Минус-слов
                 </span>
               </div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight text-red-900">
+              <div className="text-xl font-bold tabular-nums text-red-900 leading-none">
                 {minusWords.length}
               </div>
             </div>
           </div>
 
           {regions.length > 0 && (
-            <div className="mt-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg px-4 py-3 border border-emerald-200">
+            <div className="mt-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-md px-3 py-1.5 border border-emerald-200">
               <div className="flex items-center gap-2">
                 <Icon name="MapPin" size={16} className="text-emerald-600" />
                 <span className="font-semibold text-emerald-800">Регионы:</span>
@@ -2149,7 +2137,7 @@ export default function ResultsStep({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex h-full min-h-0 w-max min-w-full px-6 py-3">
+        <div className="flex h-full min-h-0 w-max min-w-full px-4 py-1 sm:px-6 sm:py-2">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}

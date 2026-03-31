@@ -49,9 +49,6 @@ interface ResultsStepProps {
 /** Фиксированная ширина колонки сегмента (горизонтальный скролл рабочей области) */
 const SEGMENT_COLUMN_WIDTH_PX = 320;
 
-/** Мин. высота колонки чуть больше типичной области под шапкой — включается вертикальный скролл всей полосы сегментов (как горизонтальный) */
-const SEGMENT_COLUMN_MIN_H = "min-h-[calc(100dvh-7rem)]";
-
 const CLUSTER_BG_COLORS = [
   "#E8F4F8",
   "#F5E8F8",
@@ -110,7 +107,7 @@ const VirtualClusterPhrases = memo(function VirtualClusterPhrases({
   return (
     <div
       ref={parentRef}
-      className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+      className="flex-1 min-h-0 overflow-y-auto"
       onDragOver={(e) => {
         e.preventDefault();
       }}
@@ -258,7 +255,7 @@ const VirtualMinusWordsList = memo(function VirtualMinusWordsList({
   });
 
   return (
-    <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+    <div ref={parentRef} className="flex-1 min-h-0 overflow-y-auto">
       <div
         style={{
           height: virtualizer.getTotalSize(),
@@ -2001,7 +1998,7 @@ export default function ResultsStep({
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden bg-gray-50">
+    <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-gray-50">
       <div className="flex-shrink-0 border-b border-slate-200/80 bg-white shadow-sm">
         <div className="w-full max-w-none px-4 py-2 sm:px-6 sm:py-3">
           <div className="mb-2">
@@ -2139,12 +2136,12 @@ export default function ResultsStep({
         </div>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain">
-        <div className="flex min-h-full w-max min-w-full items-stretch px-4 py-1 sm:px-6 sm:py-2">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-h-0 w-max min-w-full px-4 py-1 sm:px-6 sm:py-2">
           {clusters.map((cluster, idx) => (
             <div
               key={idx}
-              className={`relative flex shrink-0 flex-col ${SEGMENT_COLUMN_MIN_H}`}
+              className="relative flex h-full min-h-0 shrink-0 flex-col"
               style={{
                 width: SEGMENT_COLUMN_WIDTH_PX,
                 minWidth: SEGMENT_COLUMN_WIDTH_PX,
@@ -2289,7 +2286,7 @@ Enter или кнопка ✓ - зафиксировать перенос'
           ))}
 
           <div
-            className={`flex shrink-0 flex-col border-r border-gray-300 ${SEGMENT_COLUMN_MIN_H}`}
+            className="flex h-full min-h-0 shrink-0 flex-col border-r border-gray-300"
             style={{
               width: SEGMENT_COLUMN_WIDTH_PX,
               minWidth: SEGMENT_COLUMN_WIDTH_PX,
@@ -2313,7 +2310,7 @@ Enter или кнопка ✓ - зафиксировать перенос'
           </div>
 
           <div
-            className={`mr-6 flex shrink-0 flex-col border-r border-gray-300 ${SEGMENT_COLUMN_MIN_H}`}
+            className="mr-6 flex h-full min-h-0 shrink-0 flex-col border-r border-gray-300"
             style={{
               width: SEGMENT_COLUMN_WIDTH_PX,
               minWidth: SEGMENT_COLUMN_WIDTH_PX,

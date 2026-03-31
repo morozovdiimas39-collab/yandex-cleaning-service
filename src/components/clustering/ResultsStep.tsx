@@ -2009,8 +2009,8 @@ export default function ResultsStep({
                   : `Проект: ${projectName.trim() || 'Без названия'}`}
               </h2>
               {regions.length > 0 && (
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                  <Icon name="MapPin" size={12} className="shrink-0 text-slate-400" />
+                <div className="mt-1 flex items-center gap-1.5 text-[13px] text-slate-500">
+                  <Icon name="MapPin" size={13} className="shrink-0 text-slate-400" />
                   <span className="leading-snug">
                     <span className="font-medium text-slate-600">Регионы:</span>{" "}
                     {regions.join(", ")}
@@ -2023,17 +2023,35 @@ export default function ResultsStep({
                 onClick={onWordstatClick}
                 size="sm"
                 variant="outline"
-                className="gap-2 border-slate-200 text-slate-700 hover:bg-slate-50"
+                className="gap-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 [&_svg]:text-slate-700 hover:[&_svg]:text-slate-900"
               >
                 <Icon name="Plus" size={16} />
                 Добавить фразы
+              </Button>
+              <Button
+                onClick={removeDuplicates}
+                size="sm"
+                variant="outline"
+                className="gap-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 [&_svg]:text-slate-700 hover:[&_svg]:text-slate-900"
+              >
+                <Icon name="Trash2" size={16} />
+                Удалить дубли
+              </Button>
+              <Button
+                onClick={removeStrikethroughPhrases}
+                size="sm"
+                variant="outline"
+                className="gap-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:text-slate-900 [&_svg]:text-slate-700 hover:[&_svg]:text-slate-900"
+              >
+                <Icon name="Trash2" size={16} />
+                Удалить зачёркнутые
               </Button>
               {specificAddress && (
                 <Button
                   onClick={applyGeoFilter}
                   size="sm"
                   variant="outline"
-                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-900"
                 >
                   <Icon name="MapPin" size={16} />
                   Убрать чужие города
@@ -2042,7 +2060,7 @@ export default function ResultsStep({
               <Button
                 onClick={exportToExcel}
                 size="sm"
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
               >
                 <Icon name="FileSpreadsheet" size={16} />
                 Выгрузить .xlsx
@@ -2050,37 +2068,19 @@ export default function ResultsStep({
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">
-            {selectedClusterIndex !== null && (
+          {selectedClusterIndex !== null && (
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-2">
               <Button
                 onClick={() => addNewCluster(0)}
                 size="sm"
                 variant="outline"
-                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-900"
               >
                 <Icon name="Plus" size={16} />
                 Новый сегмент
               </Button>
-            )}
-            <Button
-              onClick={removeDuplicates}
-              size="sm"
-              variant="outline"
-              className="gap-2 border-amber-200 text-amber-800 hover:bg-amber-50"
-            >
-              <Icon name="Trash2" size={16} />
-              Удалить дубли
-            </Button>
-            <Button
-              onClick={removeStrikethroughPhrases}
-              size="sm"
-              variant="outline"
-              className="gap-2 border-amber-200 text-amber-800 hover:bg-amber-50"
-            >
-              <Icon name="Trash2" size={16} />
-              Удалить зачёркнутые
-            </Button>
-          </div>
+            </div>
+          )}
 
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 mb-2">
             <div className="bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">

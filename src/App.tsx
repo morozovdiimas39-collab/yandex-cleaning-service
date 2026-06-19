@@ -76,6 +76,7 @@ const App = () => (
           <Route path="/rsya/:id/setup" element={<ProtectedRoute><RSYASetup /></ProtectedRoute>} />
           <Route path="/rsya/:id/settings" element={<ProtectedRoute><RSYASettings /></ProtectedRoute>} />
           <Route path="/rsya/:id/filter-tester" element={<ProtectedRoute><RSYAFilterTester /></ProtectedRoute>} />
+          <Route path="/rsya/:id/test-filters" element={<ProtectedRoute><RSYAFilterTester /></ProtectedRoute>} />
           <Route path="/rsya-agent" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
           <Route path="/telega-crm" element={<Navigate to="/clustering" replace />} />
           <Route path="/admin" element={<AdminPage />} />

@@ -562,7 +562,8 @@ def block_placements_batch(
     if success:
         # УДАЛЯЕМ из block_queue
         for placement in placements:
-            if placement['domain'] in domains_to_add or placement['domain'] in current_excluded_set:
+            domain_normalized = placement['domain'].lower()
+            if domain_normalized in domains_to_add or domain_normalized in current_excluded_set:
                 cursor.execute("""
                     DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue 
                     WHERE project_id = %s 

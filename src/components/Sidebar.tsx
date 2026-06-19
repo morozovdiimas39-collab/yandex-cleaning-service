@@ -49,14 +49,9 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
       path: '/clustering',
     },
     {
-      icon: 'Shield',
-      label: 'Чистка РСЯ',
+      icon: 'ShieldOff',
+      label: 'Чистка площадок РСЯ',
       path: '/rsya',
-    },
-    {
-      icon: 'MessageSquare',
-      label: 'TelegaCRM',
-      path: '/telega-crm',
     },
     {
       icon: 'HelpCircle',

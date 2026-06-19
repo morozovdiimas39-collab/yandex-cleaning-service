@@ -43,8 +43,8 @@ export default function Header() {
                 onClick={() => navigate('/rsya')}
                 className="text-slate-600 hover:text-slate-800"
               >
-                <Icon name="Shield" className="h-4 w-4 mr-2" />
-                Чистка РСЯ
+                <Icon name="ShieldOff" className="h-4 w-4 mr-2" />
+                Чистка площадок РСЯ
               </Button>
               <Button
                 variant="ghost"

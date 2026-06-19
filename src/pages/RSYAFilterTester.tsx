@@ -92,48 +92,64 @@ export default function RSYAFilterTester() {
     }
   };
 
-  // ТОЧНАЯ КОПИЯ функции из rsya-batch-worker/index.py (строки 329-382)
+  const normalizeList = (value: any): string[] => {
+    if (!value) return [];
+    if (typeof value === 'string') {
+      return value.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+    }
+    return value.map((item: any) => String(item).trim().toLowerCase()).filter(Boolean);
+  };
+
+  const domainMatchesKeyword = (domain: string, keyword: string): boolean => {
+    if (keyword.includes('.')) return domain.startsWith(keyword);
+    return domain.includes(keyword);
+  };
+
+  // Та же логика, что в rsya-batch-worker и rsya-async-poller
   const matchesTaskFilters = (platform: Platform, config: any): boolean => {
     const domain = platform.domain.toLowerCase();
+    const combineOperator = (config.combine_operator || 'AND').toUpperCase();
     
-    // 1. Проверка ключевых слов (обязательна если указаны)
-    const keywords = config.keywords || [];
-    if (keywords.length > 0) {
-      const hasKeyword = keywords.some((kw: string) => domain.includes(kw.toLowerCase()));
-      if (!hasKeyword) return false;
-    }
-    
-    // 2. Проверка исключений (самое сильное правило)
-    const exceptions = config.exceptions || [];
+    const exceptions = normalizeList(config.exceptions);
     if (exceptions.length > 0) {
-      const hasException = exceptions.some((exc: string) => domain.includes(exc.toLowerCase()));
+      const hasException = exceptions.some((exc: string) => domain.includes(exc));
       if (hasException) return false;
     }
     
-    // 3. Защита конверсий
     if (config.protect_conversions && platform.conversions > 0) {
       return false;
     }
-    
-    // 4. Фильтры по метрикам
-    if (config.min_impressions && (platform.impressions || 0) < config.min_impressions) return false;
-    if (config.max_impressions && (platform.impressions || 0) > config.max_impressions) return false;
-    
-    if (config.min_clicks && platform.clicks < config.min_clicks) return false;
-    if (config.max_clicks && platform.clicks > config.max_clicks) return false;
-    
-    if (config.min_cpc && (platform.cpc || 0) < config.min_cpc) return false;
-    if (config.max_cpc && (platform.cpc || 0) > config.max_cpc) return false;
-    
-    if (config.min_ctr && (platform.ctr || 0) < config.min_ctr) return false;
-    if (config.max_ctr && (platform.ctr || 0) > config.max_ctr) return false;
-    
-    if (config.min_conversions && platform.conversions < config.min_conversions) return false;
-    
-    if (config.min_cpa && (platform.cpa || 0) < config.min_cpa) return false;
-    if (config.max_cpa && (platform.cpa || 0) > config.max_cpa) return false;
-    
-    return true;
+
+    const conditions: boolean[] = [];
+
+    const keywords = normalizeList(config.keywords);
+    if (keywords.length > 0) {
+      conditions.push(keywords.some((kw: string) => domainMatchesKeyword(domain, kw)));
+    }
+
+    const metricRules: Array<[string, (value: number) => boolean]> = [
+      ['min_impressions', (value) => (platform.impressions || 0) >= value],
+      ['max_impressions', (value) => (platform.impressions || 0) <= value],
+      ['min_clicks', (value) => platform.clicks >= value],
+      ['max_clicks', (value) => platform.clicks <= value],
+      ['min_cpc', (value) => (platform.cpc || 0) >= value],
+      ['max_cpc', (value) => (platform.cpc || 0) <= value],
+      ['min_ctr', (value) => (platform.ctr || 0) >= value],
+      ['max_ctr', (value) => (platform.ctr || 0) <= value],
+      ['min_conversions', (value) => platform.conversions >= value],
+      ['min_cpa', (value) => (platform.cpa || 0) >= value],
+      ['max_cpa', (value) => (platform.cpa || 0) <= value],
+    ];
+
+    metricRules.forEach(([key, predicate]) => {
+      if (config[key] !== undefined && config[key] !== null && config[key] !== '') {
+        conditions.push(predicate(Number(config[key])));
+      }
+    });
+
+    if (conditions.length === 0) return false;
+    if (combineOperator === 'OR') return conditions.some(Boolean);
+    return conditions.every(Boolean);
   };
 
   const parsePlatforms = (input: string): Platform[] => {

@@ -208,6 +208,12 @@ export default function RSYAProject() {
       goal_id: formData.goal_id
     };
 
+    if (createMode === 'smart') {
+      config.protect_conversions = true;
+      config.min_clicks = 20;
+      config.max_cpa = 500;
+    }
+
     if (createMode === 'expert') {
       if (formData.keywords.trim()) {
         config.keywords = formData.keywords.split(',').map(k => k.trim()).filter(Boolean);

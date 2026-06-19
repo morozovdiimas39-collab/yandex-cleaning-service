@@ -14,10 +14,13 @@ except ImportError:
     print("Установи его командой: pip install psycopg2-binary")
     sys.exit(1)
 
-DATABASE_URL = "postgresql://rsya_user:StrongPass_2024_RSYa@158.160.56.38:5432/rsya_cleaner"
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def main():
     print("🚀 Применение миграций к новой базе данных...")
+    if not DATABASE_URL:
+        print("❌ Ошибка: переменная окружения DATABASE_URL не задана")
+        sys.exit(1)
     print(f"Database: {DATABASE_URL}")
     print()
     

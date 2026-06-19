@@ -10,6 +10,7 @@ jobs:
       matrix:
         function:
           - admin
+          - ai-keyword-planner
           - api
           - auth
           - fetch-git-file
@@ -29,6 +30,7 @@ jobs:
           - yandex-blocked-stats
           - yandex-metrika-goals
           - yandex-oauth
+          - yandex-direct
           - yandex-platform-stats
           - yandex-platforms
           - yandex-regions
@@ -112,6 +114,10 @@ jobs:
             --environment YANDEX_MQ_ACCESS_KEY_ID="${{ secrets.YANDEX_MQ_ACCESS_KEY_ID }}" \
             --environment YANDEX_MQ_SECRET_KEY="${{ secrets.YANDEX_MQ_SECRET_KEY }}" \
             --environment YANDEX_WORDSTAT_TOKEN="${{ secrets.YANDEX_WORDSTAT_TOKEN }}" \
+            --environment OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --environment OPENAI_PROXY_URL="${{ secrets.OPENAI_PROXY_URL }}" \
+            --environment OPENAI_MODEL="${{ secrets.OPENAI_MODEL }}" \
+            --environment ADMIN_KEY="${{ secrets.ADMIN_KEY }}"
           
           # Делаем функцию публичной
           

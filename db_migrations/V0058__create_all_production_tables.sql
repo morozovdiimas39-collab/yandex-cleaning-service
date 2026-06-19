@@ -1,5 +1,5 @@
 -- CRITICAL FIX: Create schema and all tables for production database
--- Target DB: postgresql://rsya_user:rsya_pass_2024@158.160.56.38:5432/rsya_cleaner
+-- Target DB: configured via DATABASE_URL
 
 -- 1. Create schema if not exists
 CREATE SCHEMA IF NOT EXISTS t_p97630513_yandex_cleaning_serv;

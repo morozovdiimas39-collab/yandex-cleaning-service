@@ -265,7 +265,7 @@ def process_campaign(
     try:
         # 2. Получаем активные задачи проекта
         cursor.execute("""
-            SELECT id, description, config
+            SELECT id, description, config, combine_operator
             FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
             WHERE project_id = %s AND enabled = TRUE
         """, (project_id,))
@@ -328,7 +328,7 @@ def process_campaign(
         
         # 5. Получаем уже заблокированные площадки
         blocked_sites = get_blocked_sites(campaign_id, yandex_token)
-        blocked_domains = set(s['domain'] for s in blocked_sites)
+        blocked_domains = set(s['domain'].lower() for s in blocked_sites)
         
         # 6. Фильтруем площадки по задачам
         matched_platforms = []
@@ -336,10 +336,10 @@ def process_campaign(
             config = json.loads(task['config']) if isinstance(task['config'], str) else task['config']
             
             for platform in candidates:
-                if platform['domain'] in blocked_domains:
+                if platform['domain'].lower() in blocked_domains:
                     continue
                 
-                if matches_task_filters(platform, config):
+                if matches_task_filters(platform, config, task.get('combine_operator') or 'AND'):
                     matched_platforms.append(platform)
                     print(f"✅ Platform {platform['domain']} matched task '{task['description']}'")
         
@@ -398,76 +398,68 @@ def process_campaign(
         pass
 
 
-def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any]) -> bool:
+def _normalize_list(value) -> List[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [item.strip().lower() for item in value.split(',') if item.strip()]
+    return [str(item).strip().lower() for item in value if str(item).strip()]
+
+
+def _domain_matches_keyword(domain: str, keyword: str) -> bool:
+    if '.' in keyword:
+        return domain.startswith(keyword)
+    return keyword in domain
+
+
+def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combine_operator: str = 'AND') -> bool:
     '''
-    Проверяет соответствие площадки фильтрам задачи
+    Проверяет соответствие площадки фильтрам задачи.
+    Исключения и защита конверсий всегда сильнее любых условий.
+    AND: все активные условия должны совпасть.
+    OR: достаточно любого активного условия.
     '''
     domain = platform['domain'].lower()
+    combine_operator = (combine_operator or config.get('combine_operator') or 'AND').upper()
     
-    # 1. Проверка ключевых слов (ОПЦИОНАЛЬНО — если keywords указаны, проверяем домен)
-    keywords = config.get('keywords', [])
-    if keywords:
-        has_keyword = any(kw.lower() in domain for kw in keywords)
-        if not has_keyword:
-            return False
-    
-    # 2. Проверка исключений (самое сильное правило)
-    exceptions = config.get('exceptions', [])
-    if exceptions:
-        has_exception = any(exc.lower() in domain for exc in exceptions)
-        if has_exception:
-            return False
-    
-    # 3. Защита конверсий
+    exceptions = _normalize_list(config.get('exceptions', []))
+    if exceptions and any(exc in domain for exc in exceptions):
+        return False
+
     if config.get('protect_conversions') and platform.get('conversions', 0) > 0:
         return False
-    
-    # 4. Фильтры по метрикам (проверяем ТОЛЬКО если указаны в config)
-    min_impressions = config.get('min_impressions')
-    if min_impressions is not None and platform.get('impressions', 0) < min_impressions:
+
+    conditions = []
+
+    keywords = _normalize_list(config.get('keywords', []))
+    if keywords:
+        conditions.append(any(_domain_matches_keyword(domain, kw) for kw in keywords))
+
+    metric_rules = [
+        ('min_impressions', lambda value: platform.get('impressions', 0) >= value),
+        ('max_impressions', lambda value: platform.get('impressions', 0) <= value),
+        ('min_clicks', lambda value: platform.get('clicks', 0) >= value),
+        ('max_clicks', lambda value: platform.get('clicks', 0) <= value),
+        ('min_cpc', lambda value: platform.get('cpc', 0) >= value),
+        ('max_cpc', lambda value: platform.get('cpc', 0) <= value),
+        ('min_ctr', lambda value: platform.get('ctr', 0) >= value),
+        ('max_ctr', lambda value: platform.get('ctr', 0) <= value),
+        ('min_conversions', lambda value: platform.get('conversions', 0) >= value),
+        ('min_cpa', lambda value: platform.get('cpa', 0) >= value),
+        ('max_cpa', lambda value: platform.get('cpa', 0) <= value),
+    ]
+
+    for key, predicate in metric_rules:
+        value = config.get(key)
+        if value is not None:
+            conditions.append(predicate(value))
+
+    if not conditions:
         return False
-    
-    max_impressions = config.get('max_impressions')
-    if max_impressions is not None and platform.get('impressions', 0) > max_impressions:
-        return False
-    
-    min_clicks = config.get('min_clicks')
-    if min_clicks is not None and platform.get('clicks', 0) < min_clicks:
-        return False
-    
-    max_clicks = config.get('max_clicks')
-    if max_clicks is not None and platform.get('clicks', 0) > max_clicks:
-        return False
-    
-    min_cpc = config.get('min_cpc')
-    if min_cpc is not None and platform.get('cpc', 0) < min_cpc:
-        return False
-    
-    max_cpc = config.get('max_cpc')
-    if max_cpc is not None and platform.get('cpc', 0) > max_cpc:
-        return False
-    
-    min_ctr = config.get('min_ctr')
-    if min_ctr is not None and platform.get('ctr', 0) < min_ctr:
-        return False
-    
-    max_ctr = config.get('max_ctr')
-    if max_ctr is not None and platform.get('ctr', 0) > max_ctr:
-        return False
-    
-    min_conversions = config.get('min_conversions')
-    if min_conversions is not None and platform.get('conversions', 0) < min_conversions:
-        return False
-    
-    min_cpa = config.get('min_cpa')
-    if min_cpa is not None and platform.get('cpa', 0) < min_cpa:
-        return False
-    
-    max_cpa = config.get('max_cpa')
-    if max_cpa is not None and platform.get('cpa', 0) > max_cpa:
-        return False
-    
-    return True
+
+    if combine_operator == 'OR':
+        return any(conditions)
+    return all(conditions)
 
 
 def process_from_database() -> Dict[str, Any]:
@@ -740,6 +732,7 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
             impressions = int(parts[4] or 0) if len(parts) > 4 else 0
             cpc = cost / clicks if clicks else 0
             ctr = (clicks / impressions * 100) if impressions else 0
+            cpa = cost / conversions if conversions else 0
             platforms.append({
                 'domain': domain,
                 'clicks': clicks,
@@ -747,6 +740,7 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
                 'conversions': conversions,
                 'impressions': impressions,
                 'cpc': cpc,
+                'cpa': cpa,
                 'ctr': ctr
             })
     
@@ -754,40 +748,11 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
 
 
 def get_blocked_sites(campaign_id: str, yandex_token: str) -> List[Dict[str, Any]]:
-    '''Получает список заблокированных площадок кампании'''
-    url = 'https://api.direct.yandex.com/json/v5/negativekeywordsharedsets'
-    headers = {
-        'Authorization': f'Bearer {yandex_token}',
-        'Accept-Language': 'ru'
-    }
-    
-    payload = {
-        'method': 'get',
-        'params': {
-            'SelectionCriteria': {},
-            'FieldNames': ['Id', 'Name', 'NegativeKeywords']
-        }
-    }
-    
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
-        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
-        if resp.status_code == 200:
-            data = resp.json()
-            result = data.get('result', {}).get('NegativeKeywordSharedSets', [])
-            
-            blocked = []
-            for item in result:
-                for keyword in item.get('NegativeKeywords', []):
-                    blocked.append({'domain': keyword, 'cost': 0})
-            
-            return blocked
-        
+    '''Получает уже заблокированные площадки именно из Campaign.ExcludedSites.'''
+    excluded_sites = get_excluded_sites(yandex_token, campaign_id)
+    if excluded_sites is None or excluded_sites == 'UNMODIFIABLE':
         return []
-    
-    except Exception as e:
-        print(f"❌ Error getting blocked sites: {str(e)}")
-        return []
+    return [{'domain': site, 'cost': 0} for site in excluded_sites]
 
 
 def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool:
@@ -796,6 +761,10 @@ def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool
     # Получаем текущий список ExcludedSites
     current_excluded = get_excluded_sites(yandex_token, campaign_id)
     
+    if current_excluded == 'UNMODIFIABLE':
+        print(f'⚠️ Campaign {campaign_id} cannot be modified, skipping ExcludedSites update')
+        return False
+
     if current_excluded is None:
         print(f'❌ Failed to fetch ExcludedSites for campaign {campaign_id}')
         return False
@@ -868,7 +837,7 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
                     'SelectionCriteria': {
                         'Ids': [int(campaign_id)]
                     },
-                    'FieldNames': ['Id', 'ExcludedSites']
+                    'FieldNames': ['Id', 'ExcludedSites', 'Status']
                 }
             },
             headers={
@@ -899,6 +868,11 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
             print(f'🚨 CRITICAL: API returned WRONG campaign! Requested {campaign_id}, got {returned_id}')
             print(f'🛡️ SAFETY: Aborting to prevent overwriting wrong campaign data!')
             return None
+
+        campaign_status = campaign_data.get('Status', 'UNKNOWN')
+        if campaign_status != 'ACCEPTED':
+            print(f'⚠️ Campaign {campaign_id} has status {campaign_status}, cannot be modified')
+            return 'UNMODIFIABLE'
         
         excluded_sites_obj = campaign_data.get('ExcludedSites', {})
         excluded = excluded_sites_obj.get('Items', []) if excluded_sites_obj else []

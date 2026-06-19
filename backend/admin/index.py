@@ -14,6 +14,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
+ADMIN_KEY = os.environ.get('ADMIN_KEY')
 
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
@@ -49,8 +50,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия с admin key (не требуют user_id)
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
-            if admin_key != 'directkit_admin_2024':
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'pause_all_rsya', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
+            if not ADMIN_KEY:
+                return {
+                    'statusCode': 500,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'ADMIN_KEY environment variable not set'})
+                }
+            if admin_key != ADMIN_KEY:
                 return {
                     'statusCode': 403,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -155,6 +162,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             elif action == 'clean_campaign_locks':
                 result = clean_campaign_locks(cur, conn)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(result)
+                }
+
+            elif action == 'pause_all_rsya':
+                result = pause_all_rsya(cur, conn)
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -826,6 +841,7 @@ def get_system_analytics(cur) -> Dict[str, Any]:
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks) as total_tasks,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE enabled = true) as active_tasks,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.users) as total_users,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.clustering_projects) as total_clustering_projects,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.wordstat_tasks) as total_wordstat_tasks,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue) as total_block_queue
     """)
@@ -836,7 +852,7 @@ def get_system_analytics(cur) -> Dict[str, Any]:
     cur.execute("""
         SELECT 
             COUNT(*) as total_executions,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_executions,
+            COUNT(CASE WHEN status IN ('completed', 'success') THEN 1 END) as successful_executions,
             COUNT(CASE WHEN status = 'error' THEN 1 END) as failed_executions,
             COALESCE(SUM(placements_blocked), 0) as total_blocked,
             CASE 
@@ -868,6 +884,7 @@ def get_system_analytics(cur) -> Dict[str, Any]:
             'totalTasks': overview['total_tasks'],
             'activeTasks': overview['active_tasks'],
             'totalUsers': overview['total_users'],
+            'totalClusteringProjects': overview['total_clustering_projects'],
             'totalWordstatTasks': overview['total_wordstat_tasks'],
             'totalBlockQueue': overview['total_block_queue']
         },
@@ -992,7 +1009,7 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
             t.last_executed_at,
             p.name as project_name,
             COUNT(l.id) as total_executions,
-            COUNT(CASE WHEN l.status = 'completed' THEN 1 END) as successful_executions,
+            COUNT(CASE WHEN l.status IN ('completed', 'success') THEN 1 END) as successful_executions,
             COUNT(CASE WHEN l.status = 'error' THEN 1 END) as failed_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue 
@@ -1087,7 +1104,7 @@ def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
         FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs bl
         LEFT JOIN t_p97630513_yandex_cleaning_serv.block_queue bq 
             ON bq.domain = bl.domain AND bq.project_id = bl.project_id
-        WHERE bl.execution_id = %s
+        WHERE bl.execution_log_id = %s
         ORDER BY bl.cost DESC
         LIMIT 200
     """, (execution_id,))
@@ -1353,7 +1370,7 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
         SELECT 
             execution_type,
             COUNT(*) as count,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status IN ('completed', 'success') THEN 1 END) as completed,
             COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
             COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - started_at))), 0) as avg_duration_seconds,
             COALESCE(SUM(placements_blocked), 0) as total_blocked
@@ -1369,7 +1386,7 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
         SELECT 
             DATE_TRUNC('hour', started_at) as hour,
             COUNT(*) as executions,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+            COUNT(CASE WHEN status IN ('completed', 'success') THEN 1 END) as completed,
             COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
             COALESCE(SUM(placements_blocked), 0) as blocked
         FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
@@ -1474,6 +1491,72 @@ def clean_campaign_locks(cur, conn):
         'success': True,
         'message': f'Очищено campaign locks',
         'deleted': deleted
+    }
+
+
+def pause_all_rsya(cur, conn):
+    '''Безопасно ставит всю РСЯ-чистку на паузу без удаления проектов, задач и истории.'''
+
+    stats = {
+        'schedules_paused': 0,
+        'tasks_disabled': 0,
+        'batches_cancelled': 0,
+        'pending_reports_cancelled': 0,
+        'queue_cancelled': 0,
+        'locks_deleted': 0,
+    }
+
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
+        SET is_active = FALSE,
+            updated_at = NOW()
+        WHERE is_active = TRUE
+    """)
+    stats['schedules_paused'] = cur.rowcount
+
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks
+        SET enabled = FALSE
+        WHERE enabled = TRUE
+    """)
+    stats['tasks_disabled'] = cur.rowcount
+
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+        SET status = 'cancelled',
+            completed_at = COALESCE(completed_at, NOW()),
+            error_message = COALESCE(error_message, 'Paused by admin')
+        WHERE status IN ('pending', 'processing')
+    """)
+    stats['batches_cancelled'] = cur.rowcount
+
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.rsya_pending_reports
+        SET status = 'cancelled',
+            updated_at = NOW(),
+            error_message = COALESCE(error_message, 'Paused by admin')
+        WHERE status = 'pending'
+    """)
+    stats['pending_reports_cancelled'] = cur.rowcount
+
+    cur.execute("""
+        UPDATE t_p97630513_yandex_cleaning_serv.block_queue
+        SET status = 'cancelled',
+            processed_at = COALESCE(processed_at, NOW()),
+            error_message = COALESCE(error_message, 'Paused by admin')
+        WHERE status IN ('pending', 'processing')
+    """)
+    stats['queue_cancelled'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks")
+    stats['locks_deleted'] = cur.rowcount
+
+    conn.commit()
+
+    return {
+        'success': True,
+        'message': 'РСЯ-чистка поставлена на паузу без удаления данных',
+        'paused': stats
     }
 
 

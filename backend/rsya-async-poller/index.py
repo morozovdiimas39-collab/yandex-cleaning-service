@@ -197,7 +197,7 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
         if placements:
             # Получаем конфиг задачи для фильтрации
             cursor.execute("""
-                SELECT config FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
+                SELECT config, combine_operator FROM t_p97630513_yandex_cleaning_serv.rsya_tasks
                 WHERE id = %s
             """, (task_id,))
             
@@ -212,9 +212,10 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
                 return 'failed'
             
             config = json.loads(task_row['config']) if isinstance(task_row['config'], str) else task_row['config']
+            combine_operator = task_row.get('combine_operator') or 'AND'
             
             # Фильтруем площадки (используем локальную функцию ниже)
-            matched = filter_placements(placements, config)
+            matched = filter_placements(placements, config, combine_operator)
             print(f'✅ Matched {len(matched)} placements after filtering')
             
             # Добавляем в block_queue
@@ -223,12 +224,13 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
                 try:
                     cursor.execute("""
                         INSERT INTO t_p97630513_yandex_cleaning_serv.block_queue 
-                        (task_id, campaign_id, domain, status, attempts, project_id, clicks, cost, conversions)
-                        VALUES (%s, %s, %s, 'pending', 0, %s, %s, %s, %s)
+                        (task_id, campaign_id, domain, status, attempts, project_id, clicks, cost, conversions, cpa)
+                        VALUES (%s, %s, %s, 'pending', 0, %s, %s, %s, %s, %s)
                         ON CONFLICT (task_id, campaign_id, domain) DO UPDATE
                         SET clicks = EXCLUDED.clicks,
                             cost = EXCLUDED.cost,
                             conversions = EXCLUDED.conversions,
+                            cpa = EXCLUDED.cpa,
                             attempts = 0
                     """, (
                         task_id,
@@ -237,7 +239,8 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
                         project_id,
                         placement.get('clicks', 0),
                         placement.get('cost', 0),
-                        placement.get('conversions', 0)
+                        placement.get('conversions', 0),
+                        placement.get('cpa', 0)
                     ))
                     added += 1
                 except Exception as e:
@@ -309,16 +312,19 @@ def parse_tsv_report(tsv_data: str) -> List[Dict]:
         ctr_value = float(row.get('Ctr', 0)) if row.get('Ctr') and row.get('Ctr') != '--' else 0.0
         cpc_micro = float(row.get('AvgCpc', 0)) if row.get('AvgCpc') and row.get('AvgCpc') != '--' else 0.0
         cpc_value = cpc_micro / 1_000_000
+        cost = float(row.get('Cost', 0))
+        conversions = int(row.get('Conversions', 0))
         
         placement = {
             'campaign_id': int(row['CampaignId']),
             'domain': row['Placement'],
-            'cost': float(row.get('Cost', 0)),
+            'cost': cost,
             'impressions': int(row.get('Impressions', 0)),
             'clicks': int(row.get('Clicks', 0)),
-            'conversions': int(row.get('Conversions', 0)),
+            'conversions': conversions,
             'ctr': ctr_value,
-            'cpc': cpc_value
+            'cpc': cpc_value,
+            'cpa': cost / conversions if conversions else 0
         }
         
         placements.append(placement)
@@ -326,74 +332,71 @@ def parse_tsv_report(tsv_data: str) -> List[Dict]:
     return placements
 
 
-def filter_placements(placements: List[Dict], config: Dict) -> List[Dict]:
-    '''Упрощённая копия фильтрации из automation'''
+def _normalize_list(value) -> List[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [item.strip().lower() for item in value.split(',') if item.strip()]
+    return [str(item).strip().lower() for item in value if str(item).strip()]
+
+
+def _domain_matches_keyword(domain: str, keyword: str) -> bool:
+    if '.' in keyword:
+        return domain.startswith(keyword)
+    return keyword in domain
+
+
+def matches_task_filters(platform: Dict, config: Dict, combine_operator: str = 'AND') -> bool:
+    '''Та же логика, что в rsya-batch-worker: exceptions/protect first, затем AND/OR условия.'''
+    domain = platform['domain'].lower()
+    combine_operator = (combine_operator or config.get('combine_operator') or 'AND').upper()
+
+    exceptions = _normalize_list(config.get('exceptions', []))
+    if exceptions and any(exc in domain for exc in exceptions):
+        return False
+
+    if config.get('protect_conversions') and platform.get('conversions', 0) > 0:
+        return False
+
+    conditions = []
+
+    keywords = _normalize_list(config.get('keywords', []))
+    if keywords:
+        conditions.append(any(_domain_matches_keyword(domain, kw) for kw in keywords))
+
+    metric_rules = [
+        ('min_impressions', lambda value: platform.get('impressions', 0) >= value),
+        ('max_impressions', lambda value: platform.get('impressions', 0) <= value),
+        ('min_clicks', lambda value: platform.get('clicks', 0) >= value),
+        ('max_clicks', lambda value: platform.get('clicks', 0) <= value),
+        ('min_cpc', lambda value: platform.get('cpc', 0) >= value),
+        ('max_cpc', lambda value: platform.get('cpc', 0) <= value),
+        ('min_ctr', lambda value: platform.get('ctr', 0) >= value),
+        ('max_ctr', lambda value: platform.get('ctr', 0) <= value),
+        ('min_conversions', lambda value: platform.get('conversions', 0) >= value),
+        ('min_cpa', lambda value: platform.get('cpa', 0) >= value),
+        ('max_cpa', lambda value: platform.get('cpa', 0) <= value),
+    ]
+
+    for key, predicate in metric_rules:
+        value = config.get(key)
+        if value is not None:
+            conditions.append(predicate(value))
+
+    if not conditions:
+        return False
+
+    if combine_operator == 'OR':
+        return any(conditions)
+    return all(conditions)
+
+
+def filter_placements(placements: List[Dict], config: Dict, combine_operator: str = 'AND') -> List[Dict]:
+    '''Фильтрация площадок единым правилом с batch worker.'''
     matched = []
-    
-    keywords = config.get('keywords', [])
-    exceptions = config.get('exceptions', [])
-    min_cpc = config.get('min_cpc')
-    max_cpc = config.get('max_cpc')
-    min_ctr = config.get('min_ctr')
-    max_ctr = config.get('max_ctr')
-    min_clicks = config.get('min_clicks')
-    max_clicks = config.get('max_clicks')
-    protect_conversions = config.get('protect_conversions', False)
-    
-    if isinstance(keywords, str):
-        keywords = [k.strip().lower() for k in keywords.split(',') if k.strip()]
-    if isinstance(exceptions, str):
-        exceptions = [k.strip().lower() for k in exceptions.split(',') if k.strip()]
-    
     for placement in placements:
-        domain = placement['domain'].lower()
-        clicks = placement.get('clicks', 0)
-        conversions = placement.get('conversions', 0)
-        ctr = placement.get('ctr', 0)
-        cpc = placement.get('cpc', 0)
-        
-        # Исключения
-        if exceptions:
-            if any(exc in domain for exc in exceptions):
-                continue
-        
-        # Keywords
-        if keywords:
-            has_keyword = False
-            for keyword in keywords:
-                if '.' in keyword:
-                    if domain.startswith(keyword):
-                        has_keyword = True
-                        break
-                else:
-                    if keyword in domain:
-                        has_keyword = True
-                        break
-            if not has_keyword:
-                continue
-        
-        # Protect conversions
-        if protect_conversions and conversions > 0:
-            continue
-        
-        # Фильтры по метрикам
-        if min_cpc is not None and cpc < min_cpc:
-            continue
-        if max_cpc is not None and cpc > max_cpc:
-            continue
-        
-        if min_ctr is not None and ctr < min_ctr:
-            continue
-        if max_ctr is not None and ctr > max_ctr:
-            continue
-        
-        if min_clicks is not None and clicks < min_clicks:
-            continue
-        if max_clicks is not None and clicks > max_clicks:
-            continue
-        
-        matched.append(placement)
-    
+        if matches_task_filters(placement, config, combine_operator):
+            matched.append(placement)
     return matched
 
 

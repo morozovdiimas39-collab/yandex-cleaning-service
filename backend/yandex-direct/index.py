@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import requests
 import time
@@ -217,7 +218,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': str(e)})
             }
     
-    # GET /campaigns - получить кампании РСЯ
+    # GET /campaigns — кампании аккаунта (campaigns.get + Reports CAMPAIGN_PERFORMANCE_REPORT), без отсечения по РСЯ
     if method == 'GET':
         headers = event.get('headers', {})
         token = headers.get('X-Auth-Token') or headers.get('x-auth-token')
@@ -237,9 +238,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             print(f'[DEBUG] Requesting Yandex.Direct API with token: {token[:10]}...')
             print(f'[DEBUG] Client-Login: {client_login}')
             
-            # Проверяем режим sandbox
+            # Проверяем режим sandbox. v501 — для UNIFIED_CAMPAIGN (ЕПК); на json/v5 ЕПК может отдаваться неполно.
             is_sandbox = query_params.get('sandbox') == 'true'
-            api_url = 'https://api-sandbox.direct.yandex.com/json/v5/campaigns' if is_sandbox else 'https://api.direct.yandex.com/json/v5/campaigns'
+            api_url = (
+                'https://api-sandbox.direct.yandex.com/json/v501/campaigns'
+                if is_sandbox else
+                'https://api.direct.yandex.com/json/v501/campaigns'
+            )
             
             print(f'[DEBUG] Using API URL: {api_url} (sandbox={is_sandbox})')
             
@@ -264,7 +269,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'FieldNames': ['Id', 'Name', 'Type', 'Status'],
                         'TextCampaignFieldNames': ['BiddingStrategy'],
                         'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
-                        'SmartCampaignFieldNames': ['BiddingStrategy']
+                        'SmartCampaignFieldNames': ['BiddingStrategy'],
+                        'UnifiedCampaignFieldNames': ['BiddingStrategy']
                     }
                 },
                 timeout=10
@@ -314,222 +320,275 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             campaigns_raw = data.get('result', {}).get('Campaigns', [])
             
-            print(f'[DEBUG] Found {len(campaigns_raw)} campaigns total')
-            
-            # Фильтруем кампании - оставляем только РСЯ (Network активна, Search отключен SERVING_OFF)
-            rsya_campaigns_raw = []
+            print(f'[DEBUG] Found {len(campaigns_raw)} campaigns total (campaigns.get)')
+
+            reports_url = 'https://api-sandbox.direct.yandex.com/json/v5/reports' if is_sandbox else 'https://api.direct.yandex.com/json/v5/reports'
+            report_headers_base = dict(request_headers)
+            report_headers_base['Accept-Language'] = 'ru'
+            report_headers_base['processingMode'] = 'auto'
+            report_headers_base['returnMoneyInMicros'] = 'false'
+            report_headers_base['skipReportHeader'] = 'true'
+            report_headers_base['skipReportSummary'] = 'true'
+            rid = getattr(context, 'request_id', None) or 'local'
+            rid_key = str(rid).replace('-', '')[:24]
+
+            # Список кампаний берём через Reports API (CAMPAIGN_PERFORMANCE_REPORT).
+            report_campaign_meta: Dict[int, Dict[str, str]] = {}
+            try:
+                today = datetime.utcnow().date()
+                # Широкий период, чтобы не терять кампании из-за узкого окна
+                date_from = '2015-01-01'
+                date_to = today.strftime('%Y-%m-%d')
+                perf_body = {
+                    'params': {
+                        'SelectionCriteria': {
+                            'DateFrom': date_from,
+                            'DateTo': date_to,
+                        },
+                        'FieldNames': ['CampaignId', 'CampaignName', 'CampaignType', 'Impressions'],
+                        'ReportName': f'AllCampaigns_{rid_key}_{int(time.time())}',
+                        'ReportType': 'CAMPAIGN_PERFORMANCE_REPORT',
+                        'DateRangeType': 'CUSTOM_DATE',
+                        'Format': 'TSV',
+                        'IncludeVAT': 'NO',
+                        'IncludeDiscount': 'NO',
+                    }
+                }
+                pr = requests.post(reports_url, headers=report_headers_base, json=perf_body, timeout=120)
+                print(f'[DEBUG] CAMPAIGN_PERFORMANCE_REPORT status: {pr.status_code}')
+                if pr.status_code == 200 and pr.text and '\t' in pr.text:
+                    lines = pr.text.strip().split('\n')
+                    hdr = lines[0].split('\t') if lines else []
+                    for line in lines[1:]:
+                        vals = line.split('\t')
+                        if len(vals) < len(hdr):
+                            continue
+                        row = dict(zip(hdr, vals))
+                        try:
+                            cid = int(row.get('CampaignId') or 0)
+                        except (TypeError, ValueError):
+                            continue
+                        if not cid:
+                            continue
+                        report_campaign_meta[cid] = {
+                            'name': (row.get('CampaignName') or '').strip(),
+                            'type': (row.get('CampaignType') or '').strip(),
+                        }
+                    print(f'[DEBUG] Report CAMPAIGN_PERFORMANCE_REPORT: {len(report_campaign_meta)} campaign ids')
+                else:
+                    print(f'[DEBUG] CAMPAIGN_PERFORMANCE_REPORT skipped or empty: {pr.status_code} {pr.text[:200]}')
+            except Exception as ex:
+                print(f'[DEBUG] CAMPAIGN_PERFORMANCE_REPORT failed: {ex}')
+
+            campaigns_get_by_id = {c.get('Id'): c for c in campaigns_raw if c.get('Id') is not None}
+            source_campaigns: List[dict] = []
+            seen_ids: set = set()
+
+            # 1) Все кампании из Reports API
+            for cid, meta in report_campaign_meta.items():
+                c = dict(campaigns_get_by_id.get(cid) or {})
+                c['Id'] = cid
+                c['Name'] = c.get('Name') or meta.get('name') or 'Без названия'
+                c['Type'] = c.get('Type') or meta.get('type') or 'UNKNOWN'
+                c['Status'] = c.get('Status') or 'UNKNOWN'
+                source_campaigns.append(c)
+                seen_ids.add(cid)
+
+            # 2) Плюс все кампании из campaigns.get, которых нет в report
             for c in campaigns_raw:
-                campaign_type = c.get('Type')
-                is_rsya = False
-                
-                # Проверяем TEXT_CAMPAIGN
-                if campaign_type == 'TEXT_CAMPAIGN':
-                    text_campaign = c.get('TextCampaign', {})
-                    bidding_strategy = text_campaign.get('BiddingStrategy', {})
-                    
-                    # Проверяем стратегии на поиске и в сетях
-                    search_strategy = bidding_strategy.get('Search', {})
-                    network_strategy = bidding_strategy.get('Network', {})
-                    
-                    # Проверяем типы стратегий
-                    search_type = search_strategy.get('BiddingStrategyType', '')
-                    network_type = network_strategy.get('BiddingStrategyType', '')
-                    
-                    # РСЯ = поиск SERVING_OFF И сети активны (не SERVING_OFF)
-                    search_disabled = search_type == 'SERVING_OFF'
-                    network_enabled = network_type != 'SERVING_OFF' and network_type != ''
-                    
-                    is_rsya = search_disabled and network_enabled
-                    
-                    print(f'[DEBUG] Campaign {c.get("Id")} "{c.get("Name")}": search_type={search_type}, network_type={network_type}, is_rsya={is_rsya}')
-                
-                # Проверяем DYNAMIC_TEXT_CAMPAIGN (товарные кампании)
-                elif campaign_type == 'DYNAMIC_TEXT_CAMPAIGN':
-                    dynamic_campaign = c.get('DynamicTextCampaign', {})
-                    bidding_strategy = dynamic_campaign.get('BiddingStrategy', {})
-                    
-                    search_strategy = bidding_strategy.get('Search', {})
-                    network_strategy = bidding_strategy.get('Network', {})
-                    
-                    search_type = search_strategy.get('BiddingStrategyType', '')
-                    network_type = network_strategy.get('BiddingStrategyType', '')
-                    
-                    search_disabled = search_type == 'SERVING_OFF'
-                    network_enabled = network_type != 'SERVING_OFF' and network_type != ''
-                    
-                    is_rsya = search_disabled and network_enabled
-                    
-                    print(f'[DEBUG] Dynamic Campaign {c.get("Id")} "{c.get("Name")}": search_type={search_type}, network_type={network_type}, is_rsya={is_rsya}')
-                
-                # Проверяем SMART_CAMPAIGN (смарт-баннеры / товарки)
-                elif campaign_type == 'SMART_CAMPAIGN':
-                    smart_campaign = c.get('SmartCampaign', {})
-                    bidding_strategy = smart_campaign.get('BiddingStrategy', {})
-                    
-                    search_strategy = bidding_strategy.get('Search', {})
-                    network_strategy = bidding_strategy.get('Network', {})
-                    
-                    search_type = search_strategy.get('BiddingStrategyType', '')
-                    network_type = network_strategy.get('BiddingStrategyType', '')
-                    
-                    search_disabled = search_type == 'SERVING_OFF'
-                    network_enabled = network_type != 'SERVING_OFF' and network_type != ''
-                    
-                    is_rsya = search_disabled and network_enabled
-                    
-                    print(f'[DEBUG] Smart Campaign {c.get("Id")} "{c.get("Name")}": search_type={search_type}, network_type={network_type}, is_rsya={is_rsya}')
-                
-                if is_rsya:
-                    rsya_campaigns_raw.append(c)
+                cid = c.get('Id')
+                if cid is None or cid in seen_ids:
+                    continue
+                source_campaigns.append(c)
+                seen_ids.add(cid)
+
+            print(f'[DEBUG] Source campaigns total (report + get): {len(source_campaigns)}')
+
+            def _bidding_strategy_for(campaign: dict) -> dict:
+                ct = campaign.get('Type')
+                if ct == 'TEXT_CAMPAIGN':
+                    return (campaign.get('TextCampaign') or {}).get('BiddingStrategy') or {}
+                if ct == 'DYNAMIC_TEXT_CAMPAIGN':
+                    return (campaign.get('DynamicTextCampaign') or {}).get('BiddingStrategy') or {}
+                if ct == 'SMART_CAMPAIGN':
+                    return (campaign.get('SmartCampaign') or {}).get('BiddingStrategy') or {}
+                if ct == 'UNIFIED_CAMPAIGN':
+                    return (campaign.get('UnifiedCampaign') or {}).get('BiddingStrategy') or {}
+                return {}
+
+            # Бейджи channel (ТК / РСЯ / МК) не являются полями API.
+            # В objects/campaign перечислены Type (TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, …), но нет значения
+            # «Товарная кампания» или «Мастер кампаний» — это названия из интерфейса Директа.
+            # В текущей бизнес-логике проекта: ТК помечаем как UNIFIED_CAMPAIGN.
+            # МК — эвристика для TEXT_CAMPAIGN, РСЯ — прочие кампании с сетевым трафиком.
+            def _channel_label(c: dict) -> str:
+                ct = c.get('Type')
+                # ТК всегда помечаем по типу кампании, даже если нет BiddingStrategy в ответе.
+                if ct == 'UNIFIED_CAMPAIGN':
+                    return 'ТК'
+
+                bs = _bidding_strategy_for(c)
+                if not bs:
+                    return ''
+
+                st = (bs.get('Search') or {}).get('BiddingStrategyType', '')
+                nt = (bs.get('Network') or {}).get('BiddingStrategyType', '')
+                network_on = nt != 'SERVING_OFF' and nt != ''
+
+                if not network_on:
+                    return ''
+
+                if ct == 'DYNAMIC_TEXT_CAMPAIGN':
+                    return 'РСЯ'
+
+                if ct == 'SMART_CAMPAIGN':
+                    return 'РСЯ'
+
+                if ct == 'TEXT_CAMPAIGN':
+                    if st == 'SERVING_OFF':
+                        return 'РСЯ'
+                    if st != '':
+                        return 'МК'
+                    return 'РСЯ'
+
+                return ''
+
+            selected_entries = []
+            seen_ids = set()
+            for c in source_campaigns:
+                cid = c.get('Id')
+                if cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
+                label = _channel_label(c) or ''
+                selected_entries.append({'campaign': c, 'channel': label})
+                print(f'[DEBUG] Include campaign {cid} "{c.get("Name")}" channel={label!r} Type={c.get("Type")}')
+
+            print(f'[DEBUG] Selected {len(selected_entries)} campaigns (full list)')
             
-            print(f'[DEBUG] Filtered to {len(rsya_campaigns_raw)} RSA campaigns')
-            
-            # Собираем ID отфильтрованных кампаний для Reports API
-            text_campaigns = []
-            for c in rsya_campaigns_raw:
-                campaign_type = c.get('Type')
-                if campaign_type in ['TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN']:
-                    text_campaigns.append({
-                        'id': str(c.get('Id')),
-                        'name': c.get('Name', 'Без названия'),
-                        'status': c.get('Status', 'UNKNOWN'),
-                        'type': campaign_type
-                    })
-            
-            # Один запрос Reports API для ВСЕХ кампаний сразу
+            # Собираем ID для отчёта по площадкам (CUSTOM_REPORT) — все кампании из списка
             all_platforms_by_campaign = {}
             all_goals_by_campaign = {}
-            
-            if text_campaigns:
-                campaign_ids = [int(tc['id']) for tc in text_campaigns]
-                
-                try:
-                    reports_url = 'https://api-sandbox.direct.yandex.com/json/v5/reports' if is_sandbox else 'https://api.direct.yandex.com/json/v5/reports'
-                    
-                    report_body = {
-                        'params': {
-                            'SelectionCriteria': {
-                                'Filter': [
-                                    {'Field': 'CampaignId', 'Operator': 'IN', 'Values': campaign_ids}
+
+            include_platforms = query_params.get('include_platforms') == 'true'
+            text_campaigns = []
+            for entry in selected_entries:
+                c = entry['campaign']
+                campaign_type = c.get('Type')
+                text_campaigns.append({
+                    'id': str(c.get('Id')),
+                    'name': c.get('Name', 'Без названия'),
+                    'status': c.get('Status', 'UNKNOWN'),
+                    'type': campaign_type
+                })
+
+            if include_platforms and text_campaigns:
+                campaign_ids = []
+                for tc in text_campaigns:
+                    raw_id = tc.get('id')
+                    try:
+                        campaign_ids.append(int(raw_id))
+                    except (TypeError, ValueError):
+                        continue
+                chunk_size = 250
+                date_from_pl = (datetime.utcnow().date() - timedelta(days=365)).strftime('%Y-%m-%d')
+                date_to_pl = datetime.utcnow().date().strftime('%Y-%m-%d')
+
+                for chunk_start in range(0, len(campaign_ids), chunk_size):
+                    chunk_ids = campaign_ids[chunk_start:chunk_start + chunk_size]
+                    try:
+                        report_body = {
+                            'params': {
+                                'SelectionCriteria': {
+                                    'Filter': [
+                                        {'Field': 'CampaignId', 'Operator': 'IN', 'Values': chunk_ids}
+                                    ],
+                                    'DateFrom': date_from_pl,
+                                    'DateTo': date_to_pl,
+                                },
+                                'FieldNames': [
+                                    'CampaignId',
+                                    'Placement',
+                                    'Impressions',
+                                    'Clicks',
+                                    'Cost',
+                                    'Conversions'
                                 ],
-                                'DateFrom': '2024-10-01',
-                                'DateTo': '2024-11-01'
-                            },
-                            'FieldNames': [
-                                'CampaignId',
-                                'Placement',
-                                'Impressions',
-                                'Clicks',
-                                'Cost',
-                                'Conversions'
-                            ],
-                            'ReportName': f'RSYAPlatforms_All_{context.request_id[:8]}',
-                            'ReportType': 'CUSTOM_REPORT',
-                            'DateRangeType': 'CUSTOM_DATE',
-                            'Format': 'TSV',
-                            'IncludeVAT': 'NO',
-                            'IncludeDiscount': 'NO'
+                                'ReportName': f'Plat_{rid_key}_{chunk_start}_{int(time.time())}',
+                                'ReportType': 'CUSTOM_REPORT',
+                                'DateRangeType': 'CUSTOM_DATE',
+                                'Format': 'TSV',
+                                'IncludeVAT': 'NO',
+                                'IncludeDiscount': 'NO'
+                            }
                         }
-                    }
-                    
-                    report_headers = dict(request_headers)
-                    report_headers['Accept-Language'] = 'ru'
-                    report_headers['processingMode'] = 'auto'
-                    report_headers['returnMoneyInMicros'] = 'false'
-                    report_headers['skipReportHeader'] = 'true'
-                    report_headers['skipReportSummary'] = 'true'
-                    
-                    print(f'[DEBUG] Requesting Reports API for {len(campaign_ids)} campaigns')
-                    
-                    report_response = requests.post(
-                        reports_url,
-                        headers=report_headers,
-                        json=report_body,
-                        timeout=60
-                    )
-                    
-                    print(f'[DEBUG] Reports API response status: {report_response.status_code}')
-                    
-                    # Пропускаем retry для избежания ошибок - в следующий раз отчёт будет готов
-                    if report_response.status_code == 201:
-                        print(f'[DEBUG] Report queued - will be ready on next request')
-                    
-                    if report_response.status_code == 200:
-                        report_text = report_response.text
-                        print(f'[DEBUG] Reports API response preview: {report_text[:500]}')
-                        
-                        # Парсим TSV и группируем по CampaignId
-                        lines = report_text.strip().split('\n')
-                        if len(lines) > 1:
-                            headers_line = lines[0].split('\t')
-                            
-                            # Группируем данные по кампаниям
-                            for line in lines[1:]:
-                                values = line.split('\t')
-                                if len(values) < len(headers_line):
-                                    continue
-                                
-                                row = dict(zip(headers_line, values))
-                                campaign_id_str = row.get('CampaignId', '')
-                                platform_name = row.get('Placement', '--')
-                                
-                                if not campaign_id_str or platform_name == '--':
-                                    continue
-                                
-                                # Инициализируем структуры для кампании
-                                if campaign_id_str not in all_platforms_by_campaign:
-                                    all_platforms_by_campaign[campaign_id_str] = {}
-                                    all_goals_by_campaign[campaign_id_str] = {}
-                                
-                                impressions = int(row.get('Impressions', 0) or 0)
-                                clicks = int(row.get('Clicks', 0) or 0)
-                                cost = float(row.get('Cost', 0) or 0)
-                                conversions = int(row.get('Conversions', 0) or 0)
-                                goal_id = row.get('GoalId', '')
-                                
-                                # Добавляем площадку для данной кампании
-                                if platform_name not in all_platforms_by_campaign[campaign_id_str]:
-                                    all_platforms_by_campaign[campaign_id_str][platform_name] = {
-                                        'impressions': 0,
-                                        'clicks': 0,
-                                        'cost': 0,
-                                        'conversions': 0,
-                                        'goals': {}
-                                    }
-                                
-                                all_platforms_by_campaign[campaign_id_str][platform_name]['impressions'] += impressions
-                                all_platforms_by_campaign[campaign_id_str][platform_name]['clicks'] += clicks
-                                all_platforms_by_campaign[campaign_id_str][platform_name]['cost'] += cost
-                                all_platforms_by_campaign[campaign_id_str][platform_name]['conversions'] += conversions
-                                
-                                # Добавляем статистику по целям
-                                if goal_id and goal_id != '--':
-                                    if goal_id not in all_goals_by_campaign[campaign_id_str]:
-                                        all_goals_by_campaign[campaign_id_str][goal_id] = {'name': f'Цель {goal_id}', 'id': goal_id}
-                                    
-                                    if goal_id not in all_platforms_by_campaign[campaign_id_str][platform_name]['goals']:
-                                        all_platforms_by_campaign[campaign_id_str][platform_name]['goals'][goal_id] = {
-                                            'conversions': 0
+
+                        report_response = requests.post(
+                            reports_url,
+                            headers=report_headers_base,
+                            json=report_body,
+                            timeout=120
+                        )
+
+                        print(f'[DEBUG] CUSTOM_REPORT Placement chunk {chunk_start}-{chunk_start + len(chunk_ids)} status: {report_response.status_code}')
+
+                        if report_response.status_code == 200:
+                            report_text = report_response.text
+                            lines = report_text.strip().split('\n')
+                            if len(lines) > 1:
+                                headers_line = lines[0].split('\t')
+                                for line in lines[1:]:
+                                    values = line.split('\t')
+                                    if len(values) < len(headers_line):
+                                        continue
+                                    row = dict(zip(headers_line, values))
+                                    campaign_id_str = row.get('CampaignId', '')
+                                    platform_name = row.get('Placement', '--')
+                                    if not campaign_id_str or platform_name == '--':
+                                        continue
+                                    if campaign_id_str not in all_platforms_by_campaign:
+                                        all_platforms_by_campaign[campaign_id_str] = {}
+                                        all_goals_by_campaign[campaign_id_str] = {}
+                                    impressions = int(row.get('Impressions', 0) or 0)
+                                    clicks = int(row.get('Clicks', 0) or 0)
+                                    cost = float(row.get('Cost', 0) or 0)
+                                    conversions = int(row.get('Conversions', 0) or 0)
+                                    goal_id = row.get('GoalId', '')
+                                    if platform_name not in all_platforms_by_campaign[campaign_id_str]:
+                                        all_platforms_by_campaign[campaign_id_str][platform_name] = {
+                                            'impressions': 0,
+                                            'clicks': 0,
+                                            'cost': 0,
+                                            'conversions': 0,
+                                            'goals': {}
                                         }
-                                    all_platforms_by_campaign[campaign_id_str][platform_name]['goals'][goal_id]['conversions'] += conversions
-                            
-                            print(f'[DEBUG] Parsed data for {len(all_platforms_by_campaign)} campaigns from Reports API')
-                    else:
-                        print(f'[DEBUG] Reports API failed: {report_response.text[:500]}')
-                
-                except Exception as e:
-                    print(f'[DEBUG] Failed to fetch reports: {str(e)}')
+                                    all_platforms_by_campaign[campaign_id_str][platform_name]['impressions'] += impressions
+                                    all_platforms_by_campaign[campaign_id_str][platform_name]['clicks'] += clicks
+                                    all_platforms_by_campaign[campaign_id_str][platform_name]['cost'] += cost
+                                    all_platforms_by_campaign[campaign_id_str][platform_name]['conversions'] += conversions
+                                    if goal_id and goal_id != '--':
+                                        if goal_id not in all_goals_by_campaign[campaign_id_str]:
+                                            all_goals_by_campaign[campaign_id_str][goal_id] = {'name': f'Цель {goal_id}', 'id': goal_id}
+                                        if goal_id not in all_platforms_by_campaign[campaign_id_str][platform_name]['goals']:
+                                            all_platforms_by_campaign[campaign_id_str][platform_name]['goals'][goal_id] = {'conversions': 0}
+                                        all_platforms_by_campaign[campaign_id_str][platform_name]['goals'][goal_id]['conversions'] += conversions
+                        else:
+                            print(f'[DEBUG] Placement report chunk failed: {report_response.text[:300]}')
+                    except Exception as e:
+                        print(f'[DEBUG] Failed to fetch placement chunk: {str(e)}')
+
+                print(f'[DEBUG] Parsed platforms for {len(all_platforms_by_campaign)} campaigns from Reports API')
+            else:
+                print('[DEBUG] Platform report disabled (include_platforms!=true)')
             
             # Формируем список кампаний с их площадками и целями
-            # Используем rsya_campaigns_raw (уже отфильтрованные по BiddingStrategy)
             campaigns = []
-            for c in rsya_campaigns_raw:
+            for entry in selected_entries:
+                c = entry['campaign']
+                channel = entry['channel']
                 campaign_type = c.get('Type')
                 campaign_id = str(c.get('Id'))
-                
-                if campaign_type not in ['TEXT_CAMPAIGN', 'DYNAMIC_TEXT_CAMPAIGN']:
-                    continue
-                
+
                 platforms = []
                 goals = []
                 
@@ -665,11 +724,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'name': c.get('Name'),
                     'type': campaign_type,
                     'status': c.get('Status'),
+                    'channel': channel,
                     'platforms': platforms,
                     'goals': goals
                 })
             
-            print(f'[DEBUG] Filtered {len(campaigns)} TEXT_CAMPAIGN campaigns with platforms')
+            print(f'[DEBUG] Built {len(campaigns)} campaigns for UI')
             
             return {
                 'statusCode': 200,
@@ -682,6 +742,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
         except Exception as e:
             print(f'[ERROR] Exception: {str(e)}')
+            # Fail-open: если упали отчеты/парсинг, все равно возвращаем кампании из campaigns.get
+            fallback_campaigns = []
+            try:
+                campaigns_raw_fallback = locals().get('campaigns_raw', []) or []
+                for c in campaigns_raw_fallback:
+                    cid = c.get('Id')
+                    if cid is None:
+                        continue
+                    fallback_campaigns.append({
+                        'id': str(cid),
+                        'name': c.get('Name', 'Без названия'),
+                        'type': c.get('Type', 'UNKNOWN'),
+                        'status': c.get('Status', 'UNKNOWN'),
+                        'channel': '',
+                        'platforms': [],
+                        'goals': []
+                    })
+            except Exception as fallback_error:
+                print(f'[ERROR] Fallback build failed: {fallback_error}')
             return {
                 'statusCode': 200,
                 'headers': {
@@ -689,7 +768,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'Access-Control-Allow-Origin': '*'
                 },
                 'body': json.dumps({
-                    'campaigns': [],
+                    'campaigns': fallback_campaigns,
                     'error': f'Ошибка: {str(e)}',
                     'message': 'Не удалось подключиться к API Яндекс.Директ'
                 })

@@ -12,6 +12,9 @@ interface Campaign {
   id: string;
   name: string;
   status: string;
+  /** Тип кампании из API Директа, например TEXT_CAMPAIGN */
+  type?: string;
+  channel?: string;
 }
 
 interface Counter {
@@ -34,6 +37,7 @@ export default function RSYASetup() {
   
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
+  const [campaignsError, setCampaignsError] = useState('');
   
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
   const [selectedCounters, setSelectedCounters] = useState<Set<string>>(new Set());
@@ -52,6 +56,7 @@ export default function RSYASetup() {
   const loadData = async (uid: string) => {
     try {
       setLoading(true);
+      setCampaignsError('');
       
       const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
         headers: { 'X-User-Id': uid }
@@ -65,6 +70,7 @@ export default function RSYASetup() {
       
       const projectData = await projectResponse.json();
       const token = projectData.project.yandex_token;
+      const clientLogin = projectData.project.client_login;
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -73,7 +79,12 @@ export default function RSYASetup() {
       }
 
       const [campaignsRes, countersRes] = await Promise.all([
-        fetch(YANDEX_DIRECT_URL, { headers: { 'X-Auth-Token': token } }),
+        fetch(YANDEX_DIRECT_URL, {
+          headers: {
+            'X-Auth-Token': token,
+            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+          }
+        }),
         fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
       ]);
 
@@ -81,9 +92,18 @@ export default function RSYASetup() {
         const data = await campaignsRes.json();
         const loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
+        if (data.error) {
+          setCampaignsError(data.message || data.error);
+        } else if (loadedCampaigns.length === 0) {
+          setCampaignsError('Кампании не найдены. Проверьте токен, Client-Login и доступ к аккаунту Директа.');
+        }
         
         const allCampaignIds = new Set(loadedCampaigns.map((c: Campaign) => c.id));
         setSelectedCampaigns(allCampaignIds);
+      } else {
+        setCampaigns([]);
+        setSelectedCampaigns(new Set());
+        setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
       }
 
       if (countersRes.ok) {
@@ -170,6 +190,11 @@ export default function RSYASetup() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-60 overflow-y-auto">
+                {campaignsError && (
+                  <div className="p-3 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg">
+                    {campaignsError}
+                  </div>
+                )}
                 {campaigns.map(campaign => (
                   <div key={campaign.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
                     <Checkbox
@@ -184,8 +209,28 @@ export default function RSYASetup() {
                         setSelectedCampaigns(newSelected);
                       }}
                     />
-                    <span className="text-sm">{campaign.name}</span>
-                    <span className="text-xs text-slate-500 ml-auto">{campaign.status}</span>
+                    {campaign.channel ? (
+                      <span
+                        className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                          campaign.channel === 'РСЯ'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : campaign.channel === 'ТК'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-violet-100 text-violet-800'
+                        }`}
+                      >
+                        {campaign.channel}
+                      </span>
+                    ) : campaign.type ? (
+                      <span
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-slate-100 text-slate-700 max-w-[140px] truncate"
+                        title={campaign.type}
+                      >
+                        {campaign.type.replace(/_CAMPAIGN$/i, '')}
+                      </span>
+                    ) : null}
+                    <span className="text-sm flex-1 min-w-0">{campaign.name}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{campaign.status}</span>
                   </div>
                 ))}
               </div>

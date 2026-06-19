@@ -12,6 +12,10 @@ interface Campaign {
   id: string;
   name: string;
   status: string;
+  /** Тип из API Директа */
+  type?: string;
+  /** РСЯ | ТК | МК — эвристика с бэкенда; если пусто, смотри type */
+  channel?: string;
 }
 
 interface Counter {
@@ -74,6 +78,7 @@ export default function RSYASettings() {
       
       const projectData = await projectResponse.json();
       const token = projectData.project.yandex_token;
+      const clientLogin = projectData.project.client_login;
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -82,7 +87,12 @@ export default function RSYASettings() {
       }
 
       const [campaignsRes, countersRes] = await Promise.all([
-        fetch(YANDEX_DIRECT_URL, { headers: { 'X-Auth-Token': token } }),
+        fetch(YANDEX_DIRECT_URL, {
+          headers: {
+            'X-Auth-Token': token,
+            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+          }
+        }),
         fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
       ]);
 
@@ -288,8 +298,28 @@ export default function RSYASettings() {
                         setSelectedCampaigns(newSelected);
                       }}
                     />
-                    <span className="text-sm">{campaign.name}</span>
-                    <span className="text-xs text-slate-500 ml-auto">{campaign.status}</span>
+                    {campaign.channel ? (
+                      <span
+                        className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                          campaign.channel === 'РСЯ'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : campaign.channel === 'ТК'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-violet-100 text-violet-800'
+                        }`}
+                      >
+                        {campaign.channel}
+                      </span>
+                    ) : campaign.type ? (
+                      <span
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 bg-slate-100 text-slate-700 max-w-[140px] truncate"
+                        title={campaign.type}
+                      >
+                        {campaign.type.replace(/_CAMPAIGN$/i, '')}
+                      </span>
+                    ) : null}
+                    <span className="text-sm flex-1 min-w-0">{campaign.name}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{campaign.status}</span>
                   </div>
                 ))}
               </div>

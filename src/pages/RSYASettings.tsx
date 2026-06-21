@@ -46,6 +46,7 @@ export default function RSYASettings() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [campaignsError, setCampaignsError] = useState('');
   const [loadingGoals, setLoadingGoals] = useState(false);
   
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
@@ -65,6 +66,7 @@ export default function RSYASettings() {
   const loadData = async (uid: string) => {
     try {
       setLoading(true);
+      setCampaignsError('');
       
       const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
         headers: { 'X-User-Id': uid }
@@ -78,7 +80,6 @@ export default function RSYASettings() {
       
       const projectData = await projectResponse.json();
       const token = projectData.project.yandex_token;
-      const clientLogin = projectData.project.client_login;
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -89,8 +90,7 @@ export default function RSYASettings() {
       const [campaignsRes, countersRes] = await Promise.all([
         fetch(YANDEX_DIRECT_URL, {
           headers: {
-            'X-Auth-Token': token,
-            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+            'X-Auth-Token': token
           }
         }),
         fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
@@ -100,9 +100,17 @@ export default function RSYASettings() {
         const data = await campaignsRes.json();
         const loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
+        if (data.error) {
+          setCampaignsError(data.error_detail || data.message || data.error);
+        } else if (loadedCampaigns.length === 0) {
+          setCampaignsError('Кампании не найдены. Проверьте, что OAuth-токен выдан пользователю с доступом к Яндекс.Директ.');
+        }
         
         const savedCampaignIds = projectData.project.campaign_ids || [];
         setSelectedCampaigns(new Set(savedCampaignIds));
+      } else {
+        setCampaigns([]);
+        setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
       }
 
       if (countersRes.ok) {
@@ -284,6 +292,11 @@ export default function RSYASettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-60 overflow-y-auto">
+                {campaignsError && (
+                  <div className="p-3 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg">
+                    {campaignsError}
+                  </div>
+                )}
                 {campaigns.map(campaign => (
                   <div key={campaign.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
                     <Checkbox

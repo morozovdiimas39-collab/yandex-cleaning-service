@@ -70,7 +70,6 @@ export default function RSYASetup() {
       
       const projectData = await projectResponse.json();
       const token = projectData.project.yandex_token;
-      const clientLogin = projectData.project.client_login;
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -81,8 +80,7 @@ export default function RSYASetup() {
       const [campaignsRes, countersRes] = await Promise.all([
         fetch(YANDEX_DIRECT_URL, {
           headers: {
-            'X-Auth-Token': token,
-            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+            'X-Auth-Token': token
           }
         }),
         fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
@@ -93,9 +91,9 @@ export default function RSYASetup() {
         const loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
         if (data.error) {
-          setCampaignsError(data.message || data.error);
+          setCampaignsError(data.error_detail || data.message || data.error);
         } else if (loadedCampaigns.length === 0) {
-          setCampaignsError('Кампании не найдены. Проверьте токен, Client-Login и доступ к аккаунту Директа.');
+          setCampaignsError('Кампании не найдены. Проверьте, что OAuth-токен выдан пользователю с доступом к Яндекс.Директ.');
         }
         
         const allCampaignIds = new Set(loadedCampaigns.map((c: Campaign) => c.id));

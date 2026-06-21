@@ -222,7 +222,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if method == 'GET':
         headers = event.get('headers', {})
         token = headers.get('X-Auth-Token') or headers.get('x-auth-token')
-        client_login = headers.get('X-Client-Login') or headers.get('x-client-login')
         
         if not token:
             return {
@@ -236,7 +235,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         try:
             print(f'[DEBUG] Requesting Yandex.Direct API with token: {token[:10]}...')
-            print(f'[DEBUG] Client-Login: {client_login}')
             
             # Проверяем режим sandbox. v501 — для UNIFIED_CAMPAIGN (ЕПК); на json/v5 ЕПК может отдаваться неполно.
             is_sandbox = query_params.get('sandbox') == 'true'
@@ -254,10 +252,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # И для песочницы, и для продакшна используем Bearer OAuth токен
             request_headers['Authorization'] = f'Bearer {token}'
-            
-            # Добавляем Client-Login если указан
-            if client_login:
-                request_headers['Client-Login'] = client_login
             
             response = requests.post(
                 api_url,
@@ -863,7 +857,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     request_headers['Client-Login'] = client_login
                 
                 # Создаём тестовую РСЯ кампанию
-                from datetime import datetime, timedelta
                 tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
                 
                 import random
@@ -972,7 +965,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # POST /clean - запустить чистку площадок
         headers = event.get('headers', {})
         token = headers.get('X-Auth-Token') or headers.get('x-auth-token')
-        client_login = headers.get('X-Client-Login') or headers.get('x-client-login')
         
         if not token:
             return {

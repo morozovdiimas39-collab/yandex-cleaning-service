@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import AdminSidebar from '@/components/layout/AdminSidebar';
+import { adminFetch } from '@/lib/admin-auth';
 import {
   Table,
   TableBody,
@@ -30,12 +31,83 @@ interface Project {
   name: string;
   client_login: string | null;
   is_configured: boolean;
+  task_names?: string[];
   tasks_count: number;
   active_tasks_count: number;
   total_executions: number;
   total_blocked: number;
   last_execution_at: string | null;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  interval_hours?: number;
+  schedule_active?: boolean;
+  last_batch_status?: string | null;
+  last_batch_completed_at?: string | null;
+  last_batch_processing_time_sec?: number | null;
 }
+
+const IMPORTANT_PLATFORMS = [
+  'yandex.ru', 'ya.ru', 'dzen.ru', 'kinopoisk.ru', 'mail.ru', 'vk.com', 'ok.ru',
+  'youtube.com', 'rutube.ru', 'google.com', 'avito.ru', 'wildberries.ru',
+  'ozon.ru', 'market.yandex.ru', 'drive2.ru', '2gis.ru', 'rbc.ru', 'ria.ru',
+  'lenta.ru', 'tass.ru', 'kommersant.ru', 'rzd.ru', 'tutu.ru', 'aviasales.ru',
+  'hh.ru', 'habr.com', 'vc.ru', 'pikabu.ru', 'sportmaster.ru', 'dns-shop.ru',
+];
+
+const isImportantPlatform = (domain: string) => {
+  const normalized = (domain || '').toLowerCase().trim();
+  return IMPORTANT_PLATFORMS.some((important) => normalized === important || normalized.endsWith(`.${important}`));
+};
+
+const formatDateTime = (value?: string | null) => (
+  value ? new Date(value).toLocaleString('ru-RU') : <span className="text-muted-foreground">-</span>
+);
+
+const formatNumber = (value: number | string | null | undefined) => Number(value || 0).toLocaleString('ru-RU');
+
+const getBatchBadgeClass = (status?: string | null) => {
+  if (status === 'completed') return 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100';
+  if (status === 'failed' || status === 'error') return 'bg-red-100 text-red-800 hover:bg-red-100';
+  if (status === 'processing') return 'bg-blue-100 text-blue-800 hover:bg-blue-100';
+  if (status === 'pending') return 'bg-amber-100 text-amber-800 hover:bg-amber-100';
+  return 'bg-slate-100 text-slate-700 hover:bg-slate-100';
+};
+
+const getStatusBadge = (status?: string | null) => {
+  if (status === 'completed' || status === 'success') {
+    return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Успешно</Badge>;
+  }
+  if (status === 'error' || status === 'failed') {
+    return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Ошибка</Badge>;
+  }
+  if (status === 'processing') {
+    return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">В работе</Badge>;
+  }
+  if (status === 'pending') {
+    return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Ожидает</Badge>;
+  }
+  return <Badge variant="secondary">{status || '-'}</Badge>;
+};
+
+const describeTaskConfig = (config: any) => {
+  const parts: string[] = [];
+  if (!config) return parts;
+  if (config.keywords?.length) parts.push(`Домены: ${config.keywords.slice(0, 3).join(', ')}${config.keywords.length > 3 ? '...' : ''}`);
+  if (config.exceptions?.length) parts.push(`Исключения: ${config.exceptions.slice(0, 2).join(', ')}${config.exceptions.length > 2 ? '...' : ''}`);
+  if (config.goal_ids?.length) parts.push(`Целей: ${config.goal_ids.length}`);
+  if (config.protect_conversions) parts.push('Защита конверсий');
+  if (config.min_impressions) parts.push(`Показы >= ${config.min_impressions}`);
+  if (config.min_clicks) parts.push(`Клики >= ${config.min_clicks}`);
+  if (config.max_clicks) parts.push(`Клики <= ${config.max_clicks}`);
+  if (config.min_ctr) parts.push(`CTR >= ${config.min_ctr}%`);
+  if (config.max_ctr) parts.push(`CTR <= ${config.max_ctr}%`);
+  if (config.min_cpc) parts.push(`CPC >= ${config.min_cpc}₽`);
+  if (config.max_cpc) parts.push(`CPC <= ${config.max_cpc}₽`);
+  if (config.min_cpa) parts.push(`CPA >= ${config.min_cpa}₽`);
+  if (config.max_cpa) parts.push(`CPA >= ${config.max_cpa}₽`);
+  if (config.min_conversions !== undefined) parts.push(`Конверсии >= ${config.min_conversions}`);
+  return parts;
+};
 
 const RSYACleaningDashboard = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('projects');
@@ -60,9 +132,7 @@ const RSYACleaningDashboard = () => {
 
   const loadDashboardStats = async () => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`);
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
@@ -78,9 +148,7 @@ const RSYACleaningDashboard = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_projects`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_projects`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -99,9 +167,7 @@ const RSYACleaningDashboard = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_project_detail&project_id=${projectId}`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_project_detail&project_id=${projectId}`);
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
@@ -120,9 +186,7 @@ const RSYACleaningDashboard = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_task_detail&task_id=${taskId}`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_task_detail&task_id=${taskId}`);
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
@@ -141,9 +205,7 @@ const RSYACleaningDashboard = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_execution_detail&execution_id=${executionId}`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_execution_detail&execution_id=${executionId}`);
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
@@ -184,8 +246,13 @@ const RSYACleaningDashboard = () => {
   };
 
   const filteredProjects = projects.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (p.client_login && p.client_login.toLowerCase().includes(searchQuery.toLowerCase()));
+    const query = searchQuery.toLowerCase();
+    const taskNames = (p.task_names || []).join(' ').toLowerCase();
+    const matchesSearch = p.name.toLowerCase().includes(query) ||
+                          (p.client_login && p.client_login.toLowerCase().includes(query)) ||
+                          taskNames.includes(query) ||
+                          String(p.id).includes(query) ||
+                          String(p.user_id).includes(query);
     const matchesStatus = statusFilter === 'all' || 
                           (statusFilter === 'active' && p.is_configured) ||
                           (statusFilter === 'inactive' && !p.is_configured);
@@ -239,73 +306,46 @@ const RSYACleaningDashboard = () => {
 
           {viewMode === 'projects' && (
             <div>
-              <div className="mb-6">
-                <h1 className="text-4xl font-bold mb-2">Чистка РСЯ</h1>
-                <p className="text-muted-foreground">Все проекты и задачи по автоматической блокировке площадок</p>
+              <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="mb-2 flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-900 text-white">
+                      <Icon name="ShieldCheck" size={22} />
+                    </div>
+                    <div>
+                      <h1 className="text-3xl font-bold tracking-normal text-slate-950">Админка чистки РСЯ</h1>
+                      <p className="text-sm text-slate-500">Проекты, задачи, расписания, батчи и последние примеры площадок</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Icon name="RefreshCw" size={16} />
+                  Обновление статистики каждые 30 секунд
+                </div>
               </div>
 
               {dashboardStats && (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Проекты</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{dashboardStats.kpi.active_projects}/{dashboardStats.kpi.total_projects}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Активных / Всего</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Задачи</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">{dashboardStats.kpi.active_tasks}/{dashboardStats.kpi.total_tasks}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Активных / Всего</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Запусков 24ч</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{dashboardStats.kpi.executions_24h}</div>
-                        <p className="text-xs text-muted-foreground mt-1">7д: {dashboardStats.kpi.executions_7d}</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Заблокировано</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{dashboardStats.kpi.total_blocked.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Всего площадок</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Ошибок 24ч</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-orange-600">{dashboardStats.kpi.errors_24h}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Выполнений с ошибкой</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Скорость</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{dashboardStats.kpi.avg_speed_per_hour}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Площадок/час</p>
-                      </CardContent>
-                    </Card>
+                  <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    {[
+                      { label: 'Проекты', value: `${dashboardStats.kpi.active_projects}/${dashboardStats.kpi.total_projects}`, note: 'активных / всего', icon: 'FolderKanban', tone: 'slate' },
+                      { label: 'Задачи', value: `${dashboardStats.kpi.active_tasks}/${dashboardStats.kpi.total_tasks}`, note: 'активных / всего', icon: 'ListChecks', tone: 'emerald' },
+                      { label: 'Запусков 24ч', value: dashboardStats.kpi.executions_24h, note: `7д: ${dashboardStats.kpi.executions_7d}`, icon: 'PlayCircle', tone: 'blue' },
+                      { label: 'Заблокировано', value: formatNumber(dashboardStats.kpi.total_blocked), note: 'всего площадок', icon: 'Ban', tone: 'red' },
+                      { label: 'Ошибок 24ч', value: dashboardStats.kpi.errors_24h, note: 'выполнений с ошибкой', icon: 'TriangleAlert', tone: 'amber' },
+                      { label: 'Очередь', value: dashboardStats.kpi.queue_pending + dashboardStats.kpi.queue_processing, note: `ошибок батчей: ${dashboardStats.kpi.queue_failed}`, icon: 'Activity', tone: 'violet' },
+                    ].map((metric) => (
+                      <Card key={metric.label} className="border-slate-200 shadow-sm">
+                        <CardContent className="p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{metric.label}</span>
+                            <Icon name={metric.icon as any} size={18} className="text-slate-400" />
+                          </div>
+                          <div className="text-2xl font-bold text-slate-950">{metric.value}</div>
+                          <p className="mt-1 text-xs text-slate-500">{metric.note}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -439,16 +479,17 @@ const RSYACleaningDashboard = () => {
                 </>
               )}
 
-              <div className="flex gap-4 mb-6">
-                <div className="flex-1">
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 md:flex-row md:items-center">
+                <div className="relative flex-1">
+                  <Icon name="Search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <Input
-                    placeholder="Поиск по названию проекта или логину..."
+                    placeholder="Поиск по проекту, задаче, логину, ID пользователя..."
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="max-w-md"
+                    className="pl-10"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={(v) => {
@@ -466,10 +507,15 @@ const RSYACleaningDashboard = () => {
                 </Select>
               </div>
 
-              <Card>
+              <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Проекты ({filteredProjects.length})</CardTitle>
-                  <CardDescription>Клик по строке откроет детали проекта</CardDescription>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <CardTitle>Проекты и задачи ({filteredProjects.length})</CardTitle>
+                      <CardDescription>Все названия проектов и первые задачи видны сразу. Клик по строке откроет детали.</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">{projects.length} всего</Badge>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {paginatedProjects.length > 0 ? (
@@ -477,15 +523,16 @@ const RSYACleaningDashboard = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>User ID</TableHead>
-                            <TableHead>Название</TableHead>
-                            <TableHead>Логин</TableHead>
-                            <TableHead className="text-center">Задачи</TableHead>
+                            <TableHead className="w-[90px]">ID</TableHead>
+                            <TableHead>Проект и задачи</TableHead>
+                            <TableHead>Аккаунт</TableHead>
+                            <TableHead className="text-center">Активность</TableHead>
                             <TableHead className="text-right">Запусков</TableHead>
-                            <TableHead className="text-right">Заблокировано</TableHead>
-                            <TableHead>Последний запуск</TableHead>
-                            <TableHead className="text-center">Статус</TableHead>
+	                            <TableHead className="text-right">Заблокировано</TableHead>
+	                            <TableHead>Последний запуск</TableHead>
+	                            <TableHead>Следующий запуск</TableHead>
+	                            <TableHead>Батч</TableHead>
+	                            <TableHead className="text-center">Статус</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -495,12 +542,35 @@ const RSYACleaningDashboard = () => {
                               className="cursor-pointer hover:bg-gray-50"
                               onClick={() => loadProjectDetail(project.id)}
                             >
-                              <TableCell className="font-medium">{project.id}</TableCell>
-                              <TableCell className="text-muted-foreground font-mono text-xs">{project.user_id}</TableCell>
-                              <TableCell className="font-medium">{project.name}</TableCell>
-                              <TableCell className="text-muted-foreground">{project.client_login || '-'}</TableCell>
+                              <TableCell className="align-top">
+                                <div className="font-semibold text-slate-900">#{project.id}</div>
+                                <div className="font-mono text-xs text-slate-400">u{project.user_id}</div>
+                              </TableCell>
+                              <TableCell className="align-top">
+                                <div className="font-semibold text-slate-950">{project.name}</div>
+                                <div className="mt-2 flex max-w-[520px] flex-wrap gap-1.5">
+                                  {(project.task_names || []).length > 0 ? (
+                                    <>
+                                      {(project.task_names || []).slice(0, 4).map((taskName) => (
+                                        <Badge key={taskName} variant="outline" className="max-w-[240px] truncate bg-slate-50 text-slate-700">
+                                          {taskName}
+                                        </Badge>
+                                      ))}
+                                      {(project.task_names || []).length > 4 && (
+                                        <Badge variant="secondary">+{(project.task_names || []).length - 4}</Badge>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-sm text-slate-400">Задач нет</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-top">
+                                <div className="text-sm text-slate-700">{project.client_login || 'Client-Login не указан'}</div>
+                                <div className="mt-1 text-xs text-slate-400">User ID: {project.user_id}</div>
+                              </TableCell>
                               <TableCell className="text-center">
-                                <Badge variant="outline">
+                                <Badge className={project.active_tasks_count > 0 ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
                                   {project.active_tasks_count}/{project.tasks_count}
                                 </Badge>
                               </TableCell>
@@ -509,11 +579,21 @@ const RSYACleaningDashboard = () => {
                                 <span className="text-red-600 font-semibold">{project.total_blocked}</span>
                               </TableCell>
                               <TableCell>
-                                {project.last_execution_at 
-                                  ? new Date(project.last_execution_at).toLocaleString('ru-RU')
-                                  : <span className="text-muted-foreground">Нет запусков</span>
-                                }
-                              </TableCell>
+	                                {project.last_execution_at ? formatDateTime(project.last_execution_at) : <span className="text-muted-foreground">Нет запусков</span>}
+	                              </TableCell>
+	                              <TableCell>
+	                                {project.schedule_active ? formatDateTime(project.next_run_at) : <Badge variant="secondary">Пауза</Badge>}
+	                              </TableCell>
+	                              <TableCell>
+	                                {project.last_batch_status ? (
+	                                  <div className="space-y-1">
+	                                    <Badge className={getBatchBadgeClass(project.last_batch_status)}>{project.last_batch_status}</Badge>
+	                                    {project.last_batch_processing_time_sec ? (
+	                                      <div className="text-xs text-muted-foreground">{project.last_batch_processing_time_sec}с</div>
+	                                    ) : null}
+	                                  </div>
+	                                ) : <span className="text-muted-foreground">-</span>}
+	                              </TableCell>
                               <TableCell className="text-center">
                                 {project.is_configured ? (
                                   <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Активен</Badge>
@@ -565,10 +645,26 @@ const RSYACleaningDashboard = () => {
 
           {viewMode === 'project-detail' && projectDetail && (
             <div>
-              <h1 className="text-3xl font-bold mb-6">{projectDetail.project_info.name}</h1>
-              <p className="text-muted-foreground mb-6">
-                ID: {projectDetail.project_info.id} | Логин: {projectDetail.project_info.client_login || '-'}
-              </p>
+              <div className="mb-6 flex flex-col gap-3 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline">Проект #{projectDetail.project_info.id}</Badge>
+                    {projectDetail.project_info.is_configured ? (
+                      <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Настроен</Badge>
+                    ) : (
+                      <Badge variant="secondary">Не настроен</Badge>
+                    )}
+                  </div>
+                  <h1 className="text-3xl font-bold text-slate-950">{projectDetail.project_info.name}</h1>
+                  <p className="mt-1 text-sm text-slate-500">
+                    User ID: {projectDetail.project_info.user_id} · Client-Login: {projectDetail.project_info.client_login || 'не указан'}
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => loadProjectDetail(projectDetail.project_info.id)}>
+                  <Icon name="RefreshCw" size={16} className="mr-2" />
+                  Обновить проект
+                </Button>
+              </div>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6">
                 <Card>
@@ -603,30 +699,63 @@ const RSYACleaningDashboard = () => {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Ошибок</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">{projectDetail.project_info.errors}</div>
-                    <p className="text-sm text-muted-foreground mt-1">Выполнений с ошибкой</p>
-                  </CardContent>
-                </Card>
+	                <Card>
+	                  <CardHeader className="pb-3">
+	                    <CardTitle className="text-sm font-medium">Следующий запуск</CardTitle>
+	                  </CardHeader>
+	                  <CardContent>
+	                    <div className="text-lg font-bold">
+	                      {projectDetail.project_info.schedule_active ? formatDateTime(projectDetail.project_info.next_run_at) : 'Пауза'}
+	                    </div>
+	                    <p className="text-sm text-muted-foreground mt-1">
+	                      Интервал: {projectDetail.project_info.interval_hours || '-'}ч
+	                    </p>
+	                  </CardContent>
+	                </Card>
               </div>
 
-              <Card className="mb-6">
+	              {projectDetail.project_info.last_batch_status && (
+	                <Card className="mb-6">
+	                  <CardHeader>
+	                    <CardTitle>Последний батч</CardTitle>
+	                    <CardDescription>Фактический статус последней обработки проекта</CardDescription>
+	                  </CardHeader>
+	                  <CardContent className="grid md:grid-cols-4 gap-4 text-sm">
+	                    <div>
+	                      <div className="text-muted-foreground">Статус</div>
+	                      <Badge className={projectDetail.project_info.last_batch_status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+	                        {projectDetail.project_info.last_batch_status}
+	                      </Badge>
+	                    </div>
+	                    <div>
+	                      <div className="text-muted-foreground">Старт</div>
+	                      <div className="font-medium">{formatDateTime(projectDetail.project_info.last_batch_started_at)}</div>
+	                    </div>
+	                    <div>
+	                      <div className="text-muted-foreground">Финиш</div>
+	                      <div className="font-medium">{formatDateTime(projectDetail.project_info.last_batch_completed_at)}</div>
+	                    </div>
+	                    <div>
+	                      <div className="text-muted-foreground">Время</div>
+	                      <div className="font-medium">{projectDetail.project_info.last_batch_processing_time_sec || '-'}с</div>
+	                    </div>
+	                  </CardContent>
+	                </Card>
+	              )}
+
+	              <Card className="mb-6">
                 <CardHeader>
                   <CardTitle>Задачи проекта</CardTitle>
-                  <CardDescription>Клик по задаче откроет детальную статистику</CardDescription>
+                  <CardDescription>Все названия задач, правила, запуски и ошибки по проекту</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {projectDetail.tasks_stats && projectDetail.tasks_stats.length > 0 ? (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>ID</TableHead>
-                          <TableHead>Описание</TableHead>
-                          <TableHead>Настройки</TableHead>
+                          <TableHead className="w-[90px]">ID</TableHead>
+                          <TableHead>Задача</TableHead>
+                          <TableHead>Правила</TableHead>
                           <TableHead>Статус</TableHead>
                           <TableHead className="text-right">Запусков</TableHead>
                           <TableHead className="text-right">Заблокировано</TableHead>
@@ -637,12 +766,7 @@ const RSYACleaningDashboard = () => {
                       <TableBody>
                         {projectDetail.tasks_stats.map((task: any) => {
                           const config = task.config || {};
-                          const configParts = [];
-                          if (config.min_clicks) configParts.push(`Клики ≥ ${config.min_clicks}`);
-                          if (config.min_cost) configParts.push(`Расход ≥ ${config.min_cost}₽`);
-                          if (config.max_ctr) configParts.push(`CTR ≤ ${config.max_ctr}%`);
-                          if (config.min_conversions !== undefined) configParts.push(`Конверсии ≥ ${config.min_conversions}`);
-                          if (config.max_cpc) configParts.push(`CPC ≤ ${config.max_cpc}₽`);
+                          const configParts = describeTaskConfig(config);
                           
                           return (
                             <TableRow 
@@ -650,14 +774,26 @@ const RSYACleaningDashboard = () => {
                               className="cursor-pointer hover:bg-gray-50"
                               onClick={() => loadTaskDetail(task.id)}
                             >
-                              <TableCell className="font-medium">{task.id}</TableCell>
-                              <TableCell>{task.description}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground max-w-[300px]">
-                                {configParts.length > 0 ? configParts.join(', ') : '-'}
+                              <TableCell className="align-top font-medium">t{task.id}</TableCell>
+                              <TableCell className="align-top">
+                                <div className="font-semibold text-slate-950">{task.description}</div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  Последний батч: {task.last_batch_completed_at ? formatDateTime(task.last_batch_completed_at) : 'нет'}
+                                </div>
+                              </TableCell>
+                              <TableCell className="max-w-[420px] align-top text-sm text-muted-foreground">
+                                {configParts.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {configParts.slice(0, 6).map((part) => (
+                                      <Badge key={part} variant="outline" className="bg-slate-50 text-slate-700">{part}</Badge>
+                                    ))}
+                                    {configParts.length > 6 && <Badge variant="secondary">+{configParts.length - 6}</Badge>}
+                                  </div>
+                                ) : '-'}
                               </TableCell>
                               <TableCell>
                                 {task.enabled ? (
-                                  <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Активна</Badge>
+                                  <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Активна</Badge>
                                 ) : (
                                   <Badge variant="secondary">Выключена</Badge>
                                 )}
@@ -669,7 +805,7 @@ const RSYACleaningDashboard = () => {
                               <TableCell className="text-right">{task.errors}</TableCell>
                               <TableCell>
                                 {task.last_executed_at 
-                                  ? new Date(task.last_executed_at).toLocaleString('ru-RU')
+                                  ? formatDateTime(task.last_executed_at)
                                   : <span className="text-muted-foreground">Нет запусков</span>
                                 }
                               </TableCell>
@@ -883,7 +1019,8 @@ const RSYACleaningDashboard = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Список заблокированных площадок ({executionPlatforms.length})</CardTitle>
+	                  <CardTitle>Примеры площадок ({executionPlatforms.length})</CardTitle>
+	                  <CardDescription>Заблокированные, совпавшие и оставленные примеры по этому выполнению</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {executionPlatforms.length > 0 ? (
@@ -900,19 +1037,28 @@ const RSYACleaningDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {executionPlatforms.map((platform, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-medium">{platform.domain}</TableCell>
+	                          <TableRow key={idx} className={isImportantPlatform(platform.domain) ? 'bg-amber-50' : ''}>
+	                            <TableCell className="font-medium">
+	                              <div className="flex items-center gap-2">
+	                                <span>{platform.domain}</span>
+	                                {isImportantPlatform(platform.domain) && (
+	                                  <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">важная</Badge>
+	                                )}
+	                              </div>
+	                            </TableCell>
                             <TableCell className="text-right">{platform.cost?.toFixed(2)} ₽</TableCell>
                             <TableCell className="text-right">{platform.clicks}</TableCell>
                             <TableCell className="text-right">{platform.conversions || 0}</TableCell>
                             <TableCell>
-                              {platform.status === 'blocked' ? (
-                                <Badge className="bg-green-100 text-green-800">Заблокирован</Badge>
-                              ) : platform.status === 'pending' ? (
-                                <Badge className="bg-yellow-100 text-yellow-800">В очереди</Badge>
-                              ) : (
-                                <Badge className="bg-red-100 text-red-800">Ошибка</Badge>
-                              )}
+	                              {platform.status === 'blocked' ? (
+	                                <Badge className="bg-red-100 text-red-800">Заблокируется</Badge>
+	                              ) : platform.status === 'kept_example' ? (
+	                                <Badge className="bg-green-100 text-green-800">Останется</Badge>
+	                              ) : platform.status === 'matched_not_blocked' ? (
+	                                <Badge className="bg-orange-100 text-orange-800">Совпала, не заблокирована</Badge>
+	                              ) : (
+	                                <Badge variant="secondary">{platform.status}</Badge>
+	                              )}
                             </TableCell>
                             <TableCell>
                               {platform.blocked_at 

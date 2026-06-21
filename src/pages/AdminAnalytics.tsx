@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import AdminSidebar from '@/components/layout/AdminSidebar';
+import { adminFetch } from '@/lib/admin-auth';
 
 interface Analytics {
   overview: {
@@ -88,9 +89,7 @@ export default function AdminAnalytics() {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=analytics`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=analytics`);
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
@@ -104,9 +103,7 @@ export default function AdminAnalytics() {
 
   const loadProjects = async () => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_projects`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_projects`);
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects || []);
@@ -118,9 +115,7 @@ export default function AdminAnalytics() {
 
   const loadDashboardStats = async () => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_dashboard_stats`);
       if (response.ok) {
         const data = await response.json();
         setDashboardStats(data);
@@ -132,9 +127,7 @@ export default function AdminAnalytics() {
 
   const loadWorkersHealth = async () => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_workers_health`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_workers_health`);
       if (response.ok) {
         const data = await response.json();
         setWorkersHealth(data);
@@ -148,7 +141,7 @@ export default function AdminAnalytics() {
     if (!confirm('Запустить scheduler вручную?\n\nScheduler ИГНОРИРУЕТ расписание и обработает ВСЕ активные проекты прямо сейчас.')) return;
     
     try {
-      const response = await fetch(`${BACKEND_URLS['rsya-scheduler']}?force_all=true`, {
+      const response = await adminFetch(`${BACKEND_URLS['rsya-scheduler']}?force_all=true`, {
         method: 'GET'
       });
 
@@ -168,7 +161,7 @@ export default function AdminAnalytics() {
     if (!confirm('Запустить worker вручную?\n\nWorker обработает pending батчи из базы данных.')) return;
     
     try {
-      const response = await fetch(BACKEND_URLS['rsya-batch-worker'], {
+      const response = await adminFetch(BACKEND_URLS['rsya-batch-worker'], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}'
@@ -190,9 +183,7 @@ export default function AdminAnalytics() {
     if (projectTasks[projectId]) return;
     
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_project_detail&project_id=${projectId}`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_project_detail&project_id=${projectId}`);
       if (response.ok) {
         const data = await response.json();
         setProjectTasks(prev => ({ ...prev, [projectId]: data.tasks_stats || [] }));
@@ -215,10 +206,9 @@ export default function AdminAnalytics() {
     if (!confirm(`Вы уверены что хотите удалить проект "${projectName}" (ID: ${projectId})?\n\nЭто удалит:\n- Проект\n- Все задачи проекта\n- Все логи выполнений\n- Все записи в очереди блокировок\n- Все логи блокировок\n\nДействие необратимо!`)) return;
     
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=delete_project&project_id=${projectId}`, {
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=delete_project&project_id=${projectId}`, {
         method: 'POST',
         headers: {
-          'X-Admin-Key': 'directkit_admin_2024',
           'Content-Type': 'application/json'
         }
       });
@@ -240,10 +230,9 @@ export default function AdminAnalytics() {
     if (!confirm(`Вы уверены что хотите удалить задачу "${taskDescription}" (ID: ${taskId})?\n\nЭто удалит:\n- Задачу\n- Все логи выполнений задачи\n- Все записи в очереди блокировок\n- Все логи блокировок\n\nДействие необратимо!`)) return;
     
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=delete_task&task_id=${taskId}`, {
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=delete_task&task_id=${taskId}`, {
         method: 'POST',
         headers: {
-          'X-Admin-Key': 'directkit_admin_2024',
           'Content-Type': 'application/json'
         }
       });
@@ -927,10 +916,9 @@ function CleanupSection({ title, action, dangerous = false }: { title: string; a
     
     try {
       const url = `${BACKEND_URLS.admin}?action=${action}`;
-      const response = await fetch(url, {
+      const response = await adminFetch(url, {
         method: 'POST',
         headers: {
-          'X-Admin-Key': 'directkit_admin_2024',
           'Content-Type': 'application/json'
         }
       });

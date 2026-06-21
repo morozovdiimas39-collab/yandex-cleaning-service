@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 
 interface AdminLoginProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (username: string, password: string) => void | Promise<void>;
+  loading?: boolean;
+  error?: string;
 }
 
-export default function AdminLogin({ onLogin }: AdminLoginProps) {
+export default function AdminLogin({ onLogin, loading = false, error = '' }: AdminLoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -38,6 +40,7 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">
@@ -48,10 +51,12 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
-            <Button type="submit" className="w-full">
-              <Icon name="LogIn" className="w-4 h-4 mr-2" />
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading}>
+              <Icon name={loading ? 'Loader2' : 'LogIn'} className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Войти
             </Button>
           </form>

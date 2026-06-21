@@ -1,5 +1,7 @@
 {
   "admin": "https://functions.yandexcloud.net/d4esvv2g7o3a3v2pm525",
+  "admin-auth": "https://functions.yandexcloud.net/d4ed74tls9e8u1qtp831",
+  "ai-keyword-planner": "https://functions.yandexcloud.net/d4e0ki7nl6c0dml40loj",
   "api": "https://functions.yandexcloud.net/d4ed7btb94vg4apdulfq",
   "rsya-async-poller": "https://functions.yandexcloud.net/d4emv493feplf9hvgkb4",
   "rsya-automation": "https://functions.yandexcloud.net/d4ed0ggdp6mc8qj3skc9",
@@ -7,6 +9,7 @@
   "rsya-block-worker": "https://functions.yandexcloud.net/d4ecp99plhc7m6v6h0n6",
   "rsya-health": "https://functions.yandexcloud.net/d4eq1q9g6hlg5q4n4t6p",
   "rsya-projects": "https://functions.yandexcloud.net/d4elrotudgnkfmf70iad",
+  "rsya-preview": "https://functions.yandexcloud.net/d4e6omo4j2ki945cad2b",
   "rsya-rotation": "https://functions.yandexcloud.net/d4eissjuob65p80ntopi",
   "rsya-scheduler": "https://functions.yandexcloud.net/d4e5amqqsd544qaf39ls",
   "save-git-file": "https://functions.yandexcloud.net/d4e876drsbs7mmtsngot",

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BACKEND_URLS } from '@/config/backend-urls';
-import AdminLogin from '@/components/admin/AdminLogin';
 import AdminHeader from '@/components/admin/AdminHeader';
+import { adminFetch, logoutAdmin } from '@/lib/admin-auth';
 import AdminTabs, { TabType } from '@/components/admin/AdminTabs';
 import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
@@ -17,8 +17,8 @@ interface User {
   phone?: string;
   planType: string;
   status: string;
-  expiresAt: string;
-  createdAt: string;
+  expiresAt?: string | null;
+  createdAt?: string | null;
   hasAccess?: boolean;
 }
 
@@ -30,12 +30,37 @@ interface Stats {
   expiringWeek: number;
 }
 
-const ADMIN_KEY = 'directkit_admin_2024';
+interface AdminOverview {
+  overview: {
+    totalProjects: number;
+    activeProjects: number;
+    totalTasks: number;
+    activeTasks: number;
+    totalUsers: number;
+    totalClusteringProjects: number;
+    totalWordstatTasks: number;
+    totalBlockQueue: number;
+  };
+  rsya: {
+    totalExecutions: number;
+    successfulExecutions: number;
+    failedExecutions: number;
+    totalBlocked: number;
+    avgBlockedPerExecution: number;
+  };
+  wordstat: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    totalKeywords: number;
+  };
+}
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -58,49 +83,25 @@ export default function AdminPage() {
   const LIMIT = 50;
 
   useEffect(() => {
-    const authStatus = sessionStorage.getItem('adminAuth');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-      loadInitialData();
-    }
+    loadInitialData();
   }, []);
 
-  const handleLogin = (username: string, password: string) => {
-    if (username === 'admin' && password === 'directkit2024') {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('adminAuth', 'true');
-      loadInitialData();
-      toast({
-        title: 'Вход выполнен',
-        description: 'Добро пожаловать в админ-панель'
-      });
-    } else {
-      toast({
-        title: 'Ошибка входа',
-        description: 'Неверный логин или пароль',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('adminAuth');
+  const handleLogout = async () => {
+    await logoutAdmin();
+    window.location.assign('/admin');
   };
 
   const loadInitialData = async () => {
-    await Promise.all([loadUsers(0, true), loadStats()]);
+    await Promise.all([loadUsers(0, true), loadStats(), loadAdminOverview()]);
   };
 
   const loadStats = async () => {
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_stats`,
         {
           method: 'GET',
-          headers: {
-            'X-Admin-Key': ADMIN_KEY
-          }
+          headers: {}
         }
       );
 
@@ -121,13 +122,11 @@ export default function AdminPage() {
     }
 
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_all&limit=${LIMIT}&offset=${offsetValue}`,
         {
           method: 'GET',
-          headers: {
-            'X-Admin-Key': ADMIN_KEY
-          }
+          headers: {}
         }
       );
 
@@ -157,6 +156,19 @@ export default function AdminPage() {
     }
   };
 
+  const loadAdminOverview = async () => {
+    try {
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=analytics`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setAdminOverview(data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки обзора админки:', error);
+    }
+  };
+
   const loadMoreUsers = () => {
     if (!loadingMore && hasMore) {
       loadUsers(offset, false);
@@ -166,14 +178,11 @@ export default function AdminPage() {
   const updateSubscription = async (targetUserId: string, planType: string, days: number) => {
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_update`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Key': ADMIN_KEY
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: targetUserId,
             planType,
@@ -259,13 +268,11 @@ export default function AdminPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_delete&userId=${userId}`,
         {
           method: 'DELETE',
-          headers: {
-            'X-Admin-Key': ADMIN_KEY
-          }
+          headers: {}
         }
       );
 
@@ -300,8 +307,8 @@ export default function AdminPage() {
     }
 
     filtered.sort((a, b) => {
-      const aValue = a[sortBy as keyof User] || '';
-      const bValue = b[sortBy as keyof User] || '';
+      const aValue = String(a[sortBy as keyof User] || '');
+      const bValue = String(b[sortBy as keyof User] || '');
       
       if (sortOrder === 'asc') {
         return aValue > bValue ? 1 : -1;
@@ -332,13 +339,11 @@ export default function AdminPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_search&userId=${userId}`,
         {
           method: 'GET',
-          headers: {
-            'X-Admin-Key': ADMIN_KEY
-          }
+          headers: {}
         }
       );
 
@@ -368,10 +373,6 @@ export default function AdminPage() {
     }
   };
 
-  if (!isAuthenticated) {
-    return <AdminLogin onLogin={handleLogin} />;
-  }
-
   const filteredUsers = getFilteredUsers();
 
   return (
@@ -385,6 +386,7 @@ export default function AdminPage() {
             stats={stats}
             newPlan={newPlan}
             loading={loading}
+            adminOverview={adminOverview}
             onNewPlanChange={setNewPlan}
             onUpdateSubscription={handleUpdateSubscription}
             onSearchUser={handleSearchUser}

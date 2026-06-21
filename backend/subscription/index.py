@@ -8,6 +8,7 @@ Updated: 2025-11-20 credentials refresh
 
 import json
 import os
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import psycopg2
@@ -15,6 +16,28 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
+
+
+def verify_admin_session(cur, headers: Dict[str, Any]):
+    authorization = headers.get('authorization') or headers.get('Authorization') or ''
+    if not authorization.lower().startswith('bearer '):
+        return None
+    token = authorization[7:].strip()
+    if len(token) < 32:
+        return None
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    cur.execute(f"""
+        SELECT s.id, s.admin_user_id
+        FROM {SCHEMA}.admin_sessions s
+        JOIN {SCHEMA}.admin_users u ON u.id = s.admin_user_id
+        WHERE s.token_hash = %s
+          AND s.revoked_at IS NULL
+          AND s.expires_at > NOW()
+          AND u.is_active = TRUE
+          AND u.must_change_password = FALSE
+        LIMIT 1
+    """, (token_hash,))
+    return cur.fetchone()
 
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
@@ -32,7 +55,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Admin-Key',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, Authorization',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''
@@ -40,15 +63,40 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     headers = event.get('headers', {})
     user_id = headers.get('x-user-id') or headers.get('X-User-Id')
-    admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
     query_params = event.get('queryStringParameters') or {}
     
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # Админские эндпоинты
-        if admin_key == 'directkit_admin_2024':
+        # Админские эндпоинты доступны только по серверной сессии.
+        if verify_admin_session(cur, headers):
+            def format_admin_user(row):
+                now = datetime.now()
+                sub_plan = row.get('plan_type')
+                sub_trial_ends = row.get('trial_ends_at')
+                sub_ends = row.get('subscription_ends_at')
+                is_infinite = row.get('is_infinite') or False
+                has_access = bool(is_infinite)
+                expires_at = None
+
+                if sub_plan == 'trial' and sub_trial_ends:
+                    has_access = now < sub_trial_ends
+                    expires_at = sub_trial_ends.isoformat()
+                elif sub_plan == 'monthly' and sub_ends:
+                    has_access = now < sub_ends
+                    expires_at = sub_ends.isoformat()
+
+                return {
+                    'userId': str(row['id']),
+                    'phone': row.get('phone', ''),
+                    'planType': sub_plan or 'free',
+                    'status': row.get('status') or ('active' if has_access else 'none'),
+                    'hasAccess': has_access,
+                    'expiresAt': expires_at,
+                    'createdAt': row['created_at'].isoformat() if row.get('created_at') else None
+                }
+
             # GET admin_all - получить всех пользователей
             if method == 'GET' and query_params.get('action') == 'admin_all':
                 limit = int(query_params.get('limit', 100))
@@ -69,29 +117,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 rows = cur.fetchall()
                 cur.execute(f"SELECT COUNT(*) as total FROM {SCHEMA}.users")
                 total = cur.fetchone()['total']
-                users = []
-                now = datetime.now()
-                for row in rows:
-                    sub_plan = row.get('plan_type')
-                    sub_trial_ends = row.get('trial_ends_at')
-                    sub_ends = row.get('subscription_ends_at')
-                    has_access = False
-                    expires_at = None
-                    if sub_plan == 'trial' and sub_trial_ends:
-                        has_access = now < sub_trial_ends
-                        expires_at = sub_trial_ends.isoformat()
-                    elif sub_plan == 'monthly' and sub_ends:
-                        has_access = now < sub_ends
-                        expires_at = sub_ends.isoformat()
-                    users.append({
-                        'userId': str(row['id']),
-                        'phone': row.get('phone', ''),
-                        'planType': sub_plan or 'trial',
-                        'status': row.get('status') or 'active',
-                        'hasAccess': has_access,
-                        'expiresAt': expires_at,
-                        'createdAt': row['created_at'].isoformat() if row.get('created_at') else None
-                    })
+                users = [format_admin_user(row) for row in rows]
                 
                 return {
                     'statusCode': 200,
@@ -103,6 +129,37 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'offset': offset,
                         'hasMore': (offset + limit) < total
                     })
+                }
+
+            # GET admin_search - найти одного пользователя
+            if method == 'GET' and query_params.get('action') == 'admin_search':
+                target_user_id = query_params.get('userId')
+
+                if not target_user_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'userId required'})
+                    }
+
+                cur.execute(
+                    f"""SELECT u.id, u.phone, u.created_at,
+                              s.user_id AS sub_user_id, s.plan_type, s.status,
+                              s.trial_started_at, s.trial_ends_at,
+                              s.subscription_started_at, s.subscription_ends_at,
+                              s.is_infinite, s.created_at AS sub_created_at
+                       FROM {SCHEMA}.users u
+                       LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
+                       WHERE CAST(u.id AS TEXT) = %s OR u.phone = %s
+                       LIMIT 1""",
+                    (target_user_id, target_user_id)
+                )
+                row = cur.fetchone()
+
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'user': format_admin_user(row) if row else None})
                 }
             
             # POST admin_update - обновить подписку любого пользователя
@@ -250,7 +307,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET' and query_params.get('action') == 'admin_stats':
                 now = datetime.now()
                 
-                cur.execute(f"SELECT COUNT(*) as total FROM {SCHEMA}.subscriptions")
+                cur.execute(f"SELECT COUNT(*) as total FROM {SCHEMA}.users")
                 total = cur.fetchone()['total']
                 
                 cur.execute(
@@ -268,7 +325,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 active_monthly = cur.fetchone()['count']
                 
                 cur.execute(
-                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.subscriptions 
+                    f"""SELECT COUNT(*) as count FROM {SCHEMA}.users
                        WHERE created_at >= %s""",
                     (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),)
                 )
@@ -295,6 +352,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     })
                 }
         
+        if str(query_params.get('action') or '').startswith('admin_'):
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Admin session required'})
+            }
+
         # Обычные пользовательские эндпоинты
         if not user_id:
             return {
@@ -314,7 +378,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'status': 'active',
                     'expiresAt': None
                 })
-            )
+            }
         
         # POST - активация платной подписки или создание платежа (пока не используется)
         elif method == 'POST':

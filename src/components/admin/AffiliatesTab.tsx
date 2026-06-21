@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import { useToast } from '@/hooks/use-toast';
+import { adminFetch } from '@/lib/admin-auth';
 
 interface Partner {
   user_id: number;
@@ -27,8 +28,6 @@ interface Referral {
   paid_at: string | null;
 }
 
-const ADMIN_KEY = 'directkit_admin_2024';
-
 export default function AffiliatesTab() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -43,13 +42,11 @@ export default function AffiliatesTab() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
+      const response = await adminFetch(
         `${BACKEND_URLS.subscription}?action=admin_affiliates`,
         {
           method: 'GET',
-          headers: {
-            'X-Admin-Key': ADMIN_KEY
-          }
+          headers: {}
         }
       );
 

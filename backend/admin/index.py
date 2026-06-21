@@ -8,13 +8,39 @@ Returns: HTTP response со списком пользователей или р�
 import json
 import os
 import urllib.request
+import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
-ADMIN_KEY = os.environ.get('ADMIN_KEY')
+
+def get_bearer_token(headers: Dict[str, Any]):
+    authorization = headers.get('authorization') or headers.get('Authorization') or ''
+    if not authorization.lower().startswith('bearer '):
+        return None
+    token = authorization[7:].strip()
+    return token if len(token) >= 32 else None
+
+
+def verify_admin_session(cur, headers: Dict[str, Any]):
+    token = get_bearer_token(headers)
+    if not token:
+        return None
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    cur.execute(f"""
+        SELECT s.id as session_id, s.admin_user_id, u.username
+        FROM {SCHEMA}.admin_sessions s
+        JOIN {SCHEMA}.admin_users u ON u.id = s.admin_user_id
+        WHERE s.token_hash = %s
+          AND s.revoked_at IS NULL
+          AND s.expires_at > NOW()
+          AND u.is_active = TRUE
+          AND u.must_change_password = FALSE
+        LIMIT 1
+    """, (token_hash,))
+    return cur.fetchone()
 
 def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
@@ -31,7 +57,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Admin-Key',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, Authorization',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''
@@ -39,7 +65,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     headers = event.get('headers', {})
     user_id = headers.get('x-user-id') or headers.get('X-User-Id')
-    admin_key = headers.get('x-admin-key') or headers.get('X-Admin-Key')
     
     conn = get_db_connection()
     cur = conn.cursor()
@@ -49,19 +74,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         action = params.get('action')
         stats_action = params.get('stats')
         
-        # Админские действия с admin key (не требуют user_id)
+        # Админские действия требуют короткоживущую серверную сессию.
         if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'pause_all_rsya', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
-            if not ADMIN_KEY:
+            if not verify_admin_session(cur, headers):
                 return {
-                    'statusCode': 500,
+                    'statusCode': 401,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'ADMIN_KEY environment variable not set'})
-                }
-            if admin_key != ADMIN_KEY:
-                return {
-                    'statusCode': 403,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'Invalid admin key'})
+                    'body': json.dumps({'error': 'Admin session required'})
                 }
             
             if action == 'analytics':
@@ -507,14 +526,14 @@ def get_overview_stats(cur) -> Dict[str, Any]:
     
     execution_stats = cur.fetchall()
     
-    # Статистика очереди
+    # Статистика батчей РСЯ вместо старой block_queue
     cur.execute("""
         SELECT 
             status,
             COUNT(*) as count,
-            SUM(cost) as total_cost,
-            SUM(clicks) as total_clicks
-        FROM """ + SCHEMA + """.block_queue
+            0 as total_cost,
+            0 as total_clicks
+        FROM """ + SCHEMA + """.rsya_campaign_batches
         GROUP BY status
     """)
     
@@ -546,7 +565,7 @@ def get_overview_stats(cur) -> Dict[str, Any]:
     
     recent_executions = cur.fetchall()
     
-    # Топ проблемных площадок (много попыток блокировки)
+    # Топ проблемных площадок по ошибкам/предупреждениям
     cur.execute("""
         SELECT 
             domain,
@@ -554,8 +573,8 @@ def get_overview_stats(cur) -> Dict[str, Any]:
             MAX(error_message) as last_error,
             SUM(cost) as total_cost,
             SUM(clicks) as total_clicks
-        FROM """ + SCHEMA + """.block_queue
-        WHERE status = 'failed'
+        FROM """ + SCHEMA + """.rsya_blocking_logs
+        WHERE error_message IS NOT NULL
         GROUP BY domain
         ORDER BY attempts DESC
         LIMIT 10
@@ -680,50 +699,48 @@ def get_blocking_logs(cur, params: Dict) -> Dict[str, Any]:
 
 
 def get_queue_status(cur) -> Dict[str, Any]:
-    '''Текущее состояние очереди блокировок'''
+    '''Текущее состояние очереди батчей РСЯ'''
     
-    # Общая статистика очереди
+    # Общая статистика батчей
     cur.execute("""
         SELECT 
             status,
             COUNT(*) as count,
-            SUM(cost) as total_cost,
-            SUM(clicks) as total_clicks,
-            SUM(conversions) as total_conversions,
-            AVG(attempts) as avg_attempts
-        FROM """ + SCHEMA + """.block_queue
+            0 as total_cost,
+            0 as total_clicks,
+            0 as total_conversions,
+            AVG(retry_count) as avg_attempts
+        FROM """ + SCHEMA + """.rsya_campaign_batches
         GROUP BY status
     """)
     
     status_breakdown = cur.fetchall()
     
-    # Старейшие pending записи
+    # Старейшие pending батчи
     cur.execute("""
         SELECT 
-            bq.*,
+            b.*,
             p.name as project_name,
-            t.description as task_description
-        FROM """ + SCHEMA + """.block_queue bq
-        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON bq.project_id = p.id
-        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON bq.task_id = t.id
-        WHERE bq.status = 'pending'
-        ORDER BY bq.created_at ASC
+            NULL as task_description
+        FROM """ + SCHEMA + """.rsya_campaign_batches b
+        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON b.project_id = p.id
+        WHERE b.status = 'pending'
+        ORDER BY b.created_at ASC
         LIMIT 20
     """)
     
     oldest_pending = cur.fetchall()
     
-    # Проблемные записи (много попыток)
+    # Проблемные батчи (много попыток)
     cur.execute("""
         SELECT 
-            bq.*,
+            b.*,
             p.name as project_name,
-            t.description as task_description
-        FROM """ + SCHEMA + """.block_queue bq
-        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON bq.project_id = p.id
-        LEFT JOIN """ + SCHEMA + """.rsya_tasks t ON bq.task_id = t.id
-        WHERE bq.attempts > 3
-        ORDER BY bq.attempts DESC
+            NULL as task_description
+        FROM """ + SCHEMA + """.rsya_campaign_batches b
+        LEFT JOIN """ + SCHEMA + """.rsya_projects p ON b.project_id = p.id
+        WHERE b.retry_count > 3
+        ORDER BY b.retry_count DESC
         LIMIT 20
     """)
     
@@ -809,13 +826,13 @@ def get_project_stats(cur, params: Dict) -> Dict[str, Any]:
     
     tasks_stats = cur.fetchall()
     
-    # Очередь по проекту
+    # Батчи по проекту
     cur.execute("""
         SELECT 
             status,
             COUNT(*) as count,
-            SUM(cost) as total_cost
-        FROM """ + SCHEMA + """.block_queue
+            0 as total_cost
+        FROM """ + SCHEMA + """.rsya_campaign_batches
         WHERE project_id = %s
         GROUP BY status
     """, (project_id,))
@@ -843,7 +860,7 @@ def get_system_analytics(cur) -> Dict[str, Any]:
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.users) as total_users,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.clustering_projects) as total_clustering_projects,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.wordstat_tasks) as total_wordstat_tasks,
-            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue) as total_block_queue
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches) as total_block_queue
     """)
     
     overview = cur.fetchone()
@@ -917,13 +934,34 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
             p.is_configured,
             COUNT(DISTINCT t.id) as tasks_count,
             COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
+            COALESCE(
+                ARRAY_REMOVE(ARRAY_AGG(DISTINCT t.description) FILTER (WHERE t.id IS NOT NULL), NULL),
+                ARRAY[]::text[]
+            ) as task_names,
             COUNT(DISTINCT l.id) as total_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
-            MAX(l.started_at) as last_execution_at
+            MAX(l.started_at) as last_execution_at,
+            s.next_run_at,
+            s.last_run_at,
+            s.interval_hours,
+            s.is_active as schedule_active,
+            lb.status as last_batch_status,
+            lb.completed_at as last_batch_completed_at,
+            lb.processing_time_sec as last_batch_processing_time_sec
         FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
-        GROUP BY p.id, p.user_id, p.name, p.client_login, p.is_configured
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_project_schedule s ON s.project_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT status, completed_at, processing_time_sec
+            FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
+            WHERE b.project_id = p.id
+            ORDER BY b.created_at DESC
+            LIMIT 1
+        ) lb ON true
+        GROUP BY p.id, p.user_id, p.name, p.client_login, p.is_configured,
+                 s.next_run_at, s.last_run_at, s.interval_hours, s.is_active,
+                 lb.status, lb.completed_at, lb.processing_time_sec
         ORDER BY p.id DESC
     """)
     
@@ -943,12 +981,30 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
             COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
             COUNT(DISTINCT l.id) as total_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
-            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors,
+            s.next_run_at,
+            s.last_run_at,
+            s.interval_hours,
+            s.is_active as schedule_active,
+            lb.status as last_batch_status,
+            lb.started_at as last_batch_started_at,
+            lb.completed_at as last_batch_completed_at,
+            lb.processing_time_sec as last_batch_processing_time_sec,
+            lb.error_message as last_batch_error
         FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_project_schedule s ON s.project_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT status, started_at, completed_at, processing_time_sec, error_message
+            FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
+            WHERE b.project_id = p.id
+            ORDER BY b.created_at DESC
+            LIMIT 1
+        ) lb ON true
         WHERE p.id = %s
-        GROUP BY p.id
+        GROUP BY p.id, s.next_run_at, s.last_run_at, s.interval_hours, s.is_active,
+                 lb.status, lb.started_at, lb.completed_at, lb.processing_time_sec, lb.error_message
     """, (project_id,))
     
     project_info = cur.fetchone()
@@ -963,9 +1019,13 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
             t.last_executed_at,
             COUNT(l.id) as total_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
-            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors
+            COUNT(CASE WHEN l.status = 'error' THEN 1 END) as errors,
+            MAX(l.started_at) as last_execution_started_at,
+            MAX(b.created_at) as last_batch_created_at,
+            MAX(b.completed_at) as last_batch_completed_at
         FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b ON b.project_id = t.project_id
         WHERE t.project_id = %s
         GROUP BY t.id, t.description, t.enabled, t.config, t.last_executed_at
         ORDER BY t.id
@@ -1012,8 +1072,8 @@ def get_rsya_task_detail(cur, task_id: int) -> Dict[str, Any]:
             COUNT(CASE WHEN l.status IN ('completed', 'success') THEN 1 END) as successful_executions,
             COUNT(CASE WHEN l.status = 'error' THEN 1 END) as failed_executions,
             COALESCE(SUM(l.placements_blocked), 0) as total_blocked,
-            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue 
-             WHERE task_id = t.id AND status = 'pending') as pending_in_queue
+            0 as pending_in_queue,
+            MAX(l.started_at) as last_execution_started_at
         FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = t.project_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.task_id = t.id
@@ -1097,13 +1157,11 @@ def get_rsya_execution_detail(cur, execution_id: int) -> Dict[str, Any]:
             bl.clicks,
             bl.conversions,
             bl.created_at,
-            bq.status,
-            bq.processed_at as blocked_at,
-            bq.attempts,
-            bq.error_message
+            bl.action as status,
+            bl.created_at as blocked_at,
+            bl.attempts,
+            bl.error_message
         FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs bl
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.block_queue bq 
-            ON bq.domain = bl.domain AND bq.project_id = bl.project_id
         WHERE bl.execution_log_id = %s
         ORDER BY bl.cost DESC
         LIMIT 200
@@ -1132,9 +1190,9 @@ def get_rsya_dashboard_stats(cur) -> Dict[str, Any]:
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE started_at > NOW() - INTERVAL '30 days') as executions_30d,
             (SELECT COALESCE(SUM(placements_blocked), 0) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs) as total_blocked,
             (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE status = 'error' AND started_at > NOW() - INTERVAL '24 hours') as errors_24h,
-            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'pending') as queue_pending,
-            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'processing') as queue_processing,
-            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE status = 'failed') as queue_failed
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE status = 'pending') as queue_pending,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE status = 'processing') as queue_processing,
+            (SELECT COUNT(*) FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE status = 'failed') as queue_failed
     """)
     
     kpi = cur.fetchone()
@@ -1300,66 +1358,64 @@ def get_rsya_dashboard_stats(cur) -> Dict[str, Any]:
 def get_rsya_workers_health(cur) -> Dict[str, Any]:
     '''Статистика по воркерам и scheduler'ам для мониторинга'''
     
-    # Статистика очереди блокировок
+    # Статистика батчей РСЯ
     cur.execute("""
         SELECT 
             status,
             COUNT(*) as count,
-            COALESCE(SUM(cost), 0) as total_cost,
-            COALESCE(AVG(attempts), 0) as avg_attempts,
+            0 as total_cost,
+            COALESCE(AVG(retry_count), 0) as avg_attempts,
             MIN(created_at) as oldest_record,
             MAX(created_at) as newest_record
-        FROM t_p97630513_yandex_cleaning_serv.block_queue
+        FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
         GROUP BY status
     """)
     
     queue_status = cur.fetchall()
     
-    # Проблемные записи в очереди (много попыток)
+    # Проблемные батчи (много попыток)
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
+            b.id,
+            NULL as domain,
+            b.project_id,
             p.name as project_name,
-            bq.task_id,
-            t.description as task_description,
-            bq.status,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.error_message,
-            bq.created_at
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.attempts >= 3
-        ORDER BY bq.attempts DESC, bq.created_at ASC
+            NULL as task_id,
+            NULL as task_description,
+            b.status,
+            b.retry_count as attempts,
+            0 as cost,
+            0 as clicks,
+            b.error_message,
+            b.created_at
+        FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = b.project_id
+        WHERE b.retry_count >= 3 OR b.status = 'failed'
+        ORDER BY b.retry_count DESC, b.created_at ASC
         LIMIT 50
     """)
     
     problematic_queue = cur.fetchall()
     
-    # Старые pending записи (ждут > 1 часа)
+    # Старые pending батчи (ждут > 1 часа)
     cur.execute("""
         SELECT 
-            bq.id,
-            bq.domain,
-            bq.project_id,
+            b.id,
+            NULL as domain,
+            b.project_id,
             p.name as project_name,
-            bq.task_id,
-            t.description as task_description,
-            bq.attempts,
-            bq.cost,
-            bq.clicks,
-            bq.created_at,
-            EXTRACT(EPOCH FROM (NOW() - bq.created_at)) / 3600 as hours_waiting
-        FROM t_p97630513_yandex_cleaning_serv.block_queue bq
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = bq.project_id
-        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.id = bq.task_id
-        WHERE bq.status = 'pending'
-          AND bq.created_at < NOW() - INTERVAL '1 hour'
-        ORDER BY bq.created_at ASC
+            NULL as task_id,
+            NULL as task_description,
+            b.retry_count as attempts,
+            0 as cost,
+            0 as clicks,
+            b.created_at,
+            EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 3600 as hours_waiting
+        FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = b.project_id
+        WHERE b.status = 'pending'
+          AND b.created_at < NOW() - INTERVAL '1 hour'
+        ORDER BY b.created_at ASC
         LIMIT 50
     """)
     
@@ -1502,7 +1558,6 @@ def pause_all_rsya(cur, conn):
         'tasks_disabled': 0,
         'batches_cancelled': 0,
         'pending_reports_cancelled': 0,
-        'queue_cancelled': 0,
         'locks_deleted': 0,
     }
 
@@ -1539,15 +1594,6 @@ def pause_all_rsya(cur, conn):
     """)
     stats['pending_reports_cancelled'] = cur.rowcount
 
-    cur.execute("""
-        UPDATE t_p97630513_yandex_cleaning_serv.block_queue
-        SET status = 'cancelled',
-            processed_at = COALESCE(processed_at, NOW()),
-            error_message = COALESCE(error_message, 'Paused by admin')
-        WHERE status IN ('pending', 'processing')
-    """)
-    stats['queue_cancelled'] = cur.rowcount
-
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks")
     stats['locks_deleted'] = cur.rowcount
 
@@ -1567,15 +1613,11 @@ def delete_project(cur, conn, project_id: int):
         'tasks': 0,
         'execution_logs': 0,
         'blocking_logs': 0,
-        'block_queue': 0,
         'campaign_batches': 0
     }
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs WHERE project_id = %s", (project_id,))
     stats['blocking_logs'] = cur.rowcount
-    
-    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE project_id = %s", (project_id,))
-    stats['block_queue'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE project_id = %s", (project_id,))
     stats['execution_logs'] = cur.rowcount
@@ -1592,7 +1634,7 @@ def delete_project(cur, conn, project_id: int):
     
     return {
         'success': True,
-        'message': f'Проект удален. Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}',
+        'message': f'Проект удален. Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Батчей: {stats["campaign_batches"]}',
         'deleted': stats
     }
 
@@ -1603,14 +1645,11 @@ def delete_task(cur, conn, task_id: int):
     stats = {
         'execution_logs': 0,
         'blocking_logs': 0,
-        'block_queue': 0
+        'campaign_batches': 0
     }
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs WHERE task_id = %s", (task_id,))
     stats['blocking_logs'] = cur.rowcount
-    
-    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE task_id = %s", (task_id,))
-    stats['block_queue'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE task_id = %s", (task_id,))
     stats['execution_logs'] = cur.rowcount
@@ -1621,7 +1660,7 @@ def delete_task(cur, conn, task_id: int):
     
     return {
         'success': True,
-        'message': f'Задача удалена. Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}',
+        'message': f'Задача удалена. Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}',
         'deleted': stats
     }
 
@@ -1634,7 +1673,6 @@ def delete_all_projects(cur, conn):
         'tasks': 0,
         'execution_logs': 0,
         'blocking_logs': 0,
-        'block_queue': 0,
         'campaign_batches': 0,
         'campaign_locks': 0,
         'task_processing_status': 0
@@ -1643,9 +1681,6 @@ def delete_all_projects(cur, conn):
     # Удаляем в правильном порядке (от зависимых к главным)
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs")
     stats['blocking_logs'] = cur.rowcount
-    
-    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue")
-    stats['block_queue'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs")
     stats['execution_logs'] = cur.rowcount
@@ -1669,7 +1704,7 @@ def delete_all_projects(cur, conn):
     
     return {
         'success': True,
-        'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Записей в очереди: {stats["block_queue"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}, Статусов задач: {stats["task_processing_status"]}',
+        'message': f'Удалены ВСЕ проекты и данные. Проектов: {stats["projects"]}, Задач: {stats["tasks"]}, Логов выполнений: {stats["execution_logs"]}, Логов блокировок: {stats["blocking_logs"]}, Батчей: {stats["campaign_batches"]}, Локов: {stats["campaign_locks"]}, Статусов задач: {stats["task_processing_status"]}',
         'deleted': stats
     }
 

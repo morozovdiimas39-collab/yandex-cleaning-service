@@ -30,6 +30,8 @@ import RSYAAuth from "./pages/RSYAAuth";
 import RSYASetup from "./pages/RSYASetup";
 import RSYASettings from "./pages/RSYASettings";
 import RSYAFilterTester from "./pages/RSYAFilterTester";
+import RSYACleaningDashboard from "./pages/RSYACleaningDashboard";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -79,8 +81,9 @@ const App = () => (
           <Route path="/rsya/:id/test-filters" element={<ProtectedRoute><RSYAFilterTester /></ProtectedRoute>} />
           <Route path="/rsya-agent" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
           <Route path="/telega-crm" element={<Navigate to="/clustering" replace />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/admin/*" element={<AdminPage />} />
+	          <Route path="/admin" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
+	          <Route path="/admin/rsya-cleaning" element={<AdminProtectedRoute><RSYACleaningDashboard /></AdminProtectedRoute>} />
+	          <Route path="/admin/*" element={<AdminProtectedRoute><AdminPage /></AdminProtectedRoute>} />
           <Route path="/rsya-cleaning" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
           <Route path="/chistka-rsya" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
           <Route path="/cases" element={<Navigate to="/clustering" replace />} />

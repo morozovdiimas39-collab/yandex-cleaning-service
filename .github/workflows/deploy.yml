@@ -1,15 +1,26 @@
 name: Deploy to Yandex Cloud
 
 on:
-  workflow_dispatch:  # Запуск только вручную через кнопку в GitHub Actions
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Что деплоить
+        required: true
+        default: frontend
+        type: choice
+        options:
+          - frontend
+          - all
 
 jobs:
   deploy:
+    if: ${{ inputs.target == 'all' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         function:
           - admin
+          - admin-auth
           - ai-keyword-planner
           - api
           - auth
@@ -35,6 +46,7 @@ jobs:
           - yandex-platforms
           - yandex-regions
           - rsya-projects
+          - rsya-preview
       fail-fast: false  # Продолжать деплой даже если одна функция упала
     
     steps:
@@ -136,6 +148,7 @@ jobs:
           path: function-url-${{ matrix.function }}.txt
   
   collect-urls:
+    if: ${{ inputs.target == 'all' }}
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -159,6 +172,7 @@ jobs:
 
             
   deploy-frontend:
+    if: ${{ inputs.target == 'frontend' || inputs.target == 'all' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

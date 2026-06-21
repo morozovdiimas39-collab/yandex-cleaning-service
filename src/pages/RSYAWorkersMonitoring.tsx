@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import AdminSidebar from '@/components/layout/AdminSidebar';
+import { adminFetch } from '@/lib/admin-auth';
 import {
   Table,
   TableBody,
@@ -23,9 +24,7 @@ const RSYAWorkersMonitoring = () => {
       setLoading(true);
       setError('');
       
-      const response = await fetch(`${BACKEND_URLS.admin}?action=rsya_workers_health`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=rsya_workers_health`);
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       

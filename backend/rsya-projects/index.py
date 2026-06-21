@@ -1,8 +1,55 @@
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 import psycopg2
 import psycopg2.extras
+
+
+def _normalize_list(value) -> List[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(',') if item.strip()]
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def validate_rsya_task_config(config: Dict[str, Any], combine_operator: str) -> List[str]:
+    """Возвращает причины, почему задачу опасно создавать."""
+    config = config or {}
+    combine_operator = (combine_operator or 'OR').upper()
+
+    keywords = _normalize_list(config.get('keywords'))
+    exceptions = _normalize_list(config.get('exceptions'))
+    goal_ids = _normalize_list(config.get('goal_ids'))
+    goal_id = str(config.get('goal_id') or '').strip()
+    has_selected_goal = bool(goal_ids) or (goal_id and goal_id not in ('all', 'selected'))
+    has_conversion_guard = has_selected_goal or bool(config.get('protect_conversions'))
+
+    metric_keys = [
+        'min_impressions', 'max_impressions',
+        'min_clicks', 'max_clicks',
+        'min_cpc', 'max_cpc',
+        'min_ctr', 'max_ctr',
+        'min_conversions', 'min_cpa', 'max_cpa'
+    ]
+    active_metrics = [key for key in metric_keys if config.get(key) is not None]
+    reasons = []
+
+    if not keywords and not active_metrics:
+        reasons.append('Добавьте хотя бы одно условие блокировки: домены, клики, CPA, CTR или конверсии.')
+
+    only_broad_metric = len(active_metrics) == 1 and active_metrics[0] in ('min_impressions', 'max_impressions', 'min_clicks', 'max_clicks')
+    if only_broad_metric and not keywords and not has_conversion_guard:
+        reasons.append('Одна широкая метрика без целей и доменных условий опасна: такая задача может заблокировать слишком много площадок.')
+
+    min_impressions = config.get('min_impressions')
+    if min_impressions is not None and int(min_impressions) <= 10 and not keywords and not has_conversion_guard:
+        reasons.append('Показы больше 1-10 без дополнительных условий запрещены. Добавьте цель, CPA/клики или доменные признаки.')
+
+    if combine_operator == 'OR' and active_metrics and not keywords and not exceptions and not has_conversion_guard:
+        reasons.append('Для режима "Любое условие" нужны ограничители: цель, исключения или доменные признаки.')
+
+    return reasons[:3]
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -467,6 +514,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             description = body_data.get('description', 'Новая задача')
             config = body_data.get('config')
             combine_operator = body_data.get('combine_operator', 'OR')
+            validation_errors = validate_rsya_task_config(config or {}, combine_operator)
+            if validation_errors:
+                cursor.close()
+                conn.close()
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'error': 'unsafe_task_config',
+                        'message': 'Задача выглядит опасной и не будет создана.',
+                        'reasons': validation_errors
+                    }, ensure_ascii=False)
+                }
             
             if not project_id:
                 cursor.close()
@@ -822,7 +882,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if 'yandex_token' in put_body_data:
                 update_fields.append('yandex_token = %s')
                 update_values.append(put_body_data['yandex_token'])
-            
+
             if 'campaign_ids' in put_body_data:
                 update_fields.append('campaign_ids = %s')
                 update_values.append(json.dumps(put_body_data['campaign_ids']))

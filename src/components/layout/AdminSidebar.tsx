@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
+import { logoutAdmin } from '@/lib/admin-auth';
 
 export default function AdminSidebar() {
   const location = useLocation();
@@ -79,13 +80,17 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-        <Link
-          to="/clustering"
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+        <button
+          type="button"
+          onClick={async () => {
+            await logoutAdmin();
+            window.location.assign('/admin');
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-700 transition-colors hover:bg-gray-100"
         >
-          <Icon name="ArrowLeft" size={20} />
-          <span>Выйти из админки</span>
-        </Link>
+          <Icon name="LogOut" size={20} />
+          <span>Выйти</span>
+        </button>
       </div>
     </div>
   );

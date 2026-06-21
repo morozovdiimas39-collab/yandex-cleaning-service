@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 import { BACKEND_URLS } from '@/config/backend-urls';
+import { adminFetch } from '@/lib/admin-auth';
 
 interface Schedule {
   id: number;
@@ -30,9 +31,7 @@ export default function ScheduleTab() {
   const loadSchedules = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BACKEND_URLS.admin}?action=get_schedules`, {
-        headers: { 'X-Admin-Key': 'directkit_admin_2024' }
-      });
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=get_schedules`);
 
       if (response.ok) {
         const data = await response.json();
@@ -47,11 +46,10 @@ export default function ScheduleTab() {
 
   const updateInterval = async (scheduleId: number, newInterval: number) => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=update_schedule`, {
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=update_schedule`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': 'directkit_admin_2024'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           schedule_id: scheduleId,
@@ -72,11 +70,10 @@ export default function ScheduleTab() {
 
   const triggerNow = async (projectId: number) => {
     try {
-      const response = await fetch(`${BACKEND_URLS.admin}?action=trigger_schedule`, {
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=trigger_schedule`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Key': 'directkit_admin_2024'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ project_id: projectId })
       });

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
@@ -21,11 +22,12 @@ interface Task {
   created_at: string;
   combine_operator?: 'AND' | 'OR';
   task_group_id?: number;
-  config?: {
-    keywords?: string[];
-    exceptions?: string[];
-    goal_id?: string;
-    min_impressions?: number;
+	config?: {
+		keywords?: string[];
+		exceptions?: string[];
+		goal_id?: string;
+		goal_ids?: string[];
+		min_impressions?: number;
     max_impressions?: number;
     min_clicks?: number;
     max_clicks?: number;
@@ -73,12 +75,13 @@ export default function RSYAProject() {
   const [createMode, setCreateMode] = useState<'smart' | 'expert'>('smart');
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   
-  const [formData, setFormData] = useState({
-    description: '',
-    keywords: '',
-    exceptions: '',
-    goal_id: 'all',
-    combine_operator: 'OR' as 'AND' | 'OR',
+	const [formData, setFormData] = useState({
+		description: '',
+		keywords: '',
+		exceptions: '',
+		goal_id: 'all',
+		goal_ids: [] as string[],
+		combine_operator: 'OR' as 'AND' | 'OR',
     min_impressions: '',
     max_impressions: '',
     min_clicks: '',
@@ -198,15 +201,50 @@ export default function RSYAProject() {
     }
   };
 
-  const createTask = async () => {
+	const toggleGoal = (goalId: string) => {
+		const current = formData.goal_ids;
+		const next = current.includes(goalId)
+			? current.filter((id) => id !== goalId)
+			: [...current, goalId].slice(0, 10);
+
+		setFormData({
+			...formData,
+			goal_ids: next,
+			goal_id: next.length === 1 ? next[0] : next.length > 1 ? 'selected' : 'all'
+		});
+	};
+
+	const clearGoals = () => {
+		setFormData({ ...formData, goal_ids: [], goal_id: 'all' });
+	};
+
+	const getGoalName = (goalId: string) => {
+		return project?.goals?.find((goal) => goal.id === goalId)?.name || `Цель ${goalId}`;
+	};
+
+	const getTaskGoalsLabel = (task: Task) => {
+		const goalIds = task.config?.goal_ids?.length
+			? task.config.goal_ids
+			: task.config?.goal_id && task.config.goal_id !== 'all' && task.config.goal_id !== 'selected'
+				? [task.config.goal_id]
+				: [];
+
+		if (!goalIds.length) return 'Все конверсии';
+		if (goalIds.length === 1) return getGoalName(goalIds[0]);
+		return `${goalIds.length} цели: ${goalIds.slice(0, 2).map(getGoalName).join(', ')}${goalIds.length > 2 ? '...' : ''}`;
+	};
+
+	const createTask = async () => {
     if (!formData.description.trim()) {
       toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
       return;
     }
 
-    const config: any = {
-      goal_id: formData.goal_id
-    };
+		const selectedGoalIds = formData.goal_ids.slice(0, 10);
+		const config: any = {
+			goal_id: selectedGoalIds.length === 1 ? selectedGoalIds[0] : selectedGoalIds.length > 1 ? 'selected' : 'all',
+			goal_ids: selectedGoalIds
+		};
 
     if (createMode === 'smart') {
       config.protect_conversions = true;
@@ -257,12 +295,13 @@ export default function RSYAProject() {
         }
         toast({ title: '✅ Задача создана' });
         setIsCreateDialogOpen(false);
-        setFormData({
-          description: '',
-          keywords: '',
-          exceptions: '',
-          goal_id: 'all',
-          combine_operator: 'OR' as 'AND' | 'OR',
+	        setFormData({
+	          description: '',
+	          keywords: '',
+	          exceptions: '',
+	          goal_id: 'all',
+	          goal_ids: [],
+	          combine_operator: 'OR' as 'AND' | 'OR',
           min_impressions: '',
           max_impressions: '',
           min_clicks: '',
@@ -483,7 +522,7 @@ export default function RSYAProject() {
                               <span className="text-sm font-medium text-gray-700">ЦЕЛЬ</span>
                             </div>
                             <p className="text-sm text-gray-900 font-medium">
-                              {task.config?.goal_id === 'all' ? 'Все конверсии' : `Цель ${task.config?.goal_id}`}
+	                              {getTaskGoalsLabel(task)}
                             </p>
                             <p className="text-sm text-gray-500 mt-1">
                               Создано: {formatDate(task.created_at)}
@@ -550,28 +589,25 @@ export default function RSYAProject() {
                 </TabsList>
 
                 <TabsContent value="smart" className="space-y-4 mt-6">
-                  <div className="relative p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200 rounded-full -mr-16 -mt-16 opacity-50"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-200 rounded-full -ml-12 -mb-12 opacity-50"></div>
-                    <div className="relative flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                        <Icon name="Sparkles" className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-blue-900 text-lg mb-2">Автоматическая оптимизация</h4>
-                        <p className="text-sm text-blue-700 leading-relaxed">
-                          Система автоматически заблокирует площадки с низкой эффективностью на основе машинного обучения. 
-                          Вам не нужно настраивать параметры вручную.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+	                  <div className="p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
+	                    <div className="flex items-start gap-4">
+	                      <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+	                        <Icon name="Sparkles" className="h-6 w-6 text-white" />
+	                      </div>
+	                      <div>
+	                        <h4 className="font-bold text-blue-900 text-lg mb-2">Защитный пресет</h4>
+	                        <p className="text-sm text-blue-700 leading-relaxed">
+	                          Блокирует площадки без конверсий при заметном объеме кликов и дорогом CPA. Площадки с выбранными конверсиями не блокируются.
+	                        </p>
+	                      </div>
+	                    </div>
+	                  </div>
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <Icon name="Target" className="h-5 w-5 text-purple-500" />
-                      <Label htmlFor="goal_id_smart" className="text-base font-semibold">Цель оптимизации</Label>
-                    </div>
+	                      <Label className="text-base font-semibold">Конверсии для защиты</Label>
+	                    </div>
                     {(!project?.goals || project.goals.length === 0) ? (
                       <div className="p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
                         <p className="text-sm text-yellow-800">
@@ -579,26 +615,39 @@ export default function RSYAProject() {
                         </p>
                       </div>
                     ) : (
-                      <select
-                        id="goal_id_smart"
-                        value={formData.goal_id}
-                        onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                        className="w-full h-11 px-4 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                      >
-                        <option value="all">🎯 Все конверсии</option>
-                        {project.goals.map((goal) => (
-                          <option key={goal.id} value={goal.id}>
-                            {goal.name} (ID: {goal.id})
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
+	                      <div className="space-y-2 rounded-lg border-2 border-gray-200 bg-white p-3">
+	                        <button
+	                          type="button"
+	                          onClick={clearGoals}
+	                          className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
+	                            formData.goal_ids.length === 0 ? 'bg-green-50 text-green-800' : 'text-gray-700 hover:bg-gray-50'
+	                          }`}
+	                        >
+	                          Все конверсии
+	                        </button>
+	                        <div className="max-h-44 space-y-2 overflow-y-auto">
+	                          {project.goals.map((goal) => (
+	                            <label key={goal.id} className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-gray-50">
+	                              <Checkbox
+	                                checked={formData.goal_ids.includes(goal.id)}
+	                                onCheckedChange={() => toggleGoal(goal.id)}
+	                              />
+	                              <span className="text-sm">
+	                                <span className="font-medium text-gray-900">{goal.name}</span>
+	                                <span className="block text-xs text-gray-500">ID: {goal.id}</span>
+	                              </span>
+	                            </label>
+	                          ))}
+	                        </div>
+	                        <p className="text-xs text-gray-500">Можно выбрать до 10 целей. Это лимит Direct Reports.</p>
+	                      </div>
+	                    )}
+	                  </div>
 
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
-                      <Label className="text-base font-semibold">Режим выполнения</Label>
+	                      <Label className="text-base font-semibold">Логика условий</Label>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <button
@@ -611,10 +660,10 @@ export default function RSYAProject() {
                         }`}
                       >
                         <div className="text-left">
-                          <div className="font-semibold text-gray-900 mb-1">ИЛИ (OR)</div>
-                          <div className="text-xs text-gray-600">
-                            Каждое условие проверяется отдельно
-                          </div>
+	                          <div className="font-semibold text-gray-900 mb-1">Любое условие</div>
+	                          <div className="text-xs text-gray-600">
+	                            Заблокировать, если совпало хотя бы одно правило
+	                          </div>
                         </div>
                       </button>
                       <button
@@ -627,10 +676,10 @@ export default function RSYAProject() {
                         }`}
                       >
                         <div className="text-left">
-                          <div className="font-semibold text-gray-900 mb-1">И (AND)</div>
-                          <div className="text-xs text-gray-600">
-                            Все условия суммируются в одно правило
-                          </div>
+	                          <div className="font-semibold text-gray-900 mb-1">Все условия</div>
+	                          <div className="text-xs text-gray-600">
+	                            Заблокировать только при совпадении всех правил
+	                          </div>
                         </div>
                       </button>
                     </div>
@@ -967,7 +1016,7 @@ export default function RSYAProject() {
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <Label className="text-sm text-purple-900">Цель оптимизации</Label>
+	                            <Label className="text-sm text-purple-900">Конверсии для расчета CPA</Label>
                             {(!project?.goals || project.goals.length === 0) ? (
                               <div className="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                 <p className="text-sm text-yellow-800">
@@ -975,20 +1024,36 @@ export default function RSYAProject() {
                                 </p>
                               </div>
                             ) : (
-                              <select
-                                value={formData.goal_id}
-                                onChange={(e) => setFormData({ ...formData, goal_id: e.target.value })}
-                                className="mt-1 w-full px-3 py-2 bg-white border-2 border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-                              >
-                                <option value="all">🎯 Все конверсии</option>
-                                {project.goals.map((goal) => (
-                                  <option key={goal.id} value={goal.id}>
-                                    {goal.name} (ID: {goal.id})
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </div>
+	                              <div className="mt-1 space-y-2 rounded-lg border-2 border-purple-200 bg-white p-3">
+	                                <button
+	                                  type="button"
+	                                  onClick={clearGoals}
+	                                  className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
+	                                    formData.goal_ids.length === 0 ? 'bg-purple-50 text-purple-800' : 'text-gray-700 hover:bg-gray-50'
+	                                  }`}
+	                                >
+	                                  Все конверсии
+	                                </button>
+	                                <div className="max-h-44 space-y-2 overflow-y-auto">
+	                                  {project.goals.map((goal) => (
+	                                    <label key={goal.id} className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-gray-50">
+	                                      <Checkbox
+	                                        checked={formData.goal_ids.includes(goal.id)}
+	                                        onCheckedChange={() => toggleGoal(goal.id)}
+	                                      />
+	                                      <span className="text-sm">
+	                                        <span className="font-medium text-gray-900">{goal.name}</span>
+	                                        <span className="block text-xs text-gray-500">
+	                                          {goal.counter_name ? `${goal.counter_name} · ` : ''}ID: {goal.id}
+	                                        </span>
+	                                      </span>
+	                                    </label>
+	                                  ))}
+	                                </div>
+	                                <p className="text-xs text-purple-700">Если ничего не выбрано, используются все конверсии из отчета Direct.</p>
+	                              </div>
+	                            )}
+	                          </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
@@ -1030,7 +1095,7 @@ export default function RSYAProject() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
-                    <Label className="text-base font-semibold">Режим выполнения задачи</Label>
+	                    <Label className="text-base font-semibold">Логика условий задачи</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -1051,10 +1116,10 @@ export default function RSYAProject() {
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 mb-1">ИЛИ (OR)</div>
-                          <div className="text-xs text-gray-600 leading-relaxed">
-                            Каждое условие проверяется отдельно. Площадки блокируются если подходят под ЛЮБОЕ условие
-                          </div>
+	                          <div className="font-semibold text-gray-900 mb-1">Любое условие</div>
+	                          <div className="text-xs text-gray-600 leading-relaxed">
+	                            Площадка блокируется, если подходит хотя бы под одно активное правило.
+	                          </div>
                         </div>
                       </div>
                     </button>
@@ -1076,10 +1141,10 @@ export default function RSYAProject() {
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 mb-1">И (AND)</div>
-                          <div className="text-xs text-gray-600 leading-relaxed">
-                            Все условия суммируются. Площадки блокируются только если подходят под ВСЕ условия сразу
-                          </div>
+	                          <div className="font-semibold text-gray-900 mb-1">Все условия</div>
+	                          <div className="text-xs text-gray-600 leading-relaxed">
+	                            Площадка блокируется только если подходит под все активные правила сразу.
+	                          </div>
                         </div>
                       </div>
                     </button>

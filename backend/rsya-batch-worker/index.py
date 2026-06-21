@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import io
+import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import boto3  # нужен в рантайме при вызове по триггеру MQ
@@ -281,11 +282,22 @@ def process_campaign(
         
         print(f"📋 Found {len(tasks)} active tasks for project {project_id}")
         first_task_id = tasks[0]['id']
+        selected_goal_ids = collect_selected_goal_ids(tasks)
+        if selected_goal_ids:
+            print(f"🎯 Project {project_id}: loading Direct reports for goals {selected_goal_ids}", flush=True)
         
         # 3. Получаем площадки за 3 периода (сегодня, вчера, 7 дней)
         platforms_today = get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id, first_task_id)
         platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id, first_task_id)
         platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id, first_task_id)
+
+        goal_platform_sets = []
+        if selected_goal_ids:
+            goal_platform_sets = [
+                get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
+                get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id, first_task_id, selected_goal_ids),
+                get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
+            ]
         
         # Если все отчёты async (201/202) → пропускаем (обработает поллер)
         if platforms_today is None and platforms_yesterday is None and platforms_7d is None:
@@ -304,15 +316,16 @@ def process_campaign(
                     if domain not in all_platforms:
                         all_platforms[domain] = p
                     else:
-                        # Суммируем метрики
-                        all_platforms[domain]['clicks'] += p.get('clicks', 0)
-                        all_platforms[domain]['cost'] += p.get('cost', 0)
-                        all_platforms[domain]['conversions'] += p.get('conversions', 0)
-                        # Пересчитываем CPC и CPA
-                        if all_platforms[domain]['clicks'] > 0:
-                            all_platforms[domain]['cpc'] = all_platforms[domain]['cost'] / all_platforms[domain]['clicks']
-                        if all_platforms[domain]['conversions'] > 0:
-                            all_platforms[domain]['cpa'] = all_platforms[domain]['cost'] / all_platforms[domain]['conversions']
+                        merge_platform_metrics(all_platforms[domain], p)
+
+        for platforms in goal_platform_sets:
+            if platforms:
+                for p in platforms:
+                    domain = p['domain']
+                    if domain not in all_platforms:
+                        all_platforms[domain] = p
+                    else:
+                        merge_platform_metrics(all_platforms[domain], p, merge_base_metrics=False)
         
         candidates = list(all_platforms.values())
         
@@ -406,6 +419,68 @@ def _normalize_list(value) -> List[str]:
     return [str(item).strip().lower() for item in value if str(item).strip()]
 
 
+def _normalize_goal_ids(config: Dict[str, Any]) -> List[str]:
+    goal_ids = config.get('goal_ids')
+    if goal_ids:
+        return [str(goal_id).strip() for goal_id in goal_ids if str(goal_id).strip()][:10]
+
+    goal_id = str(config.get('goal_id') or '').strip()
+    if goal_id and goal_id not in ('all', 'selected'):
+        return [goal_id]
+
+    return []
+
+
+def collect_selected_goal_ids(tasks) -> List[str]:
+    selected = []
+    for task in tasks:
+        config = json.loads(task['config']) if isinstance(task['config'], str) else (task['config'] or {})
+        for goal_id in _normalize_goal_ids(config):
+            if goal_id not in selected:
+                selected.append(goal_id)
+            if len(selected) >= 10:
+                return selected
+    return selected
+
+
+def _platform_conversions_for_config(platform: Dict[str, Any], config: Dict[str, Any]) -> int:
+    goal_ids = _normalize_goal_ids(config)
+    if not goal_ids:
+        return int(platform.get('conversions', 0) or 0)
+
+    goal_conversions = platform.get('goal_conversions') or {}
+    if goal_conversions:
+        return int(sum(goal_conversions.get(str(goal_id), 0) or 0 for goal_id in goal_ids))
+
+    return int(platform.get('conversions', 0) or 0)
+
+
+def _platform_cpa_for_config(platform: Dict[str, Any], config: Dict[str, Any]) -> float:
+    conversions = _platform_conversions_for_config(platform, config)
+    if conversions <= 0:
+        return 0
+    return float(platform.get('cost', 0) or 0) / conversions
+
+
+def merge_platform_metrics(target: Dict[str, Any], source: Dict[str, Any], merge_base_metrics: bool = True) -> None:
+    if merge_base_metrics:
+        target['clicks'] += source.get('clicks', 0)
+        target['cost'] += source.get('cost', 0)
+        target['conversions'] += source.get('conversions', 0)
+        target['impressions'] += source.get('impressions', 0)
+
+    target_goals = target.setdefault('goal_conversions', {})
+    for goal_id, value in (source.get('goal_conversions') or {}).items():
+        target_goals[str(goal_id)] = target_goals.get(str(goal_id), 0) + (value or 0)
+
+    if target.get('clicks', 0) > 0:
+        target['cpc'] = target.get('cost', 0) / target['clicks']
+    if target.get('impressions', 0) > 0:
+        target['ctr'] = target.get('clicks', 0) / target['impressions'] * 100
+    if target.get('conversions', 0) > 0:
+        target['cpa'] = target.get('cost', 0) / target['conversions']
+
+
 def _domain_matches_keyword(domain: str, keyword: str) -> bool:
     if '.' in keyword:
         return domain.startswith(keyword)
@@ -426,7 +501,7 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
     if exceptions and any(exc in domain for exc in exceptions):
         return False
 
-    if config.get('protect_conversions') and platform.get('conversions', 0) > 0:
+    if config.get('protect_conversions') and _platform_conversions_for_config(platform, config) > 0:
         return False
 
     conditions = []
@@ -444,9 +519,9 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
         ('max_cpc', lambda value: platform.get('cpc', 0) <= value),
         ('min_ctr', lambda value: platform.get('ctr', 0) >= value),
         ('max_ctr', lambda value: platform.get('ctr', 0) <= value),
-        ('min_conversions', lambda value: platform.get('conversions', 0) >= value),
-        ('min_cpa', lambda value: platform.get('cpa', 0) >= value),
-        ('max_cpa', lambda value: platform.get('cpa', 0) <= value),
+        ('min_conversions', lambda value: _platform_conversions_for_config(platform, config) >= value),
+        ('min_cpa', lambda value: _platform_cpa_for_config(platform, config) >= value),
+        ('max_cpa', lambda value: _platform_cpa_for_config(platform, config) >= value),
     ]
 
     for key, predicate in metric_rules:
@@ -584,7 +659,8 @@ def get_platforms_with_retry(
     cursor,
     conn,
     project_id: int,
-    task_id: int
+    task_id: int,
+    goal_ids: Optional[List[str]] = None
 ) -> Optional[List[Dict[str, Any]]]:
     '''
     Получает площадки с clicks >= 1 за период с retry при 429
@@ -596,7 +672,7 @@ def get_platforms_with_retry(
             date_to = (datetime.now() - timedelta(days=days_end)).strftime('%Y-%m-%d')
             
             # Запрашиваем отчёт у Яндекса
-            response = create_report(campaign_id, yandex_token, date_from, date_to)
+            response = create_report(campaign_id, yandex_token, date_from, date_to, goal_ids)
             
             if response['status'] == 200:
                 # Отчёт готов → парсим TSV
@@ -645,7 +721,7 @@ def get_platforms_with_retry(
     return None
 
 
-def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: str) -> Dict[str, Any]:
+def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: str, goal_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     '''Создаёт отчёт через Yandex Direct API'''
     url = 'https://api.direct.yandex.com/json/v5/reports'
     headers = {
@@ -657,6 +733,11 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
         'skipReportSummary': 'true'
     }
     
+    normalized_goal_ids = [str(goal_id).strip() for goal_id in (goal_ids or []) if str(goal_id).strip()][:10]
+    goal_suffix = ''
+    if normalized_goal_ids:
+        goal_suffix = '_g' + hashlib.sha1(','.join(normalized_goal_ids).encode('utf-8')).hexdigest()[:8]
+
     payload = {
         'params': {
             'SelectionCriteria': {
@@ -676,13 +757,18 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
                 'DateTo': date_to
             },
             'FieldNames': ['Placement', 'Clicks', 'Cost', 'Conversions', 'Impressions'],
-            'ReportName': f'platforms_{campaign_id}_{date_from}',
+            'ReportName': f'platforms_{campaign_id}_{date_from}_{date_to}{goal_suffix}_{int(time.time())}',
             'ReportType': 'CUSTOM_REPORT',
             'DateRangeType': 'CUSTOM_DATE',
             'Format': 'TSV',
-            'IncludeVAT': 'NO'
+            'IncludeVAT': 'NO',
+            'IncludeDiscount': 'NO'
         }
     }
+
+    if normalized_goal_ids:
+        payload['params']['Goals'] = normalized_goal_ids
+        payload['params']['AttributionModels'] = ['AUTO']
     
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -719,30 +805,48 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
     if len(lines) < 2:
         return []
     
+    header = lines[0].split('\t')
     platforms = []
-    for line in lines[1:]:  # Пропускаем заголовок
+    for line in lines[1:]:
         parts = line.split('\t')
-        if len(parts) >= 4:
-            domain = parts[0].strip()
-            if ' ' in domain or not domain:
+        if len(parts) < len(header):
+            continue
+
+        row = dict(zip(header, parts))
+        domain = (row.get('Placement') or parts[0]).strip()
+        if ' ' in domain or not domain:
+            continue
+
+        goal_conversions = {}
+        for key, value in row.items():
+            if not key.startswith('Conversions_'):
                 continue
-            clicks = int(parts[1] or 0)
-            cost = float(parts[2] or 0)
-            conversions = int(parts[3] or 0)
-            impressions = int(parts[4] or 0) if len(parts) > 4 else 0
-            cpc = cost / clicks if clicks else 0
-            ctr = (clicks / impressions * 100) if impressions else 0
-            cpa = cost / conversions if conversions else 0
-            platforms.append({
-                'domain': domain,
-                'clicks': clicks,
-                'cost': cost,
-                'conversions': conversions,
-                'impressions': impressions,
-                'cpc': cpc,
-                'cpa': cpa,
-                'ctr': ctr
-            })
+            parts_key = key.split('_')
+            if len(parts_key) >= 3:
+                goal_id = parts_key[1]
+                goal_conversions[goal_id] = goal_conversions.get(goal_id, 0) + int(float(value or 0))
+
+        conversions = int(float(row.get('Conversions') or 0))
+        if goal_conversions:
+            conversions = sum(goal_conversions.values())
+
+        clicks = int(float(row.get('Clicks') or 0))
+        cost = float(row.get('Cost') or 0)
+        impressions = int(float(row.get('Impressions') or 0))
+        cpc = cost / clicks if clicks else 0
+        ctr = (clicks / impressions * 100) if impressions else 0
+        cpa = cost / conversions if conversions else 0
+        platforms.append({
+            'domain': domain,
+            'clicks': clicks,
+            'cost': cost,
+            'conversions': conversions,
+            'goal_conversions': goal_conversions,
+            'impressions': impressions,
+            'cpc': cpc,
+            'cpa': cpa,
+            'ctr': ctr
+        })
     
     return platforms
 

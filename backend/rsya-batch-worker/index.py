@@ -17,6 +17,19 @@ RETRY_DELAYS = [5, 10, 20, 40, 60]  # Exponential backoff
 MAX_WAIT_FOR_429 = 60  # Максимум ждём 60 сек при 429
 API_DELAY = 0.6  # Задержка между API запросами (лимит: 20 req / 10 sec)
 
+IMPORTANT_PLATFORMS = {
+    'yandex.ru', 'ya.ru', 'dzen.ru', 'kinopoisk.ru', 'mail.ru', 'vk.com', 'ok.ru',
+    'youtube.com', 'rutube.ru', 'google.com', 'avito.ru', 'wildberries.ru',
+    'ozon.ru', 'market.yandex.ru', 'drive2.ru', '2gis.ru', 'rbc.ru', 'ria.ru',
+    'lenta.ru', 'tass.ru', 'kommersant.ru', 'rzd.ru', 'tutu.ru', 'aviasales.ru',
+    'hh.ru', 'habr.com', 'vc.ru', 'pikabu.ru', 'sportmaster.ru', 'dns-shop.ru',
+}
+
+
+def is_important_platform(domain: str) -> bool:
+    domain = (domain or '').lower().strip()
+    return any(domain == important or domain.endswith('.' + important) for important in IMPORTANT_PLATFORMS)
+
 
 def mark_batch_failed_fresh_conn(batch_id: int, error_message: str) -> bool:
     """Обновить статус батча на failed через новое подключение (если основное мёртвое, напр. при 499)."""
@@ -345,8 +358,13 @@ def process_campaign(
         
         # 6. Фильтруем площадки по задачам
         matched_platforms = []
+        task_matches = {}
+        task_kept_examples = {}
         for task in tasks:
             config = json.loads(task['config']) if isinstance(task['config'], str) else task['config']
+            task_id = task['id']
+            task_matches[task_id] = []
+            task_kept_examples[task_id] = []
             
             for platform in candidates:
                 if platform['domain'].lower() in blocked_domains:
@@ -354,13 +372,30 @@ def process_campaign(
                 
                 if matches_task_filters(platform, config, task.get('combine_operator') or 'AND'):
                     matched_platforms.append(platform)
+                    task_matches[task_id].append(platform)
                     print(f"✅ Platform {platform['domain']} matched task '{task['description']}'")
+                elif len(task_kept_examples[task_id]) < 20:
+                    task_kept_examples[task_id].append(platform)
         
         # Убираем дубли
         to_block = list({p['domain']: p for p in matched_platforms}.values())
+        to_block_domains = {p['domain'] for p in to_block}
         
         if not to_block:
             print(f"ℹ️ Campaign {campaign_id}: no platforms matched task filters", flush=True)
+            write_execution_logs(
+                cursor,
+                conn,
+                project_id,
+                campaign_id,
+                tasks,
+                candidates,
+                task_matches,
+                task_kept_examples,
+                set(),
+                True,
+                context
+            )
             return {
                 'campaign_id': campaign_id,
                 'status': 'success',
@@ -400,7 +435,20 @@ def process_campaign(
                     'blocked': 0,
                     'error': 'ExcludedSites API failed'
                 }
-        
+        write_execution_logs(
+            cursor,
+            conn,
+            project_id,
+            campaign_id,
+            tasks,
+            candidates,
+            task_matches,
+            task_kept_examples,
+            to_block_domains,
+            actually_blocked > 0,
+            context
+        )
+
         return {
             'campaign_id': campaign_id,
             'status': 'success',
@@ -409,6 +457,105 @@ def process_campaign(
         }
     finally:
         pass
+
+
+def write_execution_logs(
+    cursor,
+    conn,
+    project_id: int,
+    campaign_id: str,
+    tasks,
+    candidates: List[Dict[str, Any]],
+    task_matches: Dict[int, List[Dict[str, Any]]],
+    task_kept_examples: Dict[int, List[Dict[str, Any]]],
+    to_block_domains,
+    block_success: bool,
+    context: Any
+) -> None:
+    request_id = getattr(context, 'request_id', None) or 'batch-worker'
+    candidates_count = len(candidates)
+
+    for task in tasks:
+        task_id = task['id']
+        matched = task_matches.get(task_id, [])
+        blocked_examples = [p for p in matched if p['domain'] in to_block_domains]
+        kept_examples = task_kept_examples.get(task_id, [])
+        important_blocked = [p['domain'] for p in blocked_examples if is_important_platform(p['domain'])]
+
+        metadata = {
+            'campaign_id': str(campaign_id),
+            'blocked_examples': [p['domain'] for p in blocked_examples[:20]],
+            'kept_examples': [p['domain'] for p in kept_examples[:20]],
+            'important_blocked_examples': important_blocked[:20],
+            'important_platforms_checked': sorted(IMPORTANT_PLATFORMS),
+        }
+
+        cursor.execute("""
+            INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
+            (project_id, task_id, execution_type, started_at, completed_at, finished_at,
+             placements_found, placements_matched, placements_sent_to_queue, placements_blocked,
+             status, request_id, metadata)
+            VALUES (%s, %s, 'batch_worker', NOW(), NOW(), NOW(), %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            project_id,
+            task_id,
+            candidates_count,
+            len(matched),
+            len(blocked_examples),
+            len(blocked_examples) if block_success else 0,
+            'completed' if block_success or not blocked_examples else 'error',
+            str(request_id),
+            json.dumps(metadata, ensure_ascii=False)
+        ))
+        execution_log_id = cursor.fetchone()['id']
+
+        for platform in blocked_examples[:100]:
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_blocking_logs
+                (execution_log_id, project_id, task_id, campaign_id, domain, action,
+                 clicks, cost, conversions, cpa, attempts, error_message)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s)
+            """, (
+                execution_log_id,
+                project_id,
+                task_id,
+                int(campaign_id),
+                platform['domain'],
+                'blocked' if block_success else 'matched_not_blocked',
+                int(platform.get('clicks', 0) or 0),
+                float(platform.get('cost', 0) or 0),
+                int(platform.get('conversions', 0) or 0),
+                float(platform.get('cpa', 0) or 0),
+                'important_platform' if is_important_platform(platform['domain']) else None
+            ))
+
+        for platform in kept_examples[:30]:
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_blocking_logs
+                (execution_log_id, project_id, task_id, campaign_id, domain, action,
+                 clicks, cost, conversions, cpa, attempts, error_message)
+                VALUES (%s, %s, %s, %s, %s, 'kept_example', %s, %s, %s, %s, 0, %s)
+            """, (
+                execution_log_id,
+                project_id,
+                task_id,
+                int(campaign_id),
+                platform['domain'],
+                int(platform.get('clicks', 0) or 0),
+                float(platform.get('cost', 0) or 0),
+                int(platform.get('conversions', 0) or 0),
+                float(platform.get('cpa', 0) or 0),
+                'important_platform' if is_important_platform(platform['domain']) else None
+            ))
+
+        cursor.execute("""
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_tasks
+            SET last_executed_at = NOW()
+            WHERE id = %s
+        """, (task_id,))
+
+    conn.commit()
 
 
 def _normalize_list(value) -> List[str]:

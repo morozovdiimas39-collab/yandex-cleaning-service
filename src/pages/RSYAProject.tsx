@@ -59,7 +59,36 @@ interface Project {
 }
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || '';
+const RSYA_PREVIEW_URL = BACKEND_URLS['rsya-preview'] || '';
 const AUTOMATION_URL = BACKEND_URLS['rsya-automation'] || '';
+
+interface PreviewPlatform {
+  campaign_id: string;
+  domain: string;
+  important?: boolean;
+  already_blocked?: boolean;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  conversions: number;
+  cpa: number;
+  ctr: number;
+}
+
+interface TaskPreview {
+  checked: number;
+  matched: number;
+  sampled: boolean;
+  campaigns_checked: string[];
+  campaigns_total: number;
+  will_block_examples: PreviewPlatform[];
+  already_blocked_examples: PreviewPlatform[];
+  kept_examples: PreviewPlatform[];
+  important_will_block_examples: PreviewPlatform[];
+  warnings: string[];
+  reports_pending: { campaign_id: string; report_name?: string }[];
+  errors: { campaign_id: string; status?: number; error?: string }[];
+}
 
 export default function RSYAProject() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -74,6 +103,9 @@ export default function RSYAProject() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createMode, setCreateMode] = useState<'smart' | 'expert'>('smart');
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
+  const [preview, setPreview] = useState<TaskPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewConfirmed, setPreviewConfirmed] = useState(false);
   
 	const [formData, setFormData] = useState({
 		description: '',
@@ -234,12 +266,7 @@ export default function RSYAProject() {
 		return `${goalIds.length} цели: ${goalIds.slice(0, 2).map(getGoalName).join(', ')}${goalIds.length > 2 ? '...' : ''}`;
 	};
 
-	const createTask = async () => {
-    if (!formData.description.trim()) {
-      toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
-      return;
-    }
-
+	const buildTaskConfig = () => {
 		const selectedGoalIds = formData.goal_ids.slice(0, 10);
 		const config: any = {
 			goal_id: selectedGoalIds.length === 1 ? selectedGoalIds[0] : selectedGoalIds.length > 1 ? 'selected' : 'all',
@@ -272,6 +299,85 @@ export default function RSYAProject() {
       if (formData.min_conversions) config.min_conversions = parseInt(formData.min_conversions);
     }
 
+    return config;
+  };
+
+  const resetCreateForm = () => {
+    setPreview(null);
+    setPreviewConfirmed(false);
+    setFormData({
+      description: '',
+      keywords: '',
+      exceptions: '',
+      goal_id: 'all',
+      goal_ids: [],
+      combine_operator: 'OR' as 'AND' | 'OR',
+      min_impressions: '',
+      max_impressions: '',
+      min_clicks: '',
+      max_clicks: '',
+      min_cpc: '',
+      max_cpc: '',
+      min_ctr: '',
+      max_ctr: '',
+      min_cpa: '',
+      max_cpa: '',
+      min_conversions: ''
+    });
+  };
+
+  const loadPreview = async () => {
+    if (!formData.description.trim()) {
+      toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
+      return;
+    }
+    if (!RSYA_PREVIEW_URL) {
+      toast({ title: 'Предпросмотр недоступен', description: 'URL функции rsya-preview не настроен', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setPreviewLoading(true);
+      setPreview(null);
+      setPreviewConfirmed(false);
+      const response = await fetch(RSYA_PREVIEW_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          project_id: parseInt(projectId || '0'),
+          description: formData.description,
+          combine_operator: formData.combine_operator,
+          config: buildTaskConfig()
+        })
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const reasons = data?.reasons?.length ? data.reasons.join(' ') : data?.error || 'Не удалось построить предпросмотр';
+        toast({ title: data?.message || 'Предпросмотр не готов', description: reasons, variant: 'destructive' });
+        return;
+      }
+
+      setPreview(data);
+      toast({ title: 'Предпросмотр готов', description: `Проверено площадок: ${data.checked || 0}` });
+    } catch (error: any) {
+      toast({ title: 'Ошибка предпросмотра', description: error.message, variant: 'destructive' });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+	const createTask = async () => {
+    if (!formData.description.trim()) {
+      toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
+      return;
+    }
+
+    const config = buildTaskConfig();
+
     try {
       const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'POST',
@@ -295,32 +401,37 @@ export default function RSYAProject() {
         }
         toast({ title: '✅ Задача создана' });
         setIsCreateDialogOpen(false);
-	        setFormData({
-	          description: '',
-	          keywords: '',
-	          exceptions: '',
-	          goal_id: 'all',
-	          goal_ids: [],
-	          combine_operator: 'OR' as 'AND' | 'OR',
-          min_impressions: '',
-          max_impressions: '',
-          min_clicks: '',
-          max_clicks: '',
-          min_cpc: '',
-          max_cpc: '',
-          min_ctr: '',
-          max_ctr: '',
-          min_cpa: '',
-          max_cpa: '',
-          min_conversions: ''
-        });
-      } else {
-        toast({ title: 'Ошибка', description: 'Не удалось создать задачу', variant: 'destructive' });
-      }
+        resetCreateForm();
+	      } else {
+	        const errorData = await response.json().catch(() => null);
+	        const reasons = errorData?.reasons?.length ? errorData.reasons.join(' ') : 'Не удалось создать задачу';
+	        toast({ title: errorData?.message || 'Ошибка', description: reasons, variant: 'destructive' });
+	      }
     } catch (error: any) {
       toast({ title: 'Ошибка', description: error.message, variant: 'destructive' });
     }
   };
+
+  const PreviewList = ({ title, items, emptyText }: { title: string; items: PreviewPlatform[]; emptyText: string }) => (
+    <div className="rounded-lg border bg-white">
+      <div className="border-b px-3 py-2 text-sm font-semibold text-gray-900">{title}</div>
+      <div className="max-h-44 overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="px-3 py-4 text-sm text-gray-500">{emptyText}</div>
+        ) : items.slice(0, 10).map((item) => (
+          <div key={`${title}-${item.campaign_id}-${item.domain}`} className={`border-b px-3 py-2 last:border-b-0 ${item.important ? 'bg-amber-50' : ''}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-sm font-medium text-gray-900">{item.domain}</span>
+              {item.important && <Badge className="border-0 bg-amber-100 text-amber-800">важная</Badge>}
+            </div>
+            <div className="mt-1 text-xs text-gray-500">
+              Кампания {item.campaign_id} · {item.clicks} кликов · {item.cost}₽ · CPA {item.cpa}₽ · конв. {item.conversions}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   const filteredTasks = tasks.filter(task => 
     task.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -550,7 +661,16 @@ export default function RSYAProject() {
         </div>
 
         {/* Create Task Dialog */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog
+          open={isCreateDialogOpen}
+          onOpenChange={(open) => {
+            setIsCreateDialogOpen(open);
+            if (!open) {
+              setPreview(null);
+              setPreviewConfirmed(false);
+            }
+          }}
+        >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader className="space-y-0 pb-4">
               <div className="flex items-center gap-4 mb-4">
@@ -1152,12 +1272,82 @@ export default function RSYAProject() {
                 </div>
               </div>
 
+              {preview && (
+                <div className="space-y-4 rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-emerald-950">Предпросмотр чистки</h3>
+                      <p className="text-sm text-emerald-800">
+                        Проверено {preview.checked} площадок, совпало {preview.matched}. Кампаний: {preview.campaigns_checked.length} из {preview.campaigns_total}.
+                      </p>
+                    </div>
+                    {preview.sampled && <Badge className="border-0 bg-blue-100 text-blue-700">выборка</Badge>}
+                  </div>
+
+                  {preview.warnings.length > 0 && (
+                    <div className="space-y-2">
+                      {preview.warnings.map((warning, index) => (
+                        <div key={index} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                          {warning}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <PreviewList
+                      title="Заблокируется"
+                      items={preview.will_block_examples}
+                      emptyText="Новых блокировок в выборке нет"
+                    />
+                    <PreviewList
+                      title="Уже заблокировано"
+                      items={preview.already_blocked_examples}
+                      emptyText="Совпадений среди уже заблокированных нет"
+                    />
+                    <PreviewList
+                      title="Останется"
+                      items={preview.kept_examples}
+                      emptyText="Нет примеров оставшихся площадок"
+                    />
+                  </div>
+
+                  {preview.reports_pending.length > 0 && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                      {preview.reports_pending.length} отчетов Direct готовятся асинхронно, предпросмотр неполный.
+                    </div>
+                  )}
+
+                  {preview.errors.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                      Ошибки по кампаниям: {preview.errors.slice(0, 3).map((error) => `${error.campaign_id}: ${error.status || ''}`).join(', ')}
+                    </div>
+                  )}
+
+                  <label className="flex items-start gap-3 rounded-lg bg-white p-3 text-sm text-gray-700">
+                    <Checkbox
+                      checked={previewConfirmed}
+                      onCheckedChange={(checked) => setPreviewConfirmed(Boolean(checked))}
+                    />
+                    <span>
+                      Я проверил примеры площадок и понимаю, какие домены попадут под блокировку.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <Button
-                  onClick={createTask}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={previewConfirmed ? createTask : loadPreview}
+                  disabled={previewLoading || (Boolean(preview) && !previewConfirmed)}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white disabled:opacity-60"
                 >
-                  Создать задачу
+                  {previewLoading ? (
+                    <>
+                      <Icon name="Loader2" className="mr-2 h-4 w-4 animate-spin" />
+                      Проверяю площадки
+                    </>
+                  ) : previewConfirmed ? 'Создать задачу' : preview ? 'Подтвердите предпросмотр' : 'Проверить перед созданием'}
                 </Button>
                 <Button
                   variant="outline"

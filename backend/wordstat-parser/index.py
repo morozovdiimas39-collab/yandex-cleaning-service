@@ -4,6 +4,20 @@ import time
 from typing import Dict, Any, List
 import requests
 
+WORDSTAT_API_URL = 'https://searchapi.api.cloud.yandex.net/v2/wordstat/topRequests'
+
+DEVICE_MAP = {
+    'all': 'DEVICE_ALL',
+    'desktop': 'DEVICE_DESKTOP',
+    'phone': 'DEVICE_PHONE',
+    'mobile': 'DEVICE_PHONE',
+    'tablet': 'DEVICE_TABLET',
+    'DEVICE_ALL': 'DEVICE_ALL',
+    'DEVICE_DESKTOP': 'DEVICE_DESKTOP',
+    'DEVICE_PHONE': 'DEVICE_PHONE',
+    'DEVICE_TABLET': 'DEVICE_TABLET',
+}
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
     Business: Парсер Yandex Wordstat для сбора статистики по ключевым фразам
@@ -11,7 +25,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns: JSON с данными статистики из Wordstat
     '''
     print(f"[WORDSTAT] Request started. Method: {event.get('httpMethod')}")
-    print(f"[WORDSTAT] Body: {event.get('body', '')[:500]}")
+    body_preview = event.get('body', '')
+    print(f"[WORDSTAT] Body length: {len(body_preview) if body_preview else 0}")
     
     method: str = event.get('httpMethod', 'GET')
     
@@ -37,7 +52,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Method not allowed'})
         }
     
-    wordstat_token = os.environ.get('YANDEX_WORDSTAT_TOKEN')
+    wordstat_token = os.environ.get('YANDEX_SEARCH_API_KEY') or os.environ.get('YANDEX_WORDSTAT_TOKEN')
+    folder_id = os.environ.get('YANDEX_FOLDER_ID')
     if not wordstat_token:
         return {
             'statusCode': 500,
@@ -46,6 +62,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Access-Control-Allow-Origin': '*'
             },
             'body': json.dumps({'error': 'YANDEX_WORDSTAT_TOKEN not configured'})
+        }
+    if not folder_id:
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': 'YANDEX_FOLDER_ID not configured'})
         }
     
     try:
@@ -76,18 +101,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             try:
                 payload = {
                     'phrase': keyword,
-                    'regions': regions,
+                    'regions': [str(region) for region in regions],
                     'numPhrases': num_phrases,
-                    'devices': devices
+                    'devices': [DEVICE_MAP.get(str(device), 'DEVICE_ALL') for device in devices],
+                    'folderId': folder_id
                 }
                 
-                print(f"[WORDSTAT] Request to API: keyword={keyword}, regions={regions}")
-                print(f"[WORDSTAT] Payload: {json.dumps(payload)}")
+                print(f"[WORDSTAT] Request to API: keyword_length={len(keyword)}, regions={regions}")
                 
                 response = requests.post(
-                    'https://api.wordstat.yandex.net/v1/topRequests',
+                    WORDSTAT_API_URL,
                     headers={
-                        'Authorization': f'Bearer {wordstat_token}',
+                        'Authorization': f'Api-Key {wordstat_token}',
                         'Content-Type': 'application/json;charset=utf-8'
                     },
                     json=payload,
@@ -140,7 +165,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             'isBase64Encoded': False,
             'body': json.dumps({
-                'success': len(errors) == 0,
+                    'success': len(results) > 0,
+                    'partial_success': len(results) > 0 and len(errors) > 0,
                 'results': results,
                 'errors': errors,
                 'total_requests': len(results),

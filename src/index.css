@@ -113,3 +113,16 @@
       sans-serif;
   }
 }
+
+/* Global Sidebar Hiding */
+aside {
+  display: none !important;
+}
+
+.ml-64 {
+  margin-left: 0 !important;
+}
+
+.pl-64 {
+  padding-left: 0 !important;
+}

@@ -8,8 +8,8 @@ interface User {
   phone?: string;
   planType: string;
   status: string;
-  expiresAt: string;
-  createdAt: string;
+  expiresAt?: string | null;
+  createdAt?: string | null;
   hasAccess?: boolean;
 }
 
@@ -33,7 +33,11 @@ export default function UsersTable({ users, onUpdateUser, onDeleteUser }: UsersT
     setEditingUser(null);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '—';
+
     return new Date(dateString).toLocaleString('ru-RU', {
       year: 'numeric',
       month: '2-digit',

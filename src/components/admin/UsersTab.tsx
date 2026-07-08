@@ -9,8 +9,8 @@ interface User {
   phone?: string;
   planType: string;
   status: string;
-  expiresAt: string;
-  createdAt: string;
+  expiresAt?: string | null;
+  createdAt?: string | null;
   hasAccess?: boolean;
 }
 

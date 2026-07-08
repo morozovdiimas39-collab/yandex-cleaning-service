@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 interface Phrase {
   phrase: string;
   count: number;
+  frequency?: number;
   sourceCluster?: string;
   sourceColor?: string;
   isTemporary?: boolean;
@@ -63,6 +64,10 @@ const CLUSTER_BG_COLORS = [
 /** Словоформы в поиске/минусах всегда учитываются; частотность всегда в выгрузке */
 const USE_WORD_FORMS = true;
 
+function getPhraseCount(phrase: Phrase): number {
+  return phrase.count ?? phrase.frequency ?? 0;
+}
+
 /** Не мутирует исходный массив (раньше sort на месте вызывал лишние перерисовки и гонки). */
 function sortPhrasesCopy(phrases: Phrase[]): Phrase[] {
   return [...phrases].sort((a, b) => {
@@ -72,7 +77,7 @@ function sortPhrasesCopy(phrases: Phrase[]): Phrase[] {
     if (aIsMinusConfirmed && !bIsMinusConfirmed) return 1;
     if (!aIsMinusConfirmed && bIsMinusConfirmed) return -1;
 
-    return b.count - a.count;
+    return getPhraseCount(b) - getPhraseCount(a);
   });
 }
 
@@ -189,9 +194,7 @@ const VirtualClusterPhrases = memo(function VirtualClusterPhrases({
                         className={`text-xs font-mono ${phrase.isMinusWord ? "text-red-600" : "text-gray-500"}`}
                       >
                         {(
-                          phrase.frequency ||
-                          phrase.count ||
-                          0
+                          getPhraseCount(phrase)
                         ).toLocaleString()}
                       </div>
                       {phrase.sourceCluster && !phrase.isMinusWord && (
@@ -311,8 +314,8 @@ const VirtualMinusWordsList = memo(function VirtualMinusWordsList({
                       {phrase.phrase}
                     </div>
                     <div className="text-xs text-gray-500 font-mono">
-                      {(phrase.frequency || phrase.count || 0) > 0
-                        ? (phrase.frequency || phrase.count || 0).toLocaleString()
+                      {getPhraseCount(phrase) > 0
+                        ? getPhraseCount(phrase).toLocaleString()
                         : "—"}
                     </div>
                   </div>
@@ -815,26 +818,14 @@ export default function ResultsStep({
       return p;
     });
     
-    const movedCount = targetCluster.phrases.filter(p => p.sourceCluster).length;
+    const movedCount = targetCluster.phrases.filter(p => p.isTemporary).length;
     
     // Очищаем поле поиска
     targetCluster.searchText = "";
 
     setClusters(newClusters);
 
-    if (onSaveChanges) {
-      await onSaveChanges(
-        newClusters.map((c) => ({
-          name: c.name,
-          intent: c.intent,
-          color: c.color,
-          icon: c.icon,
-          phrases: c.phrases,
-          subClusters: c.subClusters,
-        })),
-        minusWords,
-      );
-    }
+    await saveToAPI(newClusters, minusWords);
 
     toast({
       title: "✅ Перенос зафиксирован",
@@ -947,7 +938,7 @@ export default function ResultsStep({
 
     if (affectedPhrases.length > 0) {
       const totalCount = affectedPhrases.reduce(
-        (sum, p) => sum + (p.count || 0),
+        (sum, p) => sum + getPhraseCount(p),
         0,
       );
 
@@ -962,7 +953,7 @@ export default function ResultsStep({
       };
 
       const newMinusWords = [...minusWords, newMinusWord].sort(
-        (a, b) => b.count - a.count,
+        (a, b) => getPhraseCount(b) - getPhraseCount(a),
       );
       setMinusWords(newMinusWords);
       setClusters(newClusters);
@@ -1244,7 +1235,7 @@ export default function ResultsStep({
 
     if (affectedPhrases.length > 0) {
       const totalCount = affectedPhrases.reduce(
-        (sum, p) => sum + (p.count || 0),
+        (sum, p) => sum + getPhraseCount(p),
         0,
       );
 
@@ -1259,7 +1250,7 @@ export default function ResultsStep({
       };
 
       const newMinusWords = [...minusWords, newMinusWord].sort(
-        (a, b) => b.count - a.count,
+        (a, b) => getPhraseCount(b) - getPhraseCount(a),
       );
 
       setClusters(updatedClusters);
@@ -1332,9 +1323,24 @@ export default function ResultsStep({
       minusTerm: undefined // undefined = подтверждённое минус-слово
     };
     
+    const alreadyInMinusWords = minusWords.some(
+      (m) => m.phrase.toLowerCase() === phrase.phrase.toLowerCase()
+    );
+    const newMinusWords = alreadyInMinusWords
+      ? minusWords
+      : [
+          ...minusWords,
+          {
+            phrase: phrase.phrase,
+            count: getPhraseCount(phrase),
+            removedPhrases: [{ ...phrase, isMinusWord: false, minusTerm: undefined }],
+          },
+        ].sort((a, b) => getPhraseCount(b) - getPhraseCount(a));
+    
     setClusters(newClusters);
+    setMinusWords(newMinusWords);
 
-    await saveToAPI(newClusters, minusWords);
+    await saveToAPI(newClusters, newMinusWords);
 
     toast({
       title: "🚫 Фраза помечена",
@@ -1380,7 +1386,7 @@ export default function ResultsStep({
 
   const copyClusterPhrases = (phrases: Phrase[]) => {
     const text = phrases
-      .map((p) => `${p.phrase}\t${p.count}`)
+      .map((p) => `${p.phrase}\t${getPhraseCount(p)}`)
       .join("\n");
     navigator.clipboard.writeText(text);
     toast({
@@ -1659,7 +1665,7 @@ export default function ResultsStep({
               name: 'Минус-фразы',
               phrases: minusWords.map(mw => ({
                 phrase: mw.phrase,
-                count: mw.count || 0,
+                count: getPhraseCount(mw),
                 isMinusWord: false
               }))
             }]
@@ -1695,7 +1701,7 @@ export default function ResultsStep({
                 ? phrase.phrase.split('').join('\u0336') + '\u0336'
                 : phrase.phrase;
               
-              rowData.push(phraseText, phrase.count || 0);
+              rowData.push(phraseText, getPhraseCount(phrase));
             }
           });
           
@@ -2183,6 +2189,14 @@ export default function ResultsStep({
                     className="min-w-0 flex-1 font-semibold text-sm h-7 border-transparent hover:border-gray-300 focus:border-gray-400 bg-transparent"
                   />
                   <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => copyClusterPhrases(cluster.phrases)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white/90"
+                      title="Копировать фразы сегмента"
+                    >
+                      <Icon name="Copy" size={16} />
+                    </button>
                     {selectedClusterIndex === null ? (
                       <button
                         type="button"
@@ -2215,14 +2229,6 @@ export default function ResultsStep({
                         <Icon name="ArrowLeft" size={16} />
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => copyClusterPhrases(cluster.phrases)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white/90"
-                      title="Копировать фразы сегмента"
-                    >
-                      <Icon name="Copy" size={16} />
-                    </button>
                   </div>
                   <button
                     type="button"

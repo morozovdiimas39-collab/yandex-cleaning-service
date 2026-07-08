@@ -1,12 +1,19 @@
-type Step = 'source' | 'cities' | 'goal' | 'minus-filters' | 'processing' | 'results';
+type Step = 'source' | 'wordstat-dialog' | 'cities' | 'minus-filters' | 'processing' | 'results';
 
 interface StepIndicatorProps {
   currentStep: Step;
 }
 
 const stepToNumber = (step: Step): number => {
-  const stepMap = { source: 1, cities: 2, goal: 3, 'minus-filters': 4, processing: 5, results: 5 };
-  return stepMap[step] || 1;
+  const stepMap: Record<string, number> = {
+    source: 1,
+    'wordstat-dialog': 1,
+    cities: 2,
+    'minus-filters': 3,
+    processing: 3,
+    results: 3,
+  };
+  return stepMap[step] ?? 1;
 };
 
 export default function StepIndicator({ currentStep }: StepIndicatorProps) {
@@ -18,7 +25,7 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
 
   return (
     <div className="mb-12 flex justify-center items-center gap-2">
-      {[1, 2, 3, 4].map((num) => (
+      {[1, 2, 3].map((num) => (
         <div key={num} className="flex items-center">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium transition-all ${
             current >= num 
@@ -27,7 +34,7 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
           }`}>
             {num}
           </div>
-          {num < 4 && <div className={`w-12 h-0.5 ${current > num ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+          {num < 3 && <div className={`w-12 h-0.5 ${current > num ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
         </div>
       ))}
     </div>

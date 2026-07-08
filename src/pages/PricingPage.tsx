@@ -12,8 +12,8 @@ export default function PricingPage() {
     <div className="min-h-screen bg-white">
       <SEOHead
         title="DirectKit — Пока бесплатно"
-        description="Сервис для сбора ключей, кластеризации и чистки РСЯ. Пока полностью бесплатно."
-        keywords="directkit, парсер wordstat, кластеризация, чистка рся, бесплатно"
+        description="Сервис для сбора ключей Wordstat, AI-подбора масок и кластеризации. Пока полностью бесплатно."
+        keywords="directkit, парсер wordstat, кластеризация, сбор ключей, бесплатно"
         canonical="https://directkit.ru/pricing"
       />
 
@@ -23,7 +23,7 @@ export default function PricingPage() {
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h1 className="text-4xl font-bold text-slate-900 mb-4">Пока всё бесплатно</h1>
           <p className="text-xl text-slate-600 mb-8">
-            Сбор ключей, кластеризация, чистка РСЯ — без ограничений и без оплаты.
+            Сбор ключей Wordstat, AI-подбор масок и кластеризация — без ограничений и без оплаты.
           </p>
           <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
             <CardContent className="pt-8 pb-8">

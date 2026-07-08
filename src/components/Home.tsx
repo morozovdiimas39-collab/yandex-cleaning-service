@@ -1,5 +1,5 @@
-import LandingPage from '@/pages/LandingPage';
+import WordstatParserPage from '@/pages/WordstatParserPage';
 
 export default function Home() {
-  return <LandingPage />;
+  return <WordstatParserPage />;
 }

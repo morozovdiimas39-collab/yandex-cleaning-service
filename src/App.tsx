@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Auth from "./pages/Auth";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
+import LandingPage from "./pages/LandingPage";
 
 import ClusteringProjects from "./pages/ClusteringProjects";
 import WordstatNew from "./pages/WordstatNew";
@@ -43,7 +44,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-          <Route path="/" element={<WordstatParserPage />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/about" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />

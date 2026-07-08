@@ -12,8 +12,36 @@ interface Stats {
   expiringWeek: number;
 }
 
+interface AdminOverview {
+  overview: {
+    totalProjects: number;
+    activeProjects: number;
+    totalTasks: number;
+    activeTasks: number;
+    totalUsers: number;
+    totalClusteringProjects: number;
+    totalWordstatTasks: number;
+    totalBlockQueue: number;
+  };
+  rsya: {
+    totalExecutions: number;
+    successfulExecutions: number;
+    failedExecutions: number;
+    totalBlocked: number;
+    avgBlockedPerExecution: number;
+  };
+  wordstat: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    totalKeywords: number;
+  };
+}
+
 interface DashboardTabProps {
   stats: Stats | null;
+  adminOverview: AdminOverview | null;
   newPlan: { userId: string; planType: string; days: number };
   loading: boolean;
   onNewPlanChange: (plan: { userId: string; planType: string; days: number }) => void;
@@ -23,6 +51,7 @@ interface DashboardTabProps {
 
 export default function DashboardTab({
   stats,
+  adminOverview,
   newPlan,
   loading,
   onNewPlanChange,
@@ -79,6 +108,56 @@ export default function DashboardTab({
           </CardHeader>
           <CardContent>
             <Icon name="AlertTriangle" className="w-5 h-5 text-orange-400" />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Icon name="ShieldCheck" className="w-5 h-5 text-emerald-600" />
+              Чистка РСЯ
+            </CardTitle>
+            <CardDescription>Проекты, задачи и очередь блокировок</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <Metric label="Проекты" value={adminOverview?.overview.totalProjects || 0} />
+            <Metric label="Настроены" value={adminOverview?.overview.activeProjects || 0} />
+            <Metric label="Задачи" value={adminOverview?.overview.totalTasks || 0} />
+            <Metric label="В очереди" value={adminOverview?.overview.totalBlockQueue || 0} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Icon name="Search" className="w-5 h-5 text-blue-600" />
+              Wordstat
+            </CardTitle>
+            <CardDescription>Проекты кластеризации и статусы сборов</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <Metric label="Проекты" value={adminOverview?.overview.totalClusteringProjects || 0} />
+            <Metric label="В работе" value={adminOverview?.wordstat.processing || 0} />
+            <Metric label="Готово" value={adminOverview?.wordstat.completed || 0} />
+            <Metric label="Ошибки" value={adminOverview?.wordstat.failed || 0} tone="danger" />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Icon name="AlertTriangle" className="w-5 h-5 text-orange-600" />
+              Ошибки
+            </CardTitle>
+            <CardDescription>Сводка по выполнению чистки</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <Metric label="Запусков" value={adminOverview?.rsya.totalExecutions || 0} />
+            <Metric label="Успешно" value={adminOverview?.rsya.successfulExecutions || 0} />
+            <Metric label="Ошибок" value={adminOverview?.rsya.failedExecutions || 0} tone="danger" />
+            <Metric label="Блокировок" value={adminOverview?.rsya.totalBlocked || 0} />
           </CardContent>
         </Card>
       </div>
@@ -153,6 +232,17 @@ export default function DashboardTab({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Metric({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'danger' }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="text-slate-500">{label}</div>
+      <div className={`text-2xl font-semibold ${tone === 'danger' ? 'text-red-600' : 'text-slate-900'}`}>
+        {value}
+      </div>
     </div>
   );
 }

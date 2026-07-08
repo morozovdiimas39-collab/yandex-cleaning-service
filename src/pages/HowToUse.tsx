@@ -57,12 +57,12 @@ export default function HowToUse() {
     {
       number: 4,
       title: 'Примените минус-фильтры',
-      description: 'Отсейте нецелевой трафик: вакансии, обучение, РСЯ-мусор готовыми фильтрами.',
+      description: 'Отсейте нецелевой трафик: вакансии, обучение и информационные запросы готовыми фильтрами.',
       icon: 'Filter',
       details: [
         'Вакансии: уберёт "работа", "вакансия", "резюме"',
         'Обучение: отсеет "курсы", "обучение", "как сделать"',
-        'РСЯ: удалит информационные запросы',
+        'Информационные запросы: поможет отделить их от коммерческих',
         'Чужие города: очистит от других регионов'
       ]
     },
@@ -246,7 +246,7 @@ export default function HowToUse() {
             <CardContent className="space-y-3 text-slate-700">
               <div className="flex items-start gap-2">
                 <Icon name="X" size={18} className="text-orange-600 mt-0.5 flex-shrink-0" />
-                <span>Собирают семантику без минус-слов — 50% бюджета уходит в РСЯ-мусор</span>
+                <span>Собирают семантику без минус-слов — бюджет уходит на нецелевые запросы</span>
               </div>
               <div className="flex items-start gap-2">
                 <Icon name="X" size={18} className="text-orange-600 mt-0.5 flex-shrink-0" />

@@ -15,7 +15,6 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   sessionToken: string | null;
-  login: (phone: string) => Promise<void>;
   logout: () => void;
   setAuthData: (user: User, token: string) => void;
 }
@@ -95,33 +94,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     verifyStoredToken();
   }, []);
 
-  const login = async (phone: string) => {
-    const response = await fetch(BACKEND_URLS.api, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone })
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to login');
-    }
-    
-    const userData = await response.json();
-    const userId = `user_${userData.id}_${Date.now().toString(36)}`;
-    const newUser: User = {
-      id: userData.id,
-      phone: userData.phone,
-      userId: userId,
-      createdAt: userData.createdAt,
-      sessionToken: userData.sessionToken
-    };
-    
-    localStorage.setItem('user', JSON.stringify(newUser));
-    localStorage.setItem('sessionToken', userData.sessionToken);
-    setSessionToken(userData.sessionToken);
-    setUser(newUser);
-  };
-
   const setAuthData = (newUser: User, token: string) => {
     console.log('🔄 AuthContext: Manually setting auth data');
     localStorage.setItem('user', JSON.stringify(newUser));
@@ -144,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, sessionToken, login, logout, setAuthData }}>
+    <AuthContext.Provider value={{ user, isLoading, sessionToken, logout, setAuthData }}>
       {children}
     </AuthContext.Provider>
   );

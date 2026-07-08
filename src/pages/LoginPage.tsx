@@ -6,9 +6,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    localStorage.setItem('userId', '1');
-    localStorage.setItem('userPhone', '+79991234567');
-    navigate('/clustering');
+    navigate('/auth', { replace: true });
   }, [navigate]);
 
   return (

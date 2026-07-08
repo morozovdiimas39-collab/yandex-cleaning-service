@@ -69,7 +69,7 @@ export default function AboutUsPage() {
   const milestones = [
     { year: '2021', event: 'Запуск первой версии парсера WordStat', icon: 'Rocket' },
     { year: '2022', event: 'Добавлена автоматическая кластеризация запросов', icon: 'Grid3x3' },
-    { year: '2023', event: 'Выпуск модуля автоматической чистки РСЯ', icon: 'ShieldCheck' },
+    { year: '2023', event: 'Запуск AI-подбора масок и минус-тем', icon: 'Sparkles' },
     { year: '2024', event: '2500+ активных пользователей, 150M+ обработанных запросов', icon: 'Users' }
   ];
 
@@ -113,7 +113,7 @@ export default function AboutUsPage() {
               <h2 className="text-4xl font-bold text-slate-900 mb-6">Наша миссия</h2>
               <p className="text-lg text-slate-700 leading-relaxed mb-6">
                 Мы верим, что контекстная реклама не должна отнимать недели работы на рутину. 
-                Парсинг семантики, кластеризация запросов, чистка РСЯ — всё это можно и нужно автоматизировать.
+                Парсинг семантики, AI-подбор масок и кластеризация запросов — всё это можно и нужно автоматизировать.
               </p>
               <p className="text-lg text-slate-700 leading-relaxed mb-6">
                 DirectKit родился из боли тысяч PPC-специалистов, которые тратят 80% времени 
@@ -246,11 +246,10 @@ export default function AboutUsPage() {
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <img 
-                  src="https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/16625d69-4f43-4dfb-a302-c6efe2ad9bc7.jpg" 
+                  src="/images/directkit-logo.png" 
                   alt="DirectKit Logo" 
-                  className="w-10 h-10 rounded-xl object-cover shadow-sm"
+                  className="h-8 w-auto rounded-md bg-white object-contain px-2 py-1"
                 />
-                <span className="font-bold text-xl">DirectKit</span>
               </div>
               <p className="text-slate-400 leading-relaxed">
                 Автоматизация Яндекс.Директ
@@ -261,7 +260,6 @@ export default function AboutUsPage() {
               <h4 className="font-bold mb-4 text-lg">Продукты</h4>
               <ul className="space-y-2 text-slate-400">
                 <li><a href="/wordstat-parser" className="hover:text-white transition-colors">Парсер WordStat</a></li>
-                <li><a href="/rsya-cleaning" className="hover:text-white transition-colors">Чистка РСЯ</a></li>
                 <li><a href="/clustering-keywords" className="hover:text-white transition-colors">Кластеризация</a></li>
               </ul>
             </div>

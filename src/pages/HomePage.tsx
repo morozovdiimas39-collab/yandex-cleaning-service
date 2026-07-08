@@ -7,9 +7,8 @@ export default function HomePage() {
   const { user } = useAuth();
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-      <AppSidebar />
-      <div className="flex-1 overflow-auto ml-64">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+      <div className="flex-1 overflow-auto">
         <div className="max-w-5xl mx-auto p-6">
           {/* Пока сервис полностью бесплатный */}
           {/* Шапка */}
@@ -79,7 +78,7 @@ export default function HomePage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-1">Многопроектная работа</h3>
                   <p className="text-muted-foreground leading-relaxed">
-                    Управляйте неограниченным количеством проектов: Wordstat, кластеризация и очистка РСЯ в одном интерфейсе
+                    Управляйте неограниченным количеством проектов: Wordstat, AI-подбор масок и кластеризация в одном интерфейсе
                   </p>
                 </div>
               </div>

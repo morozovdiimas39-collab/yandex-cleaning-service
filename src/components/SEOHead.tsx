@@ -18,7 +18,7 @@ export default function SEOHead({
   keywords,
   ogTitle,
   ogDescription,
-  ogImage = 'https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/a24651d1-cc21-439d-8932-8703e4f1b0e2.jpg',
+  ogImage = 'https://directkit.ru/images/directkit-logo.png',
   ogType = 'website',
   canonical,
   jsonLd

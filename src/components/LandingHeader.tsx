@@ -1,50 +1,53 @@
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
-export default function LandingHeader() {
-  const navigate = useNavigate();
+interface LandingHeaderProps {
+  onBetaClick?: () => void;
+  onSectionClick?: (sectionId: string) => void;
+}
+
+const menuItems = [
+  { label: 'Преимущества', sectionId: 'benefits' },
+  { label: 'Экономия', sectionId: 'savings' },
+  { label: 'Как работает', sectionId: 'how-it-works' },
+  { label: 'Результат', sectionId: 'result' }
+];
+
+export default function LandingHeader({ onBetaClick, onSectionClick }: LandingHeaderProps) {
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50 shadow-sm backdrop-blur-sm bg-white/90">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
+    <header className="sticky top-0 z-50 border-b border-emerald-100 bg-white/90 shadow-sm backdrop-blur-sm">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-6 py-4">
+        <button className="flex items-center gap-3" onClick={scrollToTop} aria-label="DirectKit">
           <img 
-            src="https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/16625d69-4f43-4dfb-a302-c6efe2ad9bc7.jpg" 
+            src="/images/directkit-logo.png" 
             alt="Логотип DirectKit - автоматизация Яндекс.Директ, парсер Wordstat и чистка РСЯ" 
-            className="w-10 h-10 rounded-xl object-cover shadow-sm"
-            width="40"
-            height="40"
+            className="h-9 w-auto object-contain"
+            width="108"
+            height="36"
           />
-          <span className="font-bold text-xl bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
-            DirectKit
-          </span>
-        </div>
-        <nav className="hidden md:flex items-center gap-6">
-          <button onClick={() => navigate('/wordstat-parser')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            Сбор фраз Wordstat
-          </button>
-          <button onClick={() => navigate('/rsya-cleaning')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            Чистка РСЯ
-          </button>
-          <button onClick={() => navigate('/pricing')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            Цены
-          </button>
-          <button onClick={() => navigate('/cases')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            Кейсы
-          </button>
-          <button onClick={() => navigate('/blog')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            Блог
-          </button>
-          <button onClick={() => navigate('/about-us')} className="text-slate-600 hover:text-emerald-600 transition font-medium">
-            О нас
-          </button>
+        </button>
+
+        <nav className="hidden items-center gap-6 lg:flex">
+          {menuItems.map((item) => (
+            <button
+              key={item.sectionId}
+              onClick={() => onSectionClick?.(item.sectionId)}
+              className="text-sm font-bold text-slate-600 transition hover:text-emerald-700"
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
+
         <div className="flex items-center gap-3">
-          <Button onClick={() => navigate('/login')} variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50">
-            Войти
-          </Button>
-          <Button onClick={() => navigate('/auth')} className="bg-emerald-600 hover:bg-emerald-700">
-            Регистрация
+          <Button
+            onClick={onBetaClick}
+            className="h-11 rounded-xl bg-emerald-600 px-5 text-sm font-black text-white shadow-lg shadow-emerald-600/15 hover:bg-emerald-700"
+          >
+            Оставить заявку
           </Button>
         </div>
       </div>

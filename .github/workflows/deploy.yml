@@ -129,7 +129,13 @@ jobs:
             --environment OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
             --environment OPENAI_PROXY_URL="${{ secrets.OPENAI_PROXY_URL }}" \
             --environment OPENAI_MODEL="${{ secrets.OPENAI_MODEL }}" \
-            --environment ADMIN_KEY="${{ secrets.ADMIN_KEY }}"
+            --environment ADMIN_KEY="${{ secrets.ADMIN_KEY }}" \
+            --environment SMTP_HOST="${{ secrets.SMTP_HOST }}" \
+            --environment SMTP_PORT="${{ secrets.SMTP_PORT }}" \
+            --environment SMTP_USER="${{ secrets.SMTP_USER }}" \
+            --environment SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
+            --environment SMTP_FROM="${{ secrets.SMTP_FROM }}" \
+            --environment LEAD_EMAIL_TO="${{ secrets.LEAD_EMAIL_TO }}"
           
           # Делаем функцию публичной
           

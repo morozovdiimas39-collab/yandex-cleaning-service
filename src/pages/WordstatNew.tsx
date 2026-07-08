@@ -157,9 +157,7 @@ export default function WordstatNew() {
 
   if (step === 'input') {
     return (
-      <>
-        <AppSidebar />
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-6 ml-64">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-6">
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="space-y-2">
             <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -246,14 +244,11 @@ export default function WordstatNew() {
           </Card>
         </div>
       </div>
-      </>
     );
   }
 
   return (
-    <>
-      <AppSidebar />
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-6 ml-64">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -277,6 +272,5 @@ export default function WordstatNew() {
         />
       </div>
     </div>
-    </>
   );
 }

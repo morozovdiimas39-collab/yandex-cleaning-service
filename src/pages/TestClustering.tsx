@@ -6,7 +6,6 @@ import Header from '@/components/Header';
 import { City } from '@/data/russian-cities';
 import SourceStep from '@/components/clustering/SourceStep';
 import CitiesStep from '@/components/clustering/CitiesStep';
-import GoalStep from '@/components/clustering/GoalStep';
 import MinusFiltersStep from '@/components/clustering/MinusFiltersStep';
 import ProcessingStep from '@/components/clustering/ProcessingStep';
 import ResultsStep from '@/components/clustering/ResultsStep';
@@ -19,28 +18,47 @@ import { BACKEND_URLS } from '@/config/backend-urls';
 
 const API_URL = BACKEND_URLS.api;
 const WORDSTAT_API_URL = BACKEND_URLS['wordstat-parser'];
-const WORDSTAT_STATUS_URL = BACKEND_URLS['wordstat-status'];
 
 // Версия для отладки кэширования
 const APP_VERSION = '2025-01-03-v2';
 console.log(`🚀 TestClustering loaded, version: ${APP_VERSION}`);
 
-type Step = 'source' | 'wordstat-dialog' | 'cities' | 'goal' | 'minus-filters' | 'processing' | 'results';
+type Step = 'source' | 'wordstat-dialog' | 'cities' | 'minus-filters' | 'processing' | 'results';
 type Source = 'manual' | 'website';
 type Goal = 'context' | 'seo';
 
 interface Phrase {
   phrase: string;
   count: number;
+  isMinusWord?: boolean;
+  minusTerm?: string;
+  removedPhrases?: Phrase[];
 }
 
 interface Cluster {
   name: string;
-  intent: string;
-  color: string;
-  icon: string;
+  intent?: string;
+  color?: string;
+  icon?: string;
   phrases: Phrase[];
+  subClusters?: Cluster[];
 }
+
+const normalizePhrase = (phrase: any): Phrase => ({
+  ...phrase,
+  phrase: phrase?.phrase || '',
+  count: phrase?.count ?? phrase?.frequency ?? 0,
+});
+
+const normalizeCluster = (cluster: any): Cluster => ({
+  ...cluster,
+  name: cluster?.name || 'Без названия',
+  intent: cluster?.intent || 'informational',
+  color: cluster?.color || 'gray',
+  icon: cluster?.icon || 'Folder',
+  phrases: Array.isArray(cluster?.phrases) ? cluster.phrases.map(normalizePhrase) : [],
+  subClusters: Array.isArray(cluster?.subClusters) ? cluster.subClusters.map(normalizeCluster) : undefined,
+});
 
 export default function TestClustering() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -62,6 +80,7 @@ export default function TestClustering() {
 
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [minusWords, setMinusWords] = useState<Phrase[]>([]);
+  const [verifiedWordstatPhrases, setVerifiedWordstatPhrases] = useState<Phrase[]>([]);
   const [projectName, setProjectName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [clustersMergeEpoch, setClustersMergeEpoch] = useState(0);
@@ -121,7 +140,8 @@ export default function TestClustering() {
         const parsed = JSON.parse(savedState);
         // Восстанавливаем состояние (processing автоматически заменяется на intents при сохранении)
         if (parsed.step) {
-          setStep(parsed.step);
+          const s = parsed.step === 'goal' ? 'minus-filters' : parsed.step;
+          setStep(s);
           setSource(parsed.source || 'manual');
           setManualKeywords(parsed.manualKeywords || '');
           setWebsiteUrl(parsed.websiteUrl || '');
@@ -190,14 +210,7 @@ export default function TestClustering() {
             console.log('🔍 First cluster FULL:', JSON.stringify(project.results.clusters[0]));
             
             // Конвертируем frequency → count для компонента ResultsStep
-            const convertedClusters = project.results.clusters.map((cluster: any) => ({
-              ...cluster,
-              phrases: cluster.phrases.map((phrase: any) => ({
-                ...phrase,
-                phrase: phrase.phrase,
-                count: phrase.frequency ?? phrase.count ?? 0,
-              }))
-            }));
+            const convertedClusters = project.results.clusters.map(normalizeCluster);
             
             console.log('🔍 CONVERTED clusters:', JSON.stringify(convertedClusters.map((c: any) => ({ name: c.name, phrasesCount: c.phrases?.length }))));
             
@@ -337,8 +350,71 @@ export default function TestClustering() {
     }
   };
 
+  const completeFromVerifiedPhrases = async (autoMinusWords: string[] = []) => {
+    const inputPhrases = manualKeywords
+      .split('\n')
+      .map(k => k.trim())
+      .filter(k => k.length > 0);
+
+    const verifiedByPhrase = new Map(
+      verifiedWordstatPhrases.map((phrase) => [phrase.phrase.toLowerCase(), phrase])
+    );
+
+    const phraseRows = inputPhrases.map((phrase) => {
+      const verified = verifiedByPhrase.get(phrase.toLowerCase());
+      return {
+        phrase,
+        count: verified?.count ?? 0,
+        isMinusWord: false,
+      };
+    });
+
+    const baseClusters: Cluster[] = [
+      {
+        name: 'Все ключи',
+        intent: 'seed',
+        color: 'blue',
+        icon: 'Key',
+        phrases: phraseRows,
+      },
+      {
+        name: 'Собранные фразы',
+        intent: goal,
+        color: 'emerald',
+        icon: 'Search',
+        phrases: phraseRows,
+      },
+    ];
+
+    const autoMinusPhrases = autoMinusWords.map(word => ({ phrase: word, count: 0 }));
+    const existingMinus = minusWords.filter((word) => word.phrase && word.phrase.trim());
+    const combinedMinusWords = [...existingMinus, ...autoMinusPhrases]
+      .filter((word, index, arr) => arr.findIndex((item) => item.phrase.toLowerCase() === word.phrase.toLowerCase()) === index);
+
+    const minusWordsSet = new Set(combinedMinusWords.map(w => w.phrase.toLowerCase()));
+    const clustersWithMinusMarks = baseClusters.map(cluster => ({
+      ...cluster,
+      phrases: cluster.phrases.map(phrase => {
+        const phraseLower = phrase.phrase.toLowerCase();
+        const matchedMinusWord = Array.from(minusWordsSet).find(minusWord => phraseLower.includes(minusWord));
+        return matchedMinusWord
+          ? { ...phrase, isMinusWord: true, minusTerm: matchedMinusWord }
+          : phrase;
+      })
+    }));
+
+    setLoadingProgress(100);
+    setClusters(clustersWithMinusMarks);
+    setMinusWords(combinedMinusWords);
+    await saveResultsToAPI(clustersWithMinusMarks, combinedMinusWords);
+    toast.success('Кластеризация завершена!');
+    setStep('results');
+  };
+
   const handleWordstatSubmit = async (query: string, cities: City[], mode: string, calledFromResults = false, autoMinusWords: string[] = []) => {
     console.log('🎬 handleWordstatSubmit STARTED', { calledFromResults, autoMinusWords: autoMinusWords.length });
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     
     if (!sessionToken) {
       toast.error('Ошибка: пользователь не авторизован');
@@ -359,6 +435,7 @@ export default function TestClustering() {
     }
     
     setIsWordstatLoading(true);
+    setLoadingProgress(calledFromResults ? 1 : loadingProgress);
     
     try {
       // ВСЕГДА передаём ID городов (реальные коды регионов Яндекс.Директа)
@@ -369,11 +446,21 @@ export default function TestClustering() {
         .split('\n')
         .map(k => k.trim())
         .filter(k => k.length > 0);
+
+      if (calledFromResults) {
+        const estimatedMs = Math.max(25000, Math.min(120000, inputPhrases.length * 12000));
+        const startedAt = Date.now();
+        progressInterval = setInterval(() => {
+          const elapsed = Date.now() - startedAt;
+          const nextProgress = Math.min(92, 1 + (elapsed / estimatedMs) * 91);
+          setLoadingProgress(nextProgress);
+        }, 800);
+      }
       
       const requestBody = {
         keywords: inputPhrases,
         regions: regionIds,
-        mode: 'context', // Всегда используем режим "все фразы"
+        mode,
         selected_intents: ['commercial', 'informational', 'navigational', 'transactional'] // Все интенты
       };
       
@@ -385,14 +472,23 @@ export default function TestClustering() {
         requestBody
       });
       
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), 150000);
+
       const response = await fetch(WORDSTAT_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-User-Id': user?.id || ''
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
       });
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (!response.ok) {
         throw new Error('Failed to create Wordstat task');
@@ -401,8 +497,12 @@ export default function TestClustering() {
       const data = await response.json();
       console.log('✅ Wordstat response:', data);
       
-      if (!data.success || !data.results || data.results.length === 0) {
+      if (!data.results || data.results.length === 0) {
         throw new Error('Нет результатов от Wordstat');
+      }
+
+      if (data.errors && data.errors.length > 0) {
+        toast.warning(`Часть запросов не собрана: ${data.errors.length}`);
       }
       
       setLoadingProgress(100);
@@ -411,11 +511,12 @@ export default function TestClustering() {
       const allPhrases: Array<{phrase: string, count: number}> = [];
       
       data.results.forEach((result: any) => {
-        if (result.data && result.data.topRequests) {
-          result.data.topRequests.forEach((req: any) => {
+        const topRequests = result.data?.topRequests || result.data?.TopRequests || [];
+        if (Array.isArray(topRequests)) {
+          topRequests.forEach((req: any) => {
             allPhrases.push({
               phrase: req.phrase,
-              count: req.count
+              count: req.count ?? req.shows ?? req.value ?? 0
             });
           });
         }
@@ -427,11 +528,14 @@ export default function TestClustering() {
       const newClusters = [
         {
           name: 'Все ключи',
+          intent: 'seed',
+          color: 'blue',
+          icon: 'Key',
           phrases: inputPhrases.map(phrase => {
             const found = allPhrases.find(p => p.phrase === phrase);
             return {
               phrase,
-              frequency: found?.count || 0,
+              count: found?.count || 0,
               isMinusWord: false
             };
           }),
@@ -439,9 +543,12 @@ export default function TestClustering() {
         },
         {
           name: 'Собранные фразы',
+          intent: mode,
+          color: 'emerald',
+          icon: 'Search',
           phrases: allPhrases.map(p => ({
             phrase: p.phrase,
-            frequency: p.count,
+            count: p.count,
             isMinusWord: false
           })),
           totalCount: allPhrases.reduce((sum, p) => sum + p.count, 0)
@@ -632,9 +739,18 @@ export default function TestClustering() {
       
     } catch (error: any) {
       console.error('❌ Error in handleWordstatSubmit:', error);
-      toast.error(`Ошибка: ${error?.message || 'неизвестная ошибка'}`);
+      const message = error?.name === 'AbortError'
+        ? 'Wordstat не ответил за 150 секунд. Попробуйте меньше фраз или другой запрос.'
+        : error?.message || 'неизвестная ошибка';
+      toast.error(`Ошибка: ${message}`);
       // Не меняем step при ошибке, остаёмся там где были
     } finally {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       setIsWordstatLoading(false);
     }
   };
@@ -660,15 +776,12 @@ export default function TestClustering() {
 
   const handleBack = () => {
     if (step === 'cities') setStep('source');
-    else if (step === 'goal') setStep('cities');
-    else if (step === 'minus-filters') setStep('goal');
-    else if (step === 'cluster-names') setStep('processing');
-    else if (step === 'results') setStep('cluster-names');
+    else if (step === 'minus-filters') setStep('cities');
   };
 
   const exportClusters = () => {
     const text = clusters.map(c =>
-      `${c.name}\n${c.phrases.map(p => `${p.phrase} - ${p.count}`).join('\n')}`
+      `${c.name}\n${c.phrases.map(p => `${p.phrase} - ${p.count ?? 0}`).join('\n')}`
     ).join('\n\n');
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
     const link = document.createElement('a');
@@ -678,7 +791,7 @@ export default function TestClustering() {
   };
 
   const exportMinusWords = () => {
-    const text = minusWords.map(p => `${p.phrase} - ${p.count}`).join('\n');
+    const text = minusWords.map(p => `${p.phrase} - ${p.count ?? 0}`).join('\n');
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -737,8 +850,8 @@ export default function TestClustering() {
             )}
           </div>
         ) : (
-          <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-4 md:p-8">
-            <div className="max-w-3xl mx-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-gradient-to-br from-emerald-50/50 via-green-50/30 to-teal-50/50 p-4 md:p-8">
+            <div className="mx-auto max-w-3xl pb-8">
               <div className="text-center mb-8">
                 <h1 className="text-4xl font-semibold text-slate-800 mb-2 tracking-tight">
                   Сбор ключей
@@ -762,6 +875,21 @@ export default function TestClustering() {
                 setObjectAddress={setObjectAddress}
                 onNext={handleNextFromSource}
                 onWordstatClick={() => setStep('wordstat-dialog')}
+                onAiApply={(keywords, city, minusWords = [], verifiedPhrases = []) => {
+                  setManualKeywords(keywords);
+                  if (city) {
+                    setSelectedCities((prev) => prev.some((item) => item.id === city.id) ? prev : [...prev, city]);
+                  }
+                  setVerifiedWordstatPhrases(
+                    verifiedPhrases.length > 0
+                      ? verifiedPhrases.map(normalizePhrase)
+                      : keywords.split('\n').filter(Boolean).map((phrase) => ({ phrase, count: 0 }))
+                  );
+                  if (minusWords.length > 0) {
+                    setMinusWords(minusWords.map((phrase) => ({ phrase, count: 0 })));
+                  }
+                }}
+                onManualKeywordsEdit={() => setVerifiedWordstatPhrases([])}
                 isLoading={false}
               />
             )}
@@ -779,24 +907,13 @@ export default function TestClustering() {
                   setSelectedCities(selectedCities.filter(c => c.id !== cityId));
                 }}
                 onNext={() => {
-                  console.log('🔵 Cities step: onNext clicked');
-                  setStep('goal');
-                  console.log('🔵 Cities step: setStep(goal) called');
+                  setStep('minus-filters');
                 }}
                 onBack={handleBack}
                 hasManualKeywords={manualKeywords.trim().length > 0}
                 manualKeyword={manualKeywords.split('\n')[0]?.trim() || ''}
                 specificAddress={specificAddress}
                 setSpecificAddress={setSpecificAddress}
-              />
-            )}
-
-            {step === 'goal' && (
-              <GoalStep
-                goal={goal}
-                setGoal={setGoal}
-                onNext={() => setStep('minus-filters')}
-                onBack={handleBack}
               />
             )}
 
@@ -832,7 +949,11 @@ export default function TestClustering() {
                       const autoMinusWords = getMinusWordsFromFilters(selectedMinusFilters, selectedCities);
                       console.log('🚫 Auto minus-words:', autoMinusWords);
                       
-                      await handleWordstatSubmit(allKeywords, selectedCities, goal, false, autoMinusWords);
+                      if (verifiedWordstatPhrases.length > 0) {
+                        await completeFromVerifiedPhrases(autoMinusWords);
+                      } else {
+                        await handleWordstatSubmit(allKeywords, selectedCities, goal, false, autoMinusWords);
+                      }
                     } finally {
                       clearInterval(progressInterval);
                     }
@@ -851,7 +972,7 @@ export default function TestClustering() {
 
             <WordstatDialog
               open={step === 'wordstat-dialog'}
-              onOpenChange={(open) => setStep(open ? 'wordstat-dialog' : 'results')}
+              onOpenChange={(open) => setStep(open ? 'wordstat-dialog' : (clusters.length > 0 ? 'results' : 'source'))}
               onSubmit={(query, cities, mode) => {
                 // ВАЖНО: определяем вызван ли из результатов по наличию данных в БД
                 const calledFromResults = clusters.length > 0;

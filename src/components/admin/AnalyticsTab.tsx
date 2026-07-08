@@ -6,8 +6,8 @@ interface User {
   phone?: string;
   planType: string;
   status: string;
-  expiresAt: string;
-  createdAt: string;
+  expiresAt?: string | null;
+  createdAt?: string | null;
   hasAccess?: boolean;
 }
 
@@ -17,6 +17,7 @@ interface AnalyticsTabProps {
 
 export default function AnalyticsTab({ users }: AnalyticsTabProps) {
   const expiringUsers = users.filter(u => {
+    if (!u.expiresAt) return false;
     const daysUntilExpire = Math.floor((new Date(u.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     return daysUntilExpire >= 0 && daysUntilExpire <= 7 && u.status === 'active';
   });
@@ -25,8 +26,12 @@ export default function AnalyticsTab({ users }: AnalyticsTabProps) {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ru-RU', {
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '—';
+
+    return date.toLocaleString('ru-RU', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -35,7 +40,8 @@ export default function AnalyticsTab({ users }: AnalyticsTabProps) {
     });
   };
 
-  const getDaysUntilExpire = (expiresAt: string) => {
+  const getDaysUntilExpire = (expiresAt?: string | null) => {
+    if (!expiresAt) return 0;
     return Math.floor((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   };
 

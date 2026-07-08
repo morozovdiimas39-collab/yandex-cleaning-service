@@ -1,763 +1,461 @@
-import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 import SEOHead from '@/components/SEOHead';
 import LandingHeader from '@/components/LandingHeader';
-import { generateWordstatPDF, generateRSYAPDF } from '@/utils/pdfGenerator';
+import { BACKEND_URLS } from '@/config/backend-urls';
 
 export default function LandingPage() {
-  const navigate = useNavigate();
-  const [activeProduct, setActiveProduct] = useState<'wordstat' | 'rsya'>('wordstat');
+  const [betaSubmitted, setBetaSubmitted] = useState(false);
+  const [isBetaModalOpen, setIsBetaModalOpen] = useState(false);
+  const [isLeadSubmitting, setIsLeadSubmitting] = useState(false);
+  const [leadError, setLeadError] = useState('');
+  const [animatedSavings, setAnimatedSavings] = useState(0);
+  const totalClientSavings = 12483729;
+  const leadEmail = 'morozov.diimas39@yandex.ru';
+  const leadApiUrl = `${BACKEND_URLS.api}?endpoint=landing-lead`;
+  const formattedSavings = `${animatedSavings.toLocaleString('ru-RU').replace(/\u00a0/g, ' ')} ₽`;
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'DirectKit',
-    applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web',
-    offers: {
-      '@type': 'Offer',
-      price: '1990',
-      priceCurrency: 'RUB',
-      availability: 'https://schema.org/InStock'
-    },
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      ratingCount: '2500',
-      bestRating: '5',
-      worstRating: '1'
-    },
-    description: 'Профессиональные инструменты для автоматизации Яндекс.Директ. Парсер Wordstat, автоматическая чистка РСЯ, кластеризация запросов.',
-    featureList: [
-      'Парсер Wordstat - сбор 10000+ запросов за 30 минут',
-      'Автоматическая чистка РСЯ 24/7',
-      'Кластеризация запросов',
-      'Снижение CPA на 40%'
-    ],
-    creator: {
-      '@type': 'Organization',
-      name: 'DirectKit',
-      url: 'https://directkit.ru'
-    },
-    review: [
-      {
-        '@type': 'Review',
-        author: {
-          '@type': 'Person',
-          name: 'Александр Ковалёв'
-        },
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: '5',
-          bestRating: '5'
-        },
-        reviewBody: 'На сбор семантики уходило 2-3 дня. С DirectKit делаю за пару часов. Чистка РСЯ работает сама — CPA снизился на 35%.'
-      },
-      {
-        '@type': 'Review',
-        author: {
-          '@type': 'Person',
-          name: 'Мария Соколова'
-        },
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: '5',
-          bestRating: '5'
-        },
-        reviewBody: 'Никогда не работала с рекламой, но DirectKit оказался очень простым. CPC снизился на 40%, заявок в 2 раза больше!'
-      },
-      {
-        '@type': 'Review',
-        author: {
-          '@type': 'Person',
-          name: 'Дмитрий Петров'
-        },
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: '5',
-          bestRating: '5'
-        },
-        reviewBody: 'Используем для всех клиентов. Особенно ценим автоматическую чистку — экономим до 30% бюджета на каждом проекте.'
+  useEffect(() => {
+    const duration = 1600;
+    const startedAt = performance.now();
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimatedSavings(Math.round(totalClientSavings * eased));
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
       }
-    ]
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  const handleBetaSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const phone = String(formData.get('phone') || '').trim();
+
+    if (phone.length < 7) {
+      setLeadError('Введите телефон, чтобы мы могли связаться.');
+      return;
+    }
+
+    setIsLeadSubmitting(true);
+    setLeadError('');
+
+    try {
+      const response = await fetch(leadApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          source: window.location.href
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Не удалось отправить заявку');
+      }
+
+      setBetaSubmitted(true);
+      event.currentTarget.reset();
+    } catch (error) {
+      setLeadError(error instanceof Error ? error.message : 'Не удалось отправить заявку');
+    } finally {
+      setIsLeadSubmitting(false);
+    }
   };
 
+  const openBetaModal = () => {
+    setBetaSubmitted(false);
+    setLeadError('');
+    setIsBetaModalOpen(true);
+  };
+
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const benefits = [
+    {
+      icon: 'RefreshCwOff',
+      title: 'Можно забыть о рутине',
+      text: 'Сервис сам будет удалять мусорные площадки из РСЯ по заданным правилам, без ежедневной ручной проверки отчетов.'
+    },
+    {
+      icon: 'ShieldCheck',
+      title: 'Качественные площадки остаются',
+      text: 'Площадки фильтруются по вашим условиям: расход, клики, конверсии, отказы и исключения. Хорошие источники не удаляются вслепую.'
+    },
+    {
+      icon: 'Clock3',
+      title: 'Проверка несколько раз в день',
+      text: 'Чистка запускается регулярно, поэтому новые слабые площадки не копятся неделями и быстрее уходят в блок.'
+    }
+  ];
+
+  const savings = [
+    {
+      icon: 'BadgePercent',
+      title: 'До 30% бюджета можно вернуть в работу',
+      text: 'Мусорные площадки быстрее уходят в блок, поэтому меньше денег тратится на клики без результата.'
+    },
+    {
+      icon: 'Gauge',
+      title: 'Быстрая реакция на слив',
+      text: 'Сервис проверяет площадки несколько раз в день и не ждет, пока слабые источники накопят большой расход.'
+    },
+    {
+      icon: 'TrendingUp',
+      title: 'Бюджет остается на качественный трафик',
+      text: 'После чистки показы продолжаются на площадках, которые проходят фильтры и дают нормальные сигналы.'
+    }
+  ];
+
+  const steps = [
+    {
+      icon: 'PlugZap',
+      title: 'Подключаем проект',
+      text: 'Выбираем кампании РСЯ, цели Метрики и расписание проверки.'
+    },
+    {
+      icon: 'SlidersHorizontal',
+      title: 'Задаем фильтры',
+      text: 'Настраиваем условия по расходу, кликам, конверсиям, отказам и исключениям.'
+    },
+    {
+      icon: 'ShieldMinus',
+      title: 'Блокируем мусор',
+      text: 'Сервис несколько раз в день находит слабые площадки и добавляет их в исключения.'
+    }
+  ];
+
+  const outcomes = [
+    'Меньше ручной проверки отчетов',
+    'Меньше слива бюджета на слабые площадки',
+    'Хорошие площадки остаются в работе',
+    'Понятный контроль по каждому запуску'
+  ];
+
   return (
-    <>
-      <SEOHead 
-        title="DirectKit — Автоматизация Яндекс.Директ: Парсер Wordstat и Чистка РСЯ"
-        description="Профессиональные инструменты для Яндекс.Директ. Парсинг Wordstat за 30 минут, автоматическая чистка РСЯ 24/7. Снижение CPA на 40%, экономия времени в 10 раз."
-        keywords="directkit, парсер wordstat, чистка рся, автоматизация директ, яндекс директ инструменты, парсинг вордстат, блокировка площадок рся, кластеризация запросов"
+    <div className="min-h-screen bg-[#f6fbf8] text-slate-900 selection:bg-emerald-100">
+      <SEOHead
+        title="DirectKit - чистка площадок РСЯ для Яндекс Директ"
+        description="DirectKit помогает специалистам по Яндекс Директу вручную настраивать автоматическую чистку площадок РСЯ, проверять preview перед блокировкой и контролировать проекты клиентов."
+        keywords="DirectKit, чистка РСЯ, площадки РСЯ, блокировка площадок РСЯ, Яндекс Директ, Direct API"
         canonical="https://directkit.ru/"
-        ogTitle="DirectKit — Автоматизация Яндекс.Директ"
-        ogDescription="Парсинг Wordstat, чистка РСЯ, кластеризация. Снижение CPA на 40%. 2500+ пользователей."
-        ogType="website"
-        jsonLd={jsonLd}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'SoftwareApplication',
+          name: 'DirectKit',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          description: 'Сервис для парсинга Wordstat и чистки площадок РСЯ в Яндекс Директе.'
+        }}
       />
-      <div className="min-h-screen bg-white">
-      <LandingHeader />
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-emerald-500 to-green-500 rounded-2xl mb-6 shadow-lg">
-              <Icon name="Zap" size={40} className="text-white" />
-            </div>
-            <h1 className="text-6xl font-bold text-slate-900 mb-6 leading-tight">
-              Автоматизация<br />
-              <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                Яндекс.Директ
-              </span>
-            </h1>
-            <p className="text-2xl text-slate-600 mb-10 max-w-4xl mx-auto leading-relaxed">
-              Профессиональные инструменты для работы с контекстной рекламой. Парсинг Wordstat, автоматическая чистка РСЯ, кластеризация запросов — всё в одном сервисе.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <Button 
-                onClick={() => navigate('/auth')} 
-                size="lg"
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-lg px-8 py-6 shadow-xl shadow-emerald-500/30 hover:shadow-2xl hover:shadow-emerald-500/40 transition-all"
-              >
-                <Icon name="Rocket" size={20} className="mr-2" />
-                Попробовать бесплатно
-              </Button>
-              <Button 
-                onClick={() => document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' })}
-                size="lg"
-                variant="outline"
-                className="text-lg px-8 py-6 border-2 hover:bg-slate-50"
-              >
-                Наши инструменты
-              </Button>
-            </div>
-            <p className="text-slate-500 mt-6 text-lg">7 дней бесплатно • Без привязки карты • Полный доступ</p>
-          </div>
+      <LandingHeader onBetaClick={openBetaModal} onSectionClick={scrollToSection} />
 
-          <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-emerald-100 shadow-lg text-center">
-              <div className="text-4xl font-bold text-emerald-600 mb-2">2500+</div>
-              <p className="text-slate-700 font-medium">Активных пользователей</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-teal-100 shadow-lg text-center">
-              <div className="text-4xl font-bold text-teal-600 mb-2">150M+</div>
-              <p className="text-slate-700 font-medium">Запросов обработано</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-green-100 shadow-lg text-center">
-              <div className="text-4xl font-bold text-green-600 mb-2">-40%</div>
-              <p className="text-slate-700 font-medium">Средний CPA после оптимизации</p>
-            </div>
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border-2 border-emerald-100 shadow-lg text-center">
-              <div className="text-4xl font-bold text-emerald-600 mb-2">24/7</div>
-              <p className="text-slate-700 font-medium">Автоматическая работа</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* About DirectKit */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-slate-900 mb-4">Что такое DirectKit?</h2>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Единая платформа для автоматизации работы с Яндекс.Директ — от сбора семантики до оптимизации рекламных кампаний
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
-            <Card className="border-2 border-emerald-100 hover:border-emerald-300 transition-all hover:shadow-xl">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="Zap" size={32} className="text-emerald-600" />
-                </div>
-                <CardTitle className="text-2xl mb-3">Полная автоматизация</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Настройте один раз — система работает 24/7 без вашего участия. Парсинг, кластеризация, чистка РСЯ выполняются автоматически по расписанию.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-2 border-teal-100 hover:border-teal-300 transition-all hover:shadow-xl">
-              <CardHeader>
-                <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="Target" size={32} className="text-teal-600" />
-                </div>
-                <CardTitle className="text-2xl mb-3">Точные инструменты</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Работаем через официальный API Яндекса. Все операторы соответствия, 15+ метрик анализа, умные алгоритмы фильтрации мусорного трафика.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-2 border-green-100 hover:border-green-300 transition-all hover:shadow-xl">
-              <CardHeader>
-                <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="TrendingDown" size={32} className="text-green-600" />
-                </div>
-                <CardTitle className="text-2xl mb-3">Реальная экономия</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Снижение CPA на 30-50%, экономия 90% времени на рутине, окупаемость подписки за первую неделю использования.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 p-12 rounded-3xl text-white shadow-2xl">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div>
-                <h3 className="text-4xl font-bold mb-6">Для кого DirectKit?</h3>
-                <ul className="space-y-4 text-lg">
-                  <li className="flex items-start gap-3">
-                    <Icon name="Check" size={24} className="flex-shrink-0 mt-1" />
-                    <span><strong>PPC-специалистам</strong> — автоматизация рутины, больше клиентов</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <Icon name="Check" size={24} className="flex-shrink-0 mt-1" />
-                    <span><strong>Агентствам</strong> — масштабирование работы с семантикой</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <Icon name="Check" size={24} className="flex-shrink-0 mt-1" />
-                    <span><strong>Владельцам бизнеса</strong> — экономия на найме специалистов</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <Icon name="Check" size={24} className="flex-shrink-0 mt-1" />
-                    <span><strong>Новичкам</strong> — простой интерфейс, быстрый старт</span>
-                  </li>
-                </ul>
+      <main>
+        <section id="hero" className="relative scroll-mt-24 overflow-hidden bg-[radial-gradient(circle_at_75%_18%,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#effbf5_54%,#e7f8f7_100%)]">
+          <div className="mx-auto grid min-h-[600px] max-w-7xl items-center gap-10 px-6 py-14 lg:grid-cols-[1fr_0.95fr]">
+            <div className="max-w-3xl">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-white/75 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm backdrop-blur">
+                <Icon name="LockKeyhole" size={16} />
+                Закрытая бета для ручного подключения клиентов
               </div>
-              <div className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl text-center">
-                <div className="text-7xl font-bold mb-4">95%</div>
-                <p className="text-2xl mb-6">Экономия времени на рутинных задачах</p>
-                <div className="text-lg opacity-90">
-                  То, что раньше занимало неделю, теперь делается за час
-                </div>
+              <h1 className="max-w-2xl text-4xl font-black leading-[1.08] tracking-normal text-slate-900 md:text-5xl">
+                Сервис автоматической чистки площадок РСЯ 24/7
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
+                Уберите рутину! Эффективная чистка площадок РСЯ по заданным фильтрам.
+              </p>
+              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                <Button
+                  size="lg"
+                  onClick={openBetaModal}
+                  className="h-14 rounded-md bg-emerald-600 px-7 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+                >
+                  <Icon name="Rocket" size={19} className="mr-2" />
+                  Оставить заявку на закрытый бета-тест
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Products Section */}
-      <section id="products" className="py-20 bg-gradient-to-b from-slate-50 to-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-slate-900 mb-4">Наши продукты</h2>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Два мощных инструмента для полного цикла работы с Яндекс.Директ
-            </p>
-          </div>
-
-          {/* Product Tabs */}
-          <div className="flex justify-center gap-4 mb-12">
-            <Button
-              onClick={() => setActiveProduct('wordstat')}
-              size="lg"
-              variant={activeProduct === 'wordstat' ? 'default' : 'outline'}
-              className={activeProduct === 'wordstat' 
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-lg px-8 py-6'
-                : 'text-lg px-8 py-6 border-2'
-              }
-            >
-              <Icon name="Database" size={20} className="mr-2" />
-              Парсер Wordstat
-            </Button>
-            <Button
-              onClick={() => setActiveProduct('rsya')}
-              size="lg"
-              variant={activeProduct === 'rsya' ? 'default' : 'outline'}
-              className={activeProduct === 'rsya' 
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-lg px-8 py-6'
-                : 'text-lg px-8 py-6 border-2'
-              }
-            >
-              <Icon name="ShieldCheck" size={20} className="mr-2" />
-              Чистка РСЯ
-            </Button>
-          </div>
-
-          {/* Wordstat Product */}
-          {activeProduct === 'wordstat' && (
-            <div className="animate-in fade-in duration-500">
-              <Card className="border-0 shadow-2xl overflow-hidden mb-12">
-                <CardContent className="p-0">
-                  <div className="grid md:grid-cols-2">
-                    <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-12 text-white flex items-center">
-                      <div>
-                        <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
-                          <Icon name="Database" size={40} />
-                        </div>
-                        <h3 className="text-4xl font-bold mb-4">Парсер Wordstat</h3>
-                        <p className="text-xl opacity-90 mb-6 leading-relaxed">
-                          Соберите 10 000+ запросов из Яндекс Вордстат за 30 минут. Без капчи, с фильтрацией по регионам и частотности.
-                        </p>
-                        <div className="space-y-3 mb-8">
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Парсинг через API — никаких капч</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>До 50 000 запросов за раз</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Выгрузка в Excel за 1 клик</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Фильтры по региону и частоте</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <Button 
-                            onClick={() => navigate('/wordstat-parser')}
-                            variant="secondary"
-                            size="lg"
-                            className="bg-white text-emerald-600 hover:bg-slate-100"
-                          >
-                            Подробнее
-                          </Button>
-                          <Button 
-                            onClick={generateWordstatPDF}
-                            variant="outline"
-                            size="lg"
-                            className="border-2 border-white text-white hover:bg-white/10"
-                          >
-                            <Icon name="FileDown" size={20} className="mr-2" />
-                            Скачать PDF
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-12 bg-white">
-                      <h4 className="text-2xl font-bold mb-6 text-slate-900">Ключевые возможности</h4>
-                      <div className="space-y-6">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                              <Icon name="Zap" size={20} className="text-emerald-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Максимальная скорость</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">10 000 запросов за 30 минут — быстрее всех конкурентов</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-                              <Icon name="MapPin" size={20} className="text-teal-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Все регионы</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Локальная частотность для любого города России</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                              <Icon name="Filter" size={20} className="text-green-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Умные фильтры</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Минус-слова при парсинге, фильтрация по частотности</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                              <Icon name="FileSpreadsheet" size={20} className="text-emerald-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Готовый экспорт</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Excel и CSV с метриками, готово для импорта в Директ</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-emerald-600 mb-2">95%</div>
-                  <p className="text-slate-700">Экономия времени на сборе</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border-2 border-teal-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-teal-600 mb-2">10x</div>
-                  <p className="text-slate-700">Больше запросов чем вручную</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border-2 border-green-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-green-600 mb-2">0</div>
-                  <p className="text-slate-700">Ошибок при сборе данных</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* RSYA Product */}
-          {activeProduct === 'rsya' && (
-            <div className="animate-in fade-in duration-500">
-              <Card className="border-0 shadow-2xl overflow-hidden mb-12">
-                <CardContent className="p-0">
-                  <div className="grid md:grid-cols-2">
-                    <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-12 text-white flex items-center">
-                      <div>
-                        <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
-                          <Icon name="ShieldCheck" size={40} />
-                        </div>
-                        <h3 className="text-4xl font-bold mb-4">Автоматическая Чистка РСЯ</h3>
-                        <p className="text-xl opacity-90 mb-6 leading-relaxed">
-                          Система мониторит рекламу 3 раза в день и автоматически блокирует мусорные площадки. Снижение CPA на 30-50%.
-                        </p>
-                        <div className="space-y-3 mb-8">
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Мониторинг 24/7 — каждые 8 часов</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>15+ метрик анализа площадок</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Автоблокировка мусорного трафика</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Icon name="Check" size={20} />
-                            <span>Умная ротация при лимите 1000</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <Button 
-                            onClick={() => navigate('/rsya-cleaning')}
-                            variant="secondary"
-                            size="lg"
-                            className="bg-white text-emerald-600 hover:bg-slate-100"
-                          >
-                            Подробнее
-                          </Button>
-                          <Button 
-                            onClick={generateRSYAPDF}
-                            variant="outline"
-                            size="lg"
-                            className="border-2 border-white text-white hover:bg-white/10"
-                          >
-                            <Icon name="FileDown" size={20} className="mr-2" />
-                            Скачать PDF
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-12 bg-white">
-                      <h4 className="text-2xl font-bold mb-6 text-slate-900">Ключевые возможности</h4>
-                      <div className="space-y-6">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                              <Icon name="BarChart3" size={20} className="text-emerald-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Глубокий анализ</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">15+ метрик: конверсии, CPA, отказы, время, CTR, CPC</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
-                              <Icon name="AlertCircle" size={20} className="text-teal-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Выявление мусора</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Паттерны фрода, подозрительный CPC, высокие отказы</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                              <Icon name="Shield" size={20} className="text-green-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Автоблокировка</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Добавление в Excluded Sites через API Яндекса</p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                              <Icon name="RefreshCw" size={20} className="text-emerald-600" />
-                            </div>
-                            <h5 className="font-semibold text-lg">Умная ротация</h5>
-                          </div>
-                          <p className="text-slate-600 ml-13">Управление лимитом 1000 площадок — всегда блокированы самые дорогие</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl border-2 border-emerald-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-emerald-600 mb-2">-40%</div>
-                  <p className="text-slate-700">Снижение CPA</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border-2 border-teal-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-teal-600 mb-2">3x/день</div>
-                  <p className="text-slate-700">Автоматический мониторинг</p>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border-2 border-green-100 shadow-lg text-center">
-                  <div className="text-5xl font-bold text-green-600 mb-2">0 мин</div>
-                  <p className="text-slate-700">Времени на ручную работу</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-slate-900 mb-4">Как работает DirectKit</h2>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Простой процесс из 3 шагов — от регистрации до первых результатов
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
-            <Card className="border-2 border-emerald-100 hover:shadow-xl transition-all">
-              <CardHeader>
-                <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="UserPlus" size={32} className="text-emerald-600" />
-                </div>
-                <div className="text-4xl font-bold text-emerald-600 mb-2">1</div>
-                <CardTitle className="text-2xl mb-3">Регистрация</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Создайте аккаунт за 30 секунд. Без привязки карты, без SMS, без капчи. Сразу получаете полный доступ на 7 дней.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-2 border-teal-100 hover:shadow-xl transition-all">
-              <CardHeader>
-                <div className="w-16 h-16 bg-teal-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="Settings" size={32} className="text-teal-600" />
-                </div>
-                <div className="text-4xl font-bold text-teal-600 mb-2">2</div>
-                <CardTitle className="text-2xl mb-3">Настройка</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Подключите аккаунт Яндекс.Директ через OAuth, выберите кампании, настройте правила работы. Занимает 5-10 минут.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-2 border-green-100 hover:shadow-xl transition-all">
-              <CardHeader>
-                <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mb-4">
-                  <Icon name="TrendingUp" size={32} className="text-green-600" />
-                </div>
-                <div className="text-4xl font-bold text-green-600 mb-2">3</div>
-                <CardTitle className="text-2xl mb-3">Результаты</CardTitle>
-                <CardDescription className="text-base leading-relaxed text-slate-700">
-                  Система работает автоматически. Парсинг за 30 минут, первая чистка РСЯ через 8 часов. Снижение CPA через неделю.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <div className="text-center">
-            <Button 
-              onClick={() => navigate('/auth')} 
-              size="lg"
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-lg px-10 py-6 shadow-xl"
-            >
-              <Icon name="Rocket" size={20} className="mr-2" />
-              Начать сейчас — бесплатно
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 bg-gradient-to-b from-slate-50 to-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-5xl font-bold text-slate-900 mb-4">Что говорят клиенты</h2>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Реальные отзывы специалистов, агентств и владельцев бизнеса
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    АК
-                  </div>
-                  <div>
-                    <div className="font-semibold">Александр Ковалёв</div>
-                    <div className="text-sm text-slate-500">PPC-специалист</div>
-                  </div>
-                </div>
-                <div className="flex gap-1 mb-3">
-                  {[...Array(5)].map((_, i) => (
-                    <Icon key={i} name="Star" size={16} className="text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <CardDescription className="text-base leading-relaxed">
-                  "На сбор семантики уходило 2-3 дня. С DirectKit делаю за пару часов. Чистка РСЯ работает сама — CPA снизился на 35%."
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    МС
-                  </div>
-                  <div>
-                    <div className="font-semibold">Мария Соколова</div>
-                    <div className="text-sm text-slate-500">Владелица магазина</div>
-                  </div>
-                </div>
-                <div className="flex gap-1 mb-3">
-                  {[...Array(5)].map((_, i) => (
-                    <Icon key={i} name="Star" size={16} className="text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <CardDescription className="text-base leading-relaxed">
-                  "Никогда не работала с рекламой, но DirectKit оказался очень простым. CPC снизился на 40%, заявок в 2 раза больше!"
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    ДП
-                  </div>
-                  <div>
-                    <div className="font-semibold">Дмитрий Петров</div>
-                    <div className="text-sm text-slate-500">Digital-агентство</div>
-                  </div>
-                </div>
-                <div className="flex gap-1 mb-3">
-                  {[...Array(5)].map((_, i) => (
-                    <Icon key={i} name="Star" size={16} className="text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <CardDescription className="text-base leading-relaxed">
-                  "Используем для всех клиентов. Особенно ценим автоматическую чистку — экономим до 30% бюджета на каждом проекте."
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24 bg-gradient-to-br from-emerald-600 via-teal-600 to-green-600 relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:40px_40px]" />
-        <div className="max-w-4xl mx-auto px-6 text-center relative">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Icon name="Rocket" size={16} />
-            Начните экономить уже сегодня
-          </div>
-          <h2 className="text-6xl font-bold text-white mb-6 leading-tight">
-            Попробуйте DirectKit<br />бесплатно
-          </h2>
-          <p className="text-2xl text-white/90 mb-10 leading-relaxed">
-            7 дней полного доступа ко всем инструментам. Без привязки карты. Отмена в любой момент.
-          </p>
-          <div className="flex items-center justify-center gap-4 mb-8">
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/auth')} 
-              className="bg-white text-emerald-600 hover:bg-slate-50 text-xl px-10 py-7 shadow-2xl hover:shadow-3xl transition-all font-bold"
-            >
-              <Icon name="Sparkles" size={24} className="mr-2" />
-              Начать бесплатно
-            </Button>
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/pricing')}
-              variant="outline"
-              className="border-2 border-white text-white hover:bg-white/10 text-xl px-10 py-7"
-            >
-              Посмотреть цены
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-6 text-white/90 text-lg">
-            <div className="flex items-center gap-2">
-              <Icon name="Check" size={20} />
-              <span>Без кредитной карты</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Icon name="Check" size={20} />
-              <span>Полный функционал</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Icon name="Check" size={20} />
-              <span>Поддержка 24/7</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-slate-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <img 
-                  src="https://cdn.poehali.dev/projects/e8511f31-5a6a-4fd5-9a7c-5620b5121f26/files/16625d69-4f43-4dfb-a302-c6efe2ad9bc7.jpg" 
-                  alt="DirectKit Logo" 
-                  className="w-10 h-10 rounded-xl object-cover shadow-sm"
+            <div className="relative">
+              <div className="absolute -inset-6 rounded-[2rem] bg-emerald-200/25 blur-3xl" aria-hidden="true" />
+              <div className="relative mx-auto max-w-[560px] overflow-hidden rounded-[2rem] border border-emerald-100 bg-white/85 p-3 shadow-2xl shadow-emerald-900/10 backdrop-blur">
+                <img
+                  src="/images/rsya-cleaning-hero.png"
+                  alt="Чистка площадок РСЯ: preview перед блокировкой в Direct API"
+                  className="w-full rounded-[1.55rem] object-cover"
+                  width="1448"
+                  height="1086"
                 />
-                <span className="font-bold text-xl">DirectKit</span>
               </div>
-              <p className="text-slate-400 leading-relaxed">
-                Профессиональная автоматизация Яндекс.Директ
+            </div>
+          </div>
+        </section>
+
+        <section id="benefits" className="scroll-mt-24 border-y border-emerald-100 bg-white py-16">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mb-9 max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Преимущества платформы</p>
+              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-4xl">
+                Чистка РСЯ работает по правилам, а не на глаз
+              </h2>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+              {benefits.map((benefit) => (
+                <article key={benefit.title} className="rounded-xl border border-emerald-100 bg-[#f8fffb] p-6 shadow-sm">
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                    <Icon name={benefit.icon} size={23} />
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900">{benefit.title}</h3>
+                  <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">{benefit.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="savings" className="scroll-mt-24 bg-white py-20">
+          <div className="w-full px-6 py-10 text-center">
+            <p className="mb-8 text-2xl font-black tracking-normal text-emerald-900 md:text-4xl">
+              Всего помогли сэкономить
+            </p>
+
+            <div className="whitespace-nowrap text-[13vw] font-black leading-none tracking-[-0.08em] text-emerald-950">
+              {formattedSavings}
+            </div>
+
+            <Button
+              size="lg"
+              onClick={openBetaModal}
+              className="mt-10 h-14 rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+            >
+              Записаться на закрытый бета-тест
+            </Button>
+          </div>
+        </section>
+
+        <section id="economy" className="mx-auto max-w-7xl scroll-mt-24 px-6 py-20">
+          <div className="overflow-hidden rounded-[1.75rem] border border-emerald-100 bg-white shadow-xl shadow-emerald-900/5">
+            <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
+              <div className="bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,#ecfdf5,#ffffff)] p-8 md:p-10">
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Экономия бюджета</p>
+                <div className="mt-7 inline-flex items-end gap-3">
+                  <span className="text-7xl font-black leading-none text-emerald-700 md:text-8xl">30%</span>
+                  <span className="pb-3 text-xl font-black text-slate-900">до</span>
+                </div>
+                <h2 className="mt-6 max-w-xl text-3xl font-black tracking-normal text-slate-900 md:text-4xl">
+                  меньше бюджета уходит на мусорные площадки
+                </h2>
+                <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-slate-600">
+                  Быстрая чистка останавливает площадки, которые тратят деньги без заявок и конверсий, пока они не успели съесть существенную часть бюджета.
+                </p>
+                <div className="mt-8 rounded-xl border border-emerald-100 bg-white/80 p-4">
+                  <div className="mb-3 flex items-center justify-between text-sm font-black">
+                    <span className="text-slate-700">Расход на слабые площадки</span>
+                    <span className="text-emerald-700">снижается</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full w-[70%] rounded-full bg-gradient-to-r from-red-400 via-amber-300 to-emerald-500" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-px bg-emerald-100 p-px md:grid-cols-3 lg:grid-cols-1">
+                {savings.map((item) => (
+                  <article key={item.title} className="grid gap-4 bg-white p-6 md:grid-cols-[56px_1fr] md:p-7">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                      <Icon name={item.icon} size={23} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900">{item.title}</h3>
+                      <p className="mt-2 text-sm font-semibold leading-7 text-slate-600">{item.text}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="how-it-works" className="scroll-mt-24 bg-white py-20">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mb-12 max-w-3xl">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Как это работает</p>
+              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-5xl">
+                Настроили один раз, дальше чистка идет по расписанию
+              </h2>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+              {steps.map((step, index) => (
+                <article key={step.title} className="relative rounded-2xl border border-emerald-100 bg-[#f8fffb] p-7">
+                  <div className="mb-8 flex items-center justify-between">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                      <Icon name={step.icon} size={23} />
+                    </div>
+                    <span className="text-5xl font-black leading-none text-emerald-100">0{index + 1}</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900">{step.title}</h3>
+                  <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">{step.text}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="result" className="scroll-mt-24 bg-[#f6fbf8] py-20">
+          <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Результат для клиента</p>
+              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-5xl">
+                Контроль площадок без ежедневной рутины
+              </h2>
+              <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-slate-600">
+                Клиент получает не просто список заблокированных доменов, а понятную систему контроля качества трафика в РСЯ.
               </p>
             </div>
 
-            <div>
-              <h4 className="font-bold mb-4 text-lg">Продукты</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><a href="/wordstat-parser" className="hover:text-white transition-colors">Парсер WordStat</a></li>
-                <li><a href="/rsya-cleaning" className="hover:text-white transition-colors">Чистка РСЯ</a></li>
-                <li><a href="/clustering-keywords" className="hover:text-white transition-colors">Кластеризация</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold mb-4 text-lg">Компания</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><a href="/pricing" className="hover:text-white transition-colors">Тарифы</a></li>
-                <li><a href="/cases" className="hover:text-white transition-colors">Кейсы</a></li>
-                <li><a href="/about-us" className="hover:text-white transition-colors">О нас</a></li>
-                <li><a href="/blog" className="hover:text-white transition-colors">Блог</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold mb-4 text-lg">Поддержка</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><a href="/how-to-use" className="hover:text-white transition-colors">Как использовать</a></li>
-                <li><a href="mailto:support@directkit.ru" className="hover:text-white transition-colors">support@directkit.ru</a></li>
-              </ul>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {outcomes.map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-white p-5 shadow-sm">
+                  <Icon name="CheckCircle2" size={20} className="shrink-0 text-emerald-600" />
+                  <span className="text-base font-black text-slate-800">{item}</span>
+                </div>
+              ))}
             </div>
           </div>
+        </section>
 
-          <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
-            <p>&copy; 2025 DirectKit. Все права защищены.</p>
+        <section id="request" className="scroll-mt-24 border-y border-emerald-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#f8fffb_54%,#edfafa_100%)] py-20 text-slate-900">
+          <div className="mx-auto max-w-5xl px-6 text-center">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Закрытый бета-тест</p>
+            <h2 className="mt-3 text-3xl font-black tracking-normal md:text-5xl">
+              Оставьте заявку на подключение
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base font-semibold leading-7 text-slate-600">
+              Уникальная возможность подключить сервис автоматической чистки площадок РСЯ до публичного запуска.
+            </p>
+
+            <Button
+              size="lg"
+              onClick={openBetaModal}
+              className="mt-8 h-14 rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+            >
+              Оставить заявку
+            </Button>
+
+            {betaSubmitted && (
+              <div className="mx-auto mt-4 max-w-2xl rounded-lg border border-emerald-100 bg-white px-4 py-3 text-sm font-bold text-emerald-800">
+                Заявка отправлена. Скоро свяжемся.
+              </div>
+            )}
           </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-emerald-100 bg-white py-10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 md:flex-row md:items-center md:justify-between">
+          <img
+            src="/images/directkit-logo.png"
+            alt="DirectKit"
+            className="h-8 w-auto object-contain"
+            width="108"
+            height="36"
+          />
+          <nav className="flex flex-wrap gap-x-7 gap-y-3 text-sm font-bold text-slate-500">
+            <button onClick={() => scrollToSection('benefits')} className="hover:text-emerald-700">Преимущества</button>
+            <button onClick={() => scrollToSection('savings')} className="hover:text-emerald-700">Экономия</button>
+            <button onClick={() => scrollToSection('how-it-works')} className="hover:text-emerald-700">Как работает</button>
+            <button onClick={() => scrollToSection('result')} className="hover:text-emerald-700">Результат</button>
+            <button onClick={openBetaModal} className="hover:text-emerald-700">Оставить заявку</button>
+            <a href={`mailto:${leadEmail}`} className="hover:text-emerald-700">{leadEmail}</a>
+          </nav>
         </div>
       </footer>
+
+      <Dialog open={isBetaModalOpen} onOpenChange={setIsBetaModalOpen}>
+        <DialogContent className="max-w-md overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl">
+          <div className="bg-[linear-gradient(135deg,#ecfdf5,#ffffff)] px-6 pb-5 pt-6">
+            <DialogHeader className="space-y-3 text-left">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <Icon name="Sparkles" size={22} />
+              </div>
+              <DialogTitle className="text-2xl font-black leading-tight text-slate-900">
+                Заявка на закрытый бета-тест
+              </DialogTitle>
+              <DialogDescription className="text-sm font-semibold leading-6 text-slate-600">
+                Оставьте телефон, и мы свяжемся для подключения чистки площадок РСЯ.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {betaSubmitted ? (
+            <div className="px-6 pb-6">
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white">
+                  <Icon name="Check" size={22} />
+                </div>
+                <p className="text-lg font-black text-emerald-950">Заявка отправлена</p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  Телефон уже ушел нам на почту. Скоро свяжемся.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleBetaSubmit} className="space-y-4 px-6 pb-6">
+              <label className="block">
+                <span className="mb-2 block text-sm font-black text-slate-800">Телефон</span>
+                <Input
+                  name="phone"
+                  required
+                  autoFocus
+                  inputMode="tel"
+                  placeholder="+7 (999) 000-00-00"
+                  className="h-12 rounded-xl border-slate-200 text-base font-semibold focus-visible:ring-emerald-100"
+                />
+              </label>
+
+              {leadError && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  {leadError}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={isLeadSubmitting}
+                className="h-14 w-full rounded-xl bg-emerald-600 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isLeadSubmitting ? 'Отправляем...' : 'Отправить заявку'}
+              </Button>
+
+              <p className="text-center text-xs font-semibold leading-5 text-slate-500">
+                Нажимая кнопку, вы отправляете телефон для связи по закрытому бета-тесту.
+              </p>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
-    </>
   );
 }

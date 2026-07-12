@@ -3,95 +3,83 @@ import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { logoutAdmin } from '@/lib/admin-auth';
 
+const menuItems = [
+  { title: 'Обзор', path: '/admin', icon: 'LayoutDashboard' },
+  { title: 'Проекты и задачи', path: '/admin/rsya-cleaning', icon: 'FolderKanban' },
+  { title: 'Пользователи', path: '/admin/users', icon: 'Users' },
+  { title: 'Состояние системы', path: '/admin/rsya-workers', icon: 'Activity' },
+];
+
 export default function AdminSidebar() {
   const location = useLocation();
+  const isActive = (path: string) => path === '/admin'
+    ? location.pathname === '/admin'
+    : location.pathname.startsWith(path);
 
-  const menuItems = [
-    {
-      title: 'Главная',
-      path: '/admin/analytics',
-      icon: 'LayoutDashboard'
-    },
-    {
-      title: 'Проекты',
-      path: '/admin/projects',
-      icon: 'Folder'
-    },
-    {
-      title: 'Чистка РСЯ',
-      path: '/admin/rsya-cleaning',
-      icon: 'Ban'
-    },
-    {
-      title: 'Воркеры РСЯ',
-      path: '/admin/rsya-workers',
-      icon: 'Activity'
-    },
-    {
-      title: 'Сбор ключей',
-      path: '/admin/wordstat',
-      icon: 'Key'
-    },
-    {
-      title: 'Пользователи',
-      path: '/admin/users',
-      icon: 'Users'
-    },
-    {
-      title: 'Подписки',
-      path: '/admin',
-      icon: 'CreditCard'
-    }
-  ];
+  const logout = async () => {
+    await logoutAdmin();
+    window.location.assign('/admin');
+  };
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-200 shadow-sm z-50">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center">
-            <Icon name="ShieldCheck" size={24} className="text-white" />
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-[#fbfcfb] lg:flex lg:flex-col">
+        <div className="flex h-20 items-center border-b border-slate-200 px-6">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-emerald-600 text-white">
+            <Icon name="ShieldCheck" size={21} />
           </div>
-          <div>
-            <h2 className="font-bold text-lg">Админка</h2>
-            <p className="text-xs text-muted-foreground">DirectKit</p>
+          <div className="ml-3 min-w-0">
+            <div className="text-base font-semibold text-slate-950">DirectKit</div>
+            <div className="text-xs text-slate-500">Управление сервисом</div>
           </div>
         </div>
-      </div>
 
-      <nav className="p-4 space-y-1">
-        {menuItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
+        <nav className="flex-1 space-y-1 px-3 py-5" aria-label="Админ-навигация">
+          <p className="px-3 pb-2 text-xs font-medium uppercase text-slate-400">Рабочая область</p>
+          {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
-                isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-700 hover:bg-gray-100'
+                'flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
+                isActive(item.path)
+                  ? 'bg-emerald-50 text-emerald-800'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
               )}
             >
-              <Icon name={item.icon as any} size={20} />
+              <Icon name={item.icon as any} size={19} />
               <span>{item.title}</span>
+              {isActive(item.path) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-600" />}
             </Link>
-          );
-        })}
-      </nav>
+          ))}
+        </nav>
 
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-        <button
-          type="button"
-          onClick={async () => {
-            await logoutAdmin();
-            window.location.assign('/admin');
-          }}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-700 transition-colors hover:bg-gray-100"
-        >
-          <Icon name="LogOut" size={20} />
-          <span>Выйти</span>
-        </button>
-      </div>
-    </div>
+        <div className="border-t border-slate-200 p-3">
+          <button type="button" onClick={logout} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950">
+            <Icon name="LogOut" size={19} />
+            Выйти
+          </button>
+        </div>
+      </aside>
+
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <Link to="/admin" className="flex items-center gap-2 font-semibold">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-emerald-600 text-white"><Icon name="ShieldCheck" size={19} /></span>
+            DirectKit
+          </Link>
+          <button type="button" onClick={logout} className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 text-slate-600" aria-label="Выйти">
+            <Icon name="LogOut" size={19} />
+          </button>
+        </div>
+        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Мобильная админ-навигация">
+          {menuItems.map((item) => (
+            <Link key={item.path} to={item.path} className={cn('flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium', isActive(item.path) ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600')}>
+              <Icon name={item.icon as any} size={17} />{item.title}
+            </Link>
+          ))}
+        </nav>
+      </header>
+    </>
   );
 }

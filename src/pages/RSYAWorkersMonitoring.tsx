@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
-import AdminSidebar from '@/components/layout/AdminSidebar';
+import AdminShell from '@/components/layout/AdminShell';
 import { adminFetch } from '@/lib/admin-auth';
 import {
   Table,
@@ -49,25 +49,22 @@ const RSYAWorkersMonitoring = () => {
 
   if (loading && !workersData) {
     return (
-      <div className="flex h-screen bg-gray-50">
-        <AdminSidebar />
-        <div className="flex-1 overflow-auto ml-64 flex items-center justify-center">
+      <AdminShell>
+        <div className="flex min-h-[70vh] items-center justify-center">
           <div className="text-center">
-            <Icon name="Loader2" className="animate-spin h-12 w-12 mx-auto mb-4 text-blue-600" />
+            <Icon name="Loader2" className="mx-auto mb-4 h-9 w-9 animate-spin text-emerald-600" />
             <p className="text-muted-foreground">Загрузка данных воркеров...</p>
           </div>
         </div>
-      </div>
+      </AdminShell>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminSidebar />
-      <div className="flex-1 overflow-auto ml-64">
-        <div className="max-w-[1600px] mx-auto p-6">
-          <div className="mb-6">
-            <h1 className="text-4xl font-bold mb-2">Мониторинг воркеров РСЯ</h1>
+    <AdminShell>
+          <div className="mb-6 border-b border-slate-200 pb-6">
+            <p className="mb-2 text-sm font-medium text-emerald-700">Техническое состояние</p>
+            <h1 className="text-2xl font-semibold sm:text-3xl">Состояние системы</h1>
             <p className="text-muted-foreground">Статус воркеров, scheduler'ов и очереди блокировок</p>
             <p className="text-xs text-muted-foreground mt-1">Обновляется каждые 15 секунд</p>
           </div>
@@ -330,9 +327,7 @@ const RSYAWorkersMonitoring = () => {
               )}
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </AdminShell>
   );
 };
 

@@ -1,443 +1,127 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { BACKEND_URLS } from '@/config/backend-urls';
-import AdminHeader from '@/components/admin/AdminHeader';
-import { adminFetch, logoutAdmin } from '@/lib/admin-auth';
-import AdminTabs, { TabType } from '@/components/admin/AdminTabs';
+import { adminFetch } from '@/lib/admin-auth';
+import AdminShell from '@/components/layout/AdminShell';
 import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
-import AnalyticsTab from '@/components/admin/AnalyticsTab';
-import BulkTab from '@/components/admin/BulkTab';
-import AffiliatesTab from '@/components/admin/AffiliatesTab';
-import ScheduleTab from '@/components/admin/ScheduleTab';
-import RSYATesterTab from '@/components/admin/RSYATesterTab';
 
-interface User {
-  userId: string;
-  phone?: string;
-  planType: string;
-  status: string;
-  expiresAt?: string | null;
-  createdAt?: string | null;
-  hasAccess?: boolean;
-}
-
-interface Stats {
-  total: number;
-  activeTrial: number;
-  activeMonthly: number;
-  newToday: number;
-  expiringWeek: number;
-}
-
+interface User { userId: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface Stats { total: number; activeTrial: number; activeMonthly: number; newToday: number; expiringWeek: number; }
 interface AdminOverview {
-  overview: {
-    totalProjects: number;
-    activeProjects: number;
-    totalTasks: number;
-    activeTasks: number;
-    totalUsers: number;
-    totalClusteringProjects: number;
-    totalWordstatTasks: number;
-    totalBlockQueue: number;
-  };
-  rsya: {
-    totalExecutions: number;
-    successfulExecutions: number;
-    failedExecutions: number;
-    totalBlocked: number;
-    avgBlockedPerExecution: number;
-  };
-  wordstat: {
-    pending: number;
-    processing: number;
-    completed: number;
-    failed: number;
-    totalKeywords: number;
-  };
+  overview: { totalProjects: number; activeProjects: number; totalTasks: number; activeTasks: number; totalUsers: number; totalClusteringProjects: number; totalWordstatTasks: number; totalBlockQueue: number; };
+  rsya: { totalExecutions: number; successfulExecutions: number; failedExecutions: number; totalBlocked: number; avgBlockedPerExecution: number; };
+  wordstat: { pending: number; processing: number; completed: number; failed: number; totalKeywords: number; };
 }
 
 export default function AdminPage() {
+  const location = useLocation();
+  const { toast } = useToast();
+  const isUsersPage = location.pathname.startsWith('/admin/users');
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterPlan, setFilterPlan] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<string>('createdAt');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPlan, setFilterPlan] = useState('all');
+  const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [bulkUserIds, setBulkUserIds] = useState('');
-  const [bulkPlan, setBulkPlan] = useState({ planType: 'trial', days: 1 });
-  const [newPlan, setNewPlan] = useState<{ userId: string; planType: string; days: number }>({
-    userId: '',
-    planType: 'trial',
-    days: 1
-  });
-  const { toast } = useToast();
-
+  const [searchQuery, setSearchQuery] = useState('');
   const LIMIT = 50;
 
   useEffect(() => {
-    loadInitialData();
+    Promise.all([loadUsers(0, true), loadStats(), loadAdminOverview()]).finally(() => setLoading(false));
   }, []);
-
-  const handleLogout = async () => {
-    await logoutAdmin();
-    window.location.assign('/admin');
-  };
-
-  const loadInitialData = async () => {
-    await Promise.all([loadUsers(0, true), loadStats(), loadAdminOverview()]);
-  };
 
   const loadStats = async () => {
     try {
-      const response = await adminFetch(
-        `${BACKEND_URLS.subscription}?action=admin_stats`,
-        {
-          method: 'GET',
-          headers: {}
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки статистики:', error);
-    }
+      const response = await adminFetch(`${BACKEND_URLS.subscription}?action=admin_stats`);
+      if (response.ok) setStats(await response.json());
+    } catch (error) { console.error('Ошибка загрузки статистики:', error); }
   };
 
-  const loadUsers = async (offsetValue: number = 0, reset: boolean = false) => {
-    if (reset) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-
+  const loadUsers = async (offsetValue = 0, reset = false) => {
+    if (!reset) setLoadingMore(true);
     try {
-      const response = await adminFetch(
-        `${BACKEND_URLS.subscription}?action=admin_all&limit=${LIMIT}&offset=${offsetValue}`,
-        {
-          method: 'GET',
-          headers: {}
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (reset) {
-          setUsers(data.users || []);
-        } else {
-          setUsers(prev => [...prev, ...(data.users || [])]);
-        }
-        
-        setTotal(data.total || 0);
-        setHasMore(data.hasMore || false);
-        setOffset(offsetValue + LIMIT);
-      }
+      const response = await adminFetch(`${BACKEND_URLS.subscription}?action=admin_all&limit=${LIMIT}&offset=${offsetValue}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      setUsers((previous) => reset ? (data.users || []) : [...previous, ...(data.users || [])]);
+      setTotal(data.total || 0);
+      setHasMore(Boolean(data.hasMore));
+      setOffset(offsetValue + LIMIT);
     } catch (error) {
       console.error('Ошибка загрузки пользователей:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось загрузить список пользователей',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+      toast({ title: 'Не удалось загрузить пользователей', description: 'Обновите страницу или проверьте состояние системы.', variant: 'destructive' });
+    } finally { setLoadingMore(false); }
   };
 
   const loadAdminOverview = async () => {
     try {
       const response = await adminFetch(`${BACKEND_URLS.admin}?action=analytics`);
-
-      if (response.ok) {
-        const data = await response.json();
-        setAdminOverview(data);
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки обзора админки:', error);
-    }
+      if (response.ok) setAdminOverview(await response.json());
+    } catch (error) { console.error('Ошибка загрузки обзора:', error); }
   };
 
-  const loadMoreUsers = () => {
-    if (!loadingMore && hasMore) {
-      loadUsers(offset, false);
-    }
-  };
-
-  const updateSubscription = async (targetUserId: string, planType: string, days: number) => {
-    setLoading(true);
+  const updateSubscription = async (userId: string, planType: string, days: number) => {
     try {
-      const response = await adminFetch(
-        `${BACKEND_URLS.subscription}?action=admin_update`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: targetUserId,
-            planType,
-            days
-          })
-        }
-      );
-
-      if (response.ok) {
-        toast({
-          title: 'Подписка обновлена',
-          description: `Пользователю ${targetUserId} назначен тариф ${planType} на ${days} дней`
-        });
-        await loadInitialData();
-        return true;
-      } else {
-        throw new Error('Ошибка обновления');
-      }
+      const response = await adminFetch(`${BACKEND_URLS.subscription}?action=admin_update`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, planType, days })
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast({ title: 'Подписка обновлена', description: `${planType}, ${days} дн.` });
+      await Promise.all([loadUsers(0, true), loadStats()]);
     } catch (error) {
-      console.error('Ошибка обновления подписки:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось обновить подписку',
-        variant: 'destructive'
-      });
-      return false;
-    } finally {
-      setLoading(false);
+      toast({ title: 'Не удалось обновить подписку', description: 'Повторите попытку.', variant: 'destructive' });
     }
-  };
-
-  const handleUpdateSubscription = async () => {
-    if (!newPlan.userId) {
-      toast({
-        title: 'Ошибка',
-        description: 'Введите ID пользователя',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    const success = await updateSubscription(newPlan.userId, newPlan.planType, newPlan.days);
-    if (success) {
-      setNewPlan({ userId: '', planType: 'trial', days: 1 });
-    }
-  };
-
-  const bulkUpdateSubscriptions = async () => {
-    const userIdList = bulkUserIds.split('\n').map(id => id.trim()).filter(Boolean);
-    
-    if (userIdList.length === 0) {
-      toast({
-        title: 'Ошибка',
-        description: 'Введите хотя бы один User ID',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setLoading(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const userId of userIdList) {
-      const success = await updateSubscription(userId, bulkPlan.planType, bulkPlan.days);
-      if (success) {
-        successCount++;
-      } else {
-        errorCount++;
-      }
-    }
-
-    setLoading(false);
-    toast({
-      title: 'Массовое обновление завершено',
-      description: `Успешно: ${successCount}, Ошибок: ${errorCount}`
-    });
-    setBulkUserIds('');
   };
 
   const deleteUser = async (userId: string) => {
-    if (!confirm(`Удалить пользователя ${userId}?`)) return;
-
-    setLoading(true);
+    if (!window.confirm(`Удалить пользователя ${userId}?`)) return;
     try {
-      const response = await adminFetch(
-        `${BACKEND_URLS.subscription}?action=admin_delete&userId=${userId}`,
-        {
-          method: 'DELETE',
-          headers: {}
-        }
-      );
-
-      if (response.ok) {
-        toast({
-          title: 'Пользователь удален',
-          description: `${userId} успешно удален`
-        });
-        await loadInitialData();
-      }
+      const response = await adminFetch(`${BACKEND_URLS.subscription}?action=admin_delete&userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      toast({ title: 'Пользователь удалён' });
+      await Promise.all([loadUsers(0, true), loadStats()]);
     } catch (error) {
-      console.error('Ошибка удаления:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось удалить пользователя',
-        variant: 'destructive'
+      toast({ title: 'Не удалось удалить пользователя', variant: 'destructive' });
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return [...users]
+      .filter((user) => filterStatus === 'all' || user.status === filterStatus)
+      .filter((user) => filterPlan === 'all' || user.planType === filterPlan)
+      .filter((user) => !query || user.userId.toLowerCase().includes(query) || (user.phone || '').toLowerCase().includes(query))
+      .sort((a, b) => {
+        const left = String(a[sortBy as keyof User] || '');
+        const right = String(b[sortBy as keyof User] || '');
+        return sortOrder === 'asc' ? left.localeCompare(right) : right.localeCompare(left);
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getFilteredUsers = () => {
-    let filtered = [...users];
-
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(u => u.status === filterStatus);
-    }
-
-    if (filterPlan !== 'all') {
-      filtered = filtered.filter(u => u.planType === filterPlan);
-    }
-
-    filtered.sort((a, b) => {
-      const aValue = String(a[sortBy as keyof User] || '');
-      const bValue = String(b[sortBy as keyof User] || '');
-      
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    return filtered;
-  };
-
-  const handleFilterChange = (filters: { status?: string; plan?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => {
-    if (filters.status !== undefined) setFilterStatus(filters.status);
-    if (filters.plan !== undefined) setFilterPlan(filters.plan);
-    if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
-    if (filters.sortOrder !== undefined) setSortOrder(filters.sortOrder);
-  };
-
-  const handleSearchUser = async (userId: string) => {
-    if (!userId.trim()) {
-      toast({
-        title: 'Ошибка',
-        description: 'Введите User ID для поиска',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await adminFetch(
-        `${BACKEND_URLS.subscription}?action=admin_search&userId=${userId}`,
-        {
-          method: 'GET',
-          headers: {}
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.user) {
-          setUsers([data.user]);
-          setTotal(1);
-          setActiveTab('users');
-        } else {
-          toast({
-            title: 'Не найдено',
-            description: 'Пользователь с таким ID не найден',
-            variant: 'destructive'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Ошибка поиска:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось выполнить поиск',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredUsers = getFilteredUsers();
+  }, [users, filterStatus, filterPlan, sortBy, sortOrder, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <AdminHeader onLogout={handleLogout} />
-      <AdminTabs activeTab={activeTab} onTabChange={setActiveTab} />
-      
-      <div className="container mx-auto px-4 py-8">
-        {activeTab === 'dashboard' && (
-          <DashboardTab
-            stats={stats}
-            newPlan={newPlan}
-            loading={loading}
-            adminOverview={adminOverview}
-            onNewPlanChange={setNewPlan}
-            onUpdateSubscription={handleUpdateSubscription}
-            onSearchUser={handleSearchUser}
-          />
-        )}
-
-        {activeTab === 'users' && (
-          <UsersTab
-            users={filteredUsers}
-            total={total}
-            loading={loading}
-            loadingMore={loadingMore}
-            hasMore={hasMore}
-            filterStatus={filterStatus}
-            filterPlan={filterPlan}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onFilterChange={handleFilterChange}
-            onLoadMore={loadMoreUsers}
-            onUpdateUser={updateSubscription}
-            onDeleteUser={deleteUser}
-          />
-        )}
-
-        {activeTab === 'analytics' && (
-          <AnalyticsTab users={users} />
-        )}
-
-        {activeTab === 'bulk' && (
-          <BulkTab
-            bulkUserIds={bulkUserIds}
-            bulkPlan={bulkPlan}
-            loading={loading}
-            onBulkUserIdsChange={setBulkUserIds}
-            onBulkPlanChange={setBulkPlan}
-            onBulkUpdate={bulkUpdateSubscriptions}
-          />
-        )}
-
-        {activeTab === 'affiliates' && (
-          <AffiliatesTab />
-        )}
-
-        {activeTab === 'schedule' && (
-          <ScheduleTab />
-        )}
-
-        {activeTab === 'rsya-tester' && (
-          <RSYATesterTab />
-        )}
-      </div>
-    </div>
+    <AdminShell>
+      {isUsersPage ? (
+        <UsersTab
+          users={filteredUsers} total={total} loading={loading} loadingMore={loadingMore} hasMore={hasMore}
+          filterStatus={filterStatus} filterPlan={filterPlan} sortBy={sortBy} sortOrder={sortOrder}
+          searchQuery={searchQuery} onSearchChange={setSearchQuery}
+          onFilterChange={(filters) => {
+            if (filters.status !== undefined) setFilterStatus(filters.status);
+            if (filters.plan !== undefined) setFilterPlan(filters.plan);
+            if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
+            if (filters.sortOrder !== undefined) setSortOrder(filters.sortOrder);
+          }}
+          onLoadMore={() => !loadingMore && hasMore && loadUsers(offset)} onUpdateUser={updateSubscription} onDeleteUser={deleteUser}
+        />
+      ) : <DashboardTab stats={stats} adminOverview={adminOverview} />}
+    </AdminShell>
   );
 }

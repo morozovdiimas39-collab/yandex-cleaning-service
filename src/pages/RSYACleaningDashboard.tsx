@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { BACKEND_URLS } from '@/config/backend-urls';
-import AdminSidebar from '@/components/layout/AdminSidebar';
+import AdminShell from '@/components/layout/AdminShell';
 import { adminFetch } from '@/lib/admin-auth';
 import {
   Table,
@@ -268,23 +268,19 @@ const RSYACleaningDashboard = () => {
 
   if (loading && viewMode === 'projects') {
     return (
-      <div className="flex h-screen bg-gray-50">
-        <AdminSidebar />
-        <div className="flex-1 overflow-auto ml-64 flex items-center justify-center">
+      <AdminShell>
+        <div className="flex min-h-[70vh] items-center justify-center">
           <div className="text-center">
-            <Icon name="Loader2" className="animate-spin h-12 w-12 mx-auto mb-4 text-blue-600" />
+            <Icon name="Loader2" className="mx-auto mb-4 h-9 w-9 animate-spin text-emerald-600" />
             <p className="text-muted-foreground">Загрузка проектов...</p>
           </div>
         </div>
-      </div>
+      </AdminShell>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminSidebar />
-      <div className="flex-1 overflow-auto ml-64">
-        <div className="max-w-[1600px] mx-auto p-6">
+    <AdminShell>
           {viewMode !== 'projects' && (
             <Button
               variant="ghost"
@@ -1077,9 +1073,7 @@ const RSYACleaningDashboard = () => {
               </Card>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </AdminShell>
   );
 };
 

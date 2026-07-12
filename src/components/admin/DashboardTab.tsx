@@ -1,248 +1,80 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 
-interface Stats {
-  total: number;
-  activeTrial: number;
-  activeMonthly: number;
-  newToday: number;
-  expiringWeek: number;
-}
-
+interface Stats { total: number; activeTrial: number; activeMonthly: number; newToday: number; expiringWeek: number; }
 interface AdminOverview {
-  overview: {
-    totalProjects: number;
-    activeProjects: number;
-    totalTasks: number;
-    activeTasks: number;
-    totalUsers: number;
-    totalClusteringProjects: number;
-    totalWordstatTasks: number;
-    totalBlockQueue: number;
-  };
-  rsya: {
-    totalExecutions: number;
-    successfulExecutions: number;
-    failedExecutions: number;
-    totalBlocked: number;
-    avgBlockedPerExecution: number;
-  };
-  wordstat: {
-    pending: number;
-    processing: number;
-    completed: number;
-    failed: number;
-    totalKeywords: number;
-  };
+  overview: { totalProjects: number; activeProjects: number; totalTasks: number; activeTasks: number; totalUsers: number; totalClusteringProjects: number; totalWordstatTasks: number; totalBlockQueue: number; };
+  rsya: { totalExecutions: number; successfulExecutions: number; failedExecutions: number; totalBlocked: number; avgBlockedPerExecution: number; };
+  wordstat: { pending: number; processing: number; completed: number; failed: number; totalKeywords: number; };
 }
 
-interface DashboardTabProps {
-  stats: Stats | null;
-  adminOverview: AdminOverview | null;
-  newPlan: { userId: string; planType: string; days: number };
-  loading: boolean;
-  onNewPlanChange: (plan: { userId: string; planType: string; days: number }) => void;
-  onUpdateSubscription: () => void;
-  onSearchUser: (userId: string) => void;
-}
+export default function DashboardTab({ stats, adminOverview }: { stats: Stats | null; adminOverview: AdminOverview | null }) {
+  const successRate = adminOverview?.rsya.totalExecutions
+    ? Math.round((adminOverview.rsya.successfulExecutions / adminOverview.rsya.totalExecutions) * 100)
+    : 0;
+  const metrics = [
+    { label: 'Проекты', value: adminOverview?.overview.totalProjects || 0, detail: `${adminOverview?.overview.activeProjects || 0} настроено`, icon: 'FolderKanban', tone: 'emerald' },
+    { label: 'Активные задачи', value: adminOverview?.overview.activeTasks || 0, detail: `из ${adminOverview?.overview.totalTasks || 0} задач`, icon: 'ListChecks', tone: 'blue' },
+    { label: 'Пользователи', value: stats?.total || adminOverview?.overview.totalUsers || 0, detail: `${stats?.newToday || 0} новых сегодня`, icon: 'Users', tone: 'slate' },
+    { label: 'Заблокировано', value: adminOverview?.rsya.totalBlocked || 0, detail: 'площадок за всё время', icon: 'Ban', tone: 'red' },
+  ];
 
-export default function DashboardTab({
-  stats,
-  adminOverview,
-  newPlan,
-  loading,
-  onNewPlanChange,
-  onUpdateSubscription,
-  onSearchUser
-}: DashboardTabProps) {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Всего пользователей</CardDescription>
-            <CardTitle className="text-3xl">{stats?.total || 0}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Icon name="Users" className="w-5 h-5 text-slate-400" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Активных Trial</CardDescription>
-            <CardTitle className="text-3xl text-blue-600">{stats?.activeTrial || 0}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Icon name="Clock" className="w-5 h-5 text-blue-400" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Активных Monthly</CardDescription>
-            <CardTitle className="text-3xl text-green-600">{stats?.activeMonthly || 0}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Icon name="CreditCard" className="w-5 h-5 text-green-400" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Новых сегодня</CardDescription>
-            <CardTitle className="text-3xl text-purple-600">{stats?.newToday || 0}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Icon name="TrendingUp" className="w-5 h-5 text-purple-400" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Истекают на неделе</CardDescription>
-            <CardTitle className="text-3xl text-orange-600">{stats?.expiringWeek || 0}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Icon name="AlertTriangle" className="w-5 h-5 text-orange-400" />
-          </CardContent>
-        </Card>
+      <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="mb-2 text-sm font-medium text-emerald-700">Состояние DirectKit</p>
+          <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">Обзор сервиса</h1>
+          <p className="mt-2 text-sm text-slate-500">Проекты, задачи, пользователи и последние результаты в одном месте.</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-500"><span className="h-2 w-2 rounded-full bg-emerald-500" />Система работает</div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Icon name="ShieldCheck" className="w-5 h-5 text-emerald-600" />
-              Чистка РСЯ
-            </CardTitle>
-            <CardDescription>Проекты, задачи и очередь блокировок</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 text-sm">
-            <Metric label="Проекты" value={adminOverview?.overview.totalProjects || 0} />
-            <Metric label="Настроены" value={adminOverview?.overview.activeProjects || 0} />
-            <Metric label="Задачи" value={adminOverview?.overview.totalTasks || 0} />
-            <Metric label="В очереди" value={adminOverview?.overview.totalBlockQueue || 0} />
-          </CardContent>
-        </Card>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => <Metric key={metric.label} {...metric} />)}
+      </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Icon name="Search" className="w-5 h-5 text-blue-600" />
-              Wordstat
-            </CardTitle>
-            <CardDescription>Проекты кластеризации и статусы сборов</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 text-sm">
-            <Metric label="Проекты" value={adminOverview?.overview.totalClusteringProjects || 0} />
-            <Metric label="В работе" value={adminOverview?.wordstat.processing || 0} />
-            <Metric label="Готово" value={adminOverview?.wordstat.completed || 0} />
-            <Metric label="Ошибки" value={adminOverview?.wordstat.failed || 0} tone="danger" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Icon name="AlertTriangle" className="w-5 h-5 text-orange-600" />
-              Ошибки
-            </CardTitle>
-            <CardDescription>Сводка по выполнению чистки</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3 text-sm">
-            <Metric label="Запусков" value={adminOverview?.rsya.totalExecutions || 0} />
-            <Metric label="Успешно" value={adminOverview?.rsya.successfulExecutions || 0} />
-            <Metric label="Ошибок" value={adminOverview?.rsya.failedExecutions || 0} tone="danger" />
-            <Metric label="Блокировок" value={adminOverview?.rsya.totalBlocked || 0} />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Быстрое обновление подписки</CardTitle>
-          <CardDescription>Обновить или создать подписку для пользователя</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>User ID</Label>
-              <Input
-                placeholder="ID пользователя"
-                value={newPlan.userId}
-                onChange={(e) => onNewPlanChange({ ...newPlan, userId: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Тип подписки</Label>
-              <select
-                className="w-full px-3 py-2 border border-slate-300 rounded-md"
-                value={newPlan.planType}
-                onChange={(e) => onNewPlanChange({ ...newPlan, planType: e.target.value })}
-              >
-                <option value="trial">Trial</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Дней</Label>
-              <Input
-                type="number"
-                min="1"
-                value={newPlan.days}
-                onChange={(e) => onNewPlanChange({ ...newPlan, days: parseInt(e.target.value) || 1 })}
-              />
-            </div>
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div><h2 className="font-semibold text-slate-950">Чистка РСЯ</h2><p className="mt-1 text-sm text-slate-500">Основные показатели выполнения</p></div>
+            <Link to="/admin/rsya-cleaning" className="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Все проекты <Icon name="ArrowRight" size={16} /></Link>
           </div>
-          <Button onClick={onUpdateSubscription} disabled={loading} className="w-full">
-            <Icon name="CheckCircle" className="w-4 h-4 mr-2" />
-            Обновить подписку
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Быстрый поиск</CardTitle>
-          <CardDescription>Найти пользователя по ID</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Введите User ID"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onSearchUser((e.target as HTMLInputElement).value);
-                }
-              }}
-            />
-            <Button
-              onClick={(e) => {
-                const input = (e.currentTarget.previousSibling as HTMLInputElement);
-                onSearchUser(input.value);
-              }}
-            >
-              <Icon name="Search" className="w-4 h-4 mr-2" />
-              Найти
-            </Button>
+          <div className="grid grid-cols-2 divide-x divide-y divide-slate-200 sm:grid-cols-4 sm:divide-y-0">
+            <DataPoint label="Запусков" value={adminOverview?.rsya.totalExecutions || 0} />
+            <DataPoint label="Успешность" value={`${successRate}%`} />
+            <DataPoint label="Ошибок" value={adminOverview?.rsya.failedExecutions || 0} danger />
+            <DataPoint label="В очереди" value={adminOverview?.overview.totalBlockQueue || 0} />
           </div>
-        </CardContent>
-      </Card>
+          <div className="border-t border-slate-200 px-5 py-4">
+            <div className="mb-2 flex justify-between text-xs text-slate-500"><span>Успешные выполнения</span><span>{successRate}%</span></div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(successRate, 100)}%` }} /></div>
+          </div>
+        </div>
+
+        <div className="border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-5 py-4"><h2 className="font-semibold">Требует внимания</h2><p className="mt-1 text-sm text-slate-500">Сводка текущих рисков</p></div>
+          <div className="divide-y divide-slate-100">
+            <Attention icon="CircleAlert" label="Ошибки запусков" value={adminOverview?.rsya.failedExecutions || 0} danger={(adminOverview?.rsya.failedExecutions || 0) > 0} />
+            <Attention icon="Clock3" label="Истекают на неделе" value={stats?.expiringWeek || 0} danger={(stats?.expiringWeek || 0) > 0} />
+            <Attention icon="ListTodo" label="Задачи выключены" value={Math.max(0, (adminOverview?.overview.totalTasks || 0) - (adminOverview?.overview.activeTasks || 0))} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <QuickLink to="/admin/rsya-cleaning" icon="FolderSearch" title="Проекты и задачи" text="Названия, расписания, запуски и примеры площадок" />
+        <QuickLink to="/admin/users" icon="UserRoundCog" title="Пользователи" text="Доступы, тарифы и сроки подписок" />
+        <QuickLink to="/admin/rsya-workers" icon="ServerCog" title="Состояние системы" text="Очереди, воркеры и технические ошибки" />
+      </section>
     </div>
   );
 }
 
-function Metric({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'danger' }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-      <div className="text-slate-500">{label}</div>
-      <div className={`text-2xl font-semibold ${tone === 'danger' ? 'text-red-600' : 'text-slate-900'}`}>
-        {value}
-      </div>
-    </div>
-  );
+function Metric({ label, value, detail, icon, tone }: any) {
+  const tones: Record<string, string> = { emerald: 'bg-emerald-50 text-emerald-700', blue: 'bg-sky-50 text-sky-700', slate: 'bg-slate-100 text-slate-700', red: 'bg-rose-50 text-rose-700' };
+  return <div className="border border-slate-200 bg-white p-5"><div className="flex items-start justify-between"><div><p className="text-sm text-slate-500">{label}</p><p className="mt-3 text-3xl font-semibold tabular-nums text-slate-950">{Number(value).toLocaleString('ru-RU')}</p><p className="mt-2 text-xs text-slate-500">{detail}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-md ${tones[tone]}`}><Icon name={icon} size={20} /></span></div></div>;
 }
+function DataPoint({ label, value, danger = false }: any) { return <div className="px-5 py-5"><p className="text-xs text-slate-500">{label}</p><p className={`mt-2 text-2xl font-semibold tabular-nums ${danger ? 'text-rose-600' : 'text-slate-950'}`}>{typeof value === 'number' ? value.toLocaleString('ru-RU') : value}</p></div>; }
+function Attention({ icon, label, value, danger = false }: any) { return <div className="flex items-center gap-3 px-5 py-4"><span className={`flex h-9 w-9 items-center justify-center rounded-md ${danger ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}><Icon name={icon} size={18} /></span><span className="flex-1 text-sm text-slate-600">{label}</span><strong className={danger ? 'text-rose-600' : 'text-slate-950'}>{value}</strong></div>; }
+function QuickLink({ to, icon, title, text }: any) { return <Link to={to} className="group flex items-start gap-4 border border-slate-200 bg-white p-5 transition-colors hover:border-emerald-300 hover:bg-emerald-50/30"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><Icon name={icon} size={20} /></span><span className="min-w-0 flex-1"><span className="font-semibold text-slate-950">{title}</span><span className="mt-1 block text-sm leading-5 text-slate-500">{text}</span></span><Icon name="ArrowUpRight" size={18} className="text-slate-400 group-hover:text-emerald-700" /></Link>; }

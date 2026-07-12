@@ -3,147 +3,39 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 
-interface User {
-  userId: string;
-  phone?: string;
-  planType: string;
-  status: string;
-  expiresAt?: string | null;
-  createdAt?: string | null;
-  hasAccess?: boolean;
-}
+interface User { userId: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface Props { users: User[]; onUpdateUser: (userId: string, planType: string, days: number) => void; onDeleteUser: (userId: string) => void; }
 
-interface UsersTableProps {
-  users: User[];
-  onUpdateUser: (userId: string, planType: string, days: number) => void;
-  onDeleteUser: (userId: string) => void;
-}
+const formatDate = (value?: string | null) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
-export default function UsersTable({ users, onUpdateUser, onDeleteUser }: UsersTableProps) {
+export default function UsersTable({ users, onUpdateUser, onDeleteUser }: Props) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ planType: 'trial', days: 1 });
-
-  const handleStartEdit = (user: User) => {
-    setEditingUser(user.userId);
-    setEditData({ planType: user.planType, days: 1 });
-  };
-
-  const handleSaveEdit = (userId: string) => {
-    onUpdateUser(userId, editData.planType, editData.days);
-    setEditingUser(null);
-  };
-
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return '—';
-
-    return new Date(dateString).toLocaleString('ru-RU', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const [editData, setEditData] = useState({ planType: 'trial', days: 30 });
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead className="bg-slate-50 border-y border-slate-200">
-          <tr>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">User ID</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Телефон</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Тариф</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Статус</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Истекает</th>
-            <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Создан</th>
-            <th className="px-4 py-3 text-right text-sm font-medium text-slate-700">Действия</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {users.map((user) => (
-            <tr key={user.userId} className="hover:bg-slate-50">
-              <td className="px-4 py-3 text-sm font-mono">{user.userId}</td>
-              <td className="px-4 py-3 text-sm">{user.phone || '-'}</td>
-              <td className="px-4 py-3">
-                {editingUser === user.userId ? (
-                  <select
-                    className="px-2 py-1 text-sm border rounded"
-                    value={editData.planType}
-                    onChange={(e) => setEditData({ ...editData, planType: e.target.value })}
-                  >
-                    <option value="trial">Trial</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                ) : (
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    user.planType === 'monthly'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {user.planType}
-                  </span>
-                )}
-              </td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  user.status === 'active'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {user.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-sm">{formatDate(user.expiresAt)}</td>
-              <td className="px-4 py-3 text-sm text-slate-500">{formatDate(user.createdAt)}</td>
-              <td className="px-4 py-3 text-right">
-                {editingUser === user.userId ? (
-                  <div className="flex items-center justify-end gap-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={editData.days}
-                      onChange={(e) => setEditData({ ...editData, days: parseInt(e.target.value) || 1 })}
-                      className="w-20 h-8 text-sm"
-                      placeholder="Дней"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => handleSaveEdit(user.userId)}
-                    >
-                      <Icon name="Check" className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingUser(null)}
-                    >
-                      <Icon name="X" className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleStartEdit(user)}
-                    >
-                      <Icon name="Edit" className="w-3 h-3 mr-1" />
-                      Изменить
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onDeleteUser(user.userId)}
-                    >
-                      <Icon name="Trash2" className="w-3 h-3" />
-                    </Button>
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
+      <table className="w-full min-w-[920px] border-collapse">
+        <thead><tr className="border-b border-slate-200 bg-slate-50/80">
+          {['Пользователь', 'Тариф', 'Доступ', 'Истекает', 'Регистрация', ''].map((label) => <th key={label} className="px-5 py-3 text-left text-xs font-medium uppercase text-slate-500 last:text-right">{label}</th>)}
+        </tr></thead>
+        <tbody className="divide-y divide-slate-100">
+          {users.map((user) => {
+            const isEditing = editingUser === user.userId;
+            const active = user.status === 'active' || user.hasAccess;
+            return <tr key={user.userId} className="transition-colors hover:bg-slate-50/70">
+              <td className="px-5 py-4"><div className="font-medium text-slate-950">{user.phone || 'Телефон не указан'}</div><div className="mt-1 max-w-[250px] truncate font-mono text-xs text-slate-400" title={user.userId}>{user.userId}</div></td>
+              <td className="px-5 py-4">{isEditing ? <select className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm" value={editData.planType} onChange={(e) => setEditData({ ...editData, planType: e.target.value })}><option value="trial">Trial</option><option value="monthly">Monthly</option></select> : <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{user.planType === 'monthly' ? 'Monthly' : user.planType === 'trial' ? 'Trial' : 'Без тарифа'}</span>}</td>
+              <td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 text-sm font-medium ${active ? 'text-emerald-700' : 'text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-300'}`} />{active ? 'Активен' : 'Нет доступа'}</span></td>
+              <td className="px-5 py-4 text-sm tabular-nums text-slate-600">{formatDate(user.expiresAt)}</td>
+              <td className="px-5 py-4 text-sm tabular-nums text-slate-500">{formatDate(user.createdAt)}</td>
+              <td className="px-5 py-4 text-right">{isEditing ? <div className="flex items-center justify-end gap-2"><Input type="number" min="1" aria-label="Количество дней" value={editData.days} onChange={(e) => setEditData({ ...editData, days: Number(e.target.value) || 1 })} className="h-9 w-20" /><Button size="sm" onClick={() => { onUpdateUser(user.userId, editData.planType, editData.days); setEditingUser(null); }}><Icon name="Check" size={16} className="mr-1" />Сохранить</Button><Button size="icon" variant="outline" aria-label="Отменить" onClick={() => setEditingUser(null)}><Icon name="X" size={16} /></Button></div> : <div className="flex items-center justify-end gap-2"><Button size="sm" variant="outline" onClick={() => { setEditingUser(user.userId); setEditData({ planType: user.planType === 'monthly' ? 'monthly' : 'trial', days: 30 }); }}><Icon name="Pencil" size={15} className="mr-1.5" />Изменить</Button><Button size="icon" variant="ghost" className="text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="Удалить пользователя" onClick={() => onDeleteUser(user.userId)}><Icon name="Trash2" size={16} /></Button></div>}</td>
+            </tr>;
+          })}
         </tbody>
       </table>
     </div>

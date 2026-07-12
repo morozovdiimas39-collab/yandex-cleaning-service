@@ -56,6 +56,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         accounts = []
         errors = []
+        diagnostics = []
 
         def add_account(login: str, name: str = '', source: str = 'direct', role: str = ''):
             login = (login or '').strip()
@@ -90,6 +91,34 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
         try:
+            clients_response = requests.post(
+                'https://api.direct.yandex.com/json/v501/clients',
+                headers=direct_headers,
+                json={
+                    'method': 'get',
+                    'params': {
+                        'FieldNames': ['Login', 'ClientInfo', 'Type', 'Representatives', 'AvailableCampaignTypes']
+                    }
+                },
+                timeout=20
+            )
+            clients_data = clients_response.json()
+            if 'error' in clients_data:
+                errors.append(f"clients:{clients_data['error'].get('error_code')}:{clients_data['error'].get('error_string')}")
+            else:
+                clients = clients_data.get('result', {}).get('Clients', []) or []
+                diagnostics.append(f'direct_clients:{len(clients)}')
+                for client in clients:
+                    add_account(
+                        client.get('Login'),
+                        client.get('ClientInfo') or client.get('Login') or '',
+                        'direct',
+                        client.get('Type') or 'client'
+                    )
+        except Exception as e:
+            errors.append(f'clients:{str(e)}')
+
+        try:
             agency_response = requests.post(
                 'https://api.direct.yandex.com/json/v5/agencyclients',
                 headers=direct_headers,
@@ -105,9 +134,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             agency_data = agency_response.json()
             if 'error' in agency_data:
                 # Не агентский токен обычно вернет ошибку. Это не блокер: оставляем ручной Client-Login.
-                errors.append(f"agencyclients:{agency_data['error'].get('error_code')}:{agency_data['error'].get('error_string')}")
+                agency_error = f"agencyclients:{agency_data['error'].get('error_code')}:{agency_data['error'].get('error_string')}"
+                errors.append(agency_error)
+                diagnostics.append('agency_access:no')
             else:
-                for client in agency_data.get('result', {}).get('Clients', []) or []:
+                agency_clients = agency_data.get('result', {}).get('Clients', []) or []
+                diagnostics.append(f'agency_clients:{len(agency_clients)}')
+                for client in agency_clients:
                     add_account(
                         client.get('Login'),
                         client.get('ClientInfo') or client.get('Login') or '',
@@ -130,7 +163,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'isBase64Encoded': False,
-            'body': json.dumps({'accounts': accounts, 'errors': errors}, ensure_ascii=False)
+            'body': json.dumps({'accounts': accounts, 'errors': errors, 'diagnostics': diagnostics}, ensure_ascii=False)
         }
 
     # GET ?action=check_access - быстрая проверка, что токен + Client-Login видят кампании
@@ -207,6 +240,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
             if 'error' in data:
                 error_info = data['error']
+                error_code = error_info.get('error_code')
+                hint = ''
+                if error_code == 8800 and client_login.lower().startswith(('porg-', 'e-')):
+                    hint = (
+                        'Direct API не принял этот логин как Client-Login. '
+                        'Для eLama/организационного аккаунта нужен OAuth-токен, выданный именно аккаунту с доступом к Директу, '
+                        'или API-доступ к этому аккаунту должен быть открыт на стороне eLama/Яндекса.'
+                    )
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -215,7 +256,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'success': False,
                         'error': error_info.get('error_string') or 'Ошибка API Яндекс.Директ',
                         'error_detail': error_info.get('error_detail') or '',
-                        'error_code': error_info.get('error_code'),
+                        'error_code': error_code,
+                        'hint': hint,
                         'client_login': client_login
                     }, ensure_ascii=False)
                 }

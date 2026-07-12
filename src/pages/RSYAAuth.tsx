@@ -35,6 +35,7 @@ export default function RSYAAuth() {
   const [yandexToken, setYandexToken] = useState('');
   const [clientLogin, setClientLogin] = useState('');
   const [accounts, setAccounts] = useState<DirectAccount[]>([]);
+  const [accountNotes, setAccountNotes] = useState<string[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
@@ -115,6 +116,9 @@ export default function RSYAAuth() {
       });
       const data = await response.json();
       const loadedAccounts: DirectAccount[] = data.accounts || [];
+      const errors: string[] = data.errors || [];
+      const diagnostics: string[] = data.diagnostics || [];
+      const notes: string[] = [];
 
       setAccounts(loadedAccounts);
       setAccountsLoaded(true);
@@ -131,9 +135,21 @@ export default function RSYAAuth() {
           description: 'Введите Client-Login вручную, если аккаунт агентский, eLama или расшаренный.'
         });
       }
+
+      if (errors.some((error) => error.startsWith('agencyclients:54'))) {
+        notes.push('Этот OAuth-токен не имеет агентских прав в Директе, поэтому список клиентов организации/агентства автоматически не отдается.');
+      }
+      if (diagnostics.includes('agency_access:no')) {
+        notes.push('Если кампании лежат в eLama или организационном аккаунте, нужен токен пользователя/аккаунта, которому открыт API-доступ к этому рекламному кабинету.');
+      }
+      if (loadedAccounts.length === 1 && loadedAccounts[0].source === 'owner') {
+        notes.push(`Сейчас токен принадлежит логину ${loadedAccounts[0].login}. Другие организационные аккаунты этот токен через API не показывает.`);
+      }
+      setAccountNotes(notes);
     } catch (error) {
       console.error('Error loading Direct accounts:', error);
       setAccountsLoaded(true);
+      setAccountNotes(['Не удалось получить список аккаунтов. Проверьте токен и доступ к Direct API.']);
       toast({ title: 'Не удалось загрузить аккаунты Директа', variant: 'destructive' });
     } finally {
       setLoadingAccounts(false);
@@ -169,8 +185,10 @@ export default function RSYAAuth() {
       if (!data.success) {
         const detail = data.error_detail ? ` ${data.error_detail}` : '';
         let message = `${data.error || 'Доступ к кампаниям не подтвержден.'}${detail}`.trim();
-        if (Number(data.error_code) === 8800) {
-          message = `Яндекс не нашел Client-Login "${login}". Для eLama/организации нужен именно логин рекламного клиента в Директе, не номер кабинета.`;
+        if (data.hint) {
+          message = data.hint;
+        } else if (Number(data.error_code) === 8800) {
+          message = `Яндекс не нашел Client-Login "${login}". Нужен именно API-логин рекламного клиента в Директе, который доступен этому OAuth-токену.`;
         } else if (data.campaigns_count === 0) {
           message = login
             ? `Доступ есть, но по Client-Login "${login}" кампании не найдены. Проверьте, что это логин клиента с кампаниями.`
@@ -256,6 +274,7 @@ export default function RSYAAuth() {
   const accountBadge = (source: string) => {
     if (source === 'agency') return 'агентский';
     if (source === 'owner') return 'основной';
+    if (source === 'direct') return 'прямой';
     if (source === 'manual') return 'ручной';
     return source || 'аккаунт';
   };
@@ -321,6 +340,7 @@ export default function RSYAAuth() {
                   onChange={(event) => {
                     setYandexToken(event.target.value);
                     setAccessCheck(null);
+                    setAccountNotes([]);
                     setAccountsLoaded(false);
                   }}
                 />
@@ -353,7 +373,7 @@ export default function RSYAAuth() {
                 {accounts.length > 0 && (
                   <div className="grid gap-2">
                     {accounts.map((account) => {
-                      const accountClientLogin = account.source === 'owner' ? '' : account.login;
+                      const accountClientLogin = account.source === 'owner' || account.source === 'direct' ? '' : account.login;
                       const active = clientLogin.toLowerCase() === accountClientLogin.toLowerCase();
                       return (
                         <button
@@ -372,7 +392,9 @@ export default function RSYAAuth() {
                           <div className="min-w-0">
                             <div className="truncate text-sm font-semibold text-slate-900">{account.name || account.login}</div>
                             <div className="truncate text-xs text-slate-500">
-                              {account.source === 'owner' ? 'Прямой доступ: Client-Login не нужен' : `Client-Login: ${account.login}`}
+                              {account.source === 'owner' || account.source === 'direct'
+                                ? `Прямой доступ: ${account.login}, Client-Login не нужен`
+                                : `Client-Login: ${account.login}`}
                             </div>
                           </div>
                           <Badge variant={account.source === 'agency' ? 'default' : 'secondary'} className="shrink-0">
@@ -399,6 +421,14 @@ export default function RSYAAuth() {
                     Оставьте пустым только если токен выдан прямо на аккаунт, где лежат кампании.
                   </p>
                 </div>
+
+                {accountNotes.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
+                    {accountNotes.map((note) => (
+                      <p key={note}>{note}</p>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button

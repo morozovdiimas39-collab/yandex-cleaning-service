@@ -23,7 +23,7 @@ export default function AdminSidebar() {
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white max-lg:hidden">
         <div className="flex h-20 items-center border-b border-slate-100 px-6">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm shadow-emerald-200">
             <Icon name="ShieldCheck" size={21} />

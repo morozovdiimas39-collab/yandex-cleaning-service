@@ -71,6 +71,10 @@ export default function AdminProtectedRoute({ children }: { children: ReactNode 
       setError('Новые пароли не совпадают');
       return;
     }
+    if (newPassword.length < 12 || !/[a-zа-я]/.test(newPassword) || !/[A-ZА-Я]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setError('Новый пароль: минимум 12 символов, заглавная и строчная буквы, цифра.');
+      return;
+    }
     setLoading(true);
     try {
       const response = await adminAuthRequest({
@@ -78,11 +82,14 @@ export default function AdminProtectedRoute({ children }: { children: ReactNode 
         current_password: currentPassword,
         new_password: newPassword,
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Не удалось изменить пароль');
       const session = getAdminSession();
       if (session) setAdminSession({ ...session, must_change_password: false });
       setMustChangePassword(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (err: any) {
       setError(err.message || 'Не удалось изменить пароль');
     } finally {

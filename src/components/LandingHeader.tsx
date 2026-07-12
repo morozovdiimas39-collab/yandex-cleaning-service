@@ -19,12 +19,12 @@ export default function LandingHeader({ onBetaClick, onSectionClick }: LandingHe
 
   return (
     <header className="sticky top-0 z-50 border-b border-emerald-100 bg-white/90 shadow-sm backdrop-blur-sm">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-6 py-4">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
         <button className="flex items-center gap-3" onClick={scrollToTop} aria-label="DirectKit">
           <img 
             src="/images/directkit-logo.png" 
             alt="Логотип DirectKit - автоматизация Яндекс.Директ, парсер Wordstat и чистка РСЯ" 
-            className="h-9 w-auto object-contain"
+            className="h-7 w-auto object-contain sm:h-9"
             width="108"
             height="36"
           />
@@ -45,9 +45,10 @@ export default function LandingHeader({ onBetaClick, onSectionClick }: LandingHe
         <div className="flex items-center gap-3">
           <Button
             onClick={onBetaClick}
-            className="h-11 rounded-xl bg-emerald-600 px-5 text-sm font-black text-white shadow-lg shadow-emerald-600/15 hover:bg-emerald-700"
+            className="h-10 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-lg shadow-emerald-600/15 hover:bg-emerald-700 sm:h-11 sm:px-5 sm:text-sm"
           >
-            Оставить заявку
+            <span className="sm:hidden">Заявка</span>
+            <span className="hidden sm:inline">Оставить заявку</span>
           </Button>
         </div>
       </div>

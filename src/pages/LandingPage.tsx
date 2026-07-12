@@ -171,24 +171,24 @@ export default function LandingPage() {
       <LandingHeader onBetaClick={openBetaModal} onSectionClick={scrollToSection} />
 
       <main>
-        <section id="hero" className="relative scroll-mt-24 overflow-hidden bg-[radial-gradient(circle_at_75%_18%,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#effbf5_54%,#e7f8f7_100%)]">
-          <div className="mx-auto grid min-h-[600px] max-w-7xl items-center gap-10 px-6 py-14 lg:grid-cols-[1fr_0.95fr]">
+        <section id="hero" className="relative scroll-mt-20 overflow-hidden bg-[radial-gradient(circle_at_75%_18%,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#effbf5_54%,#e7f8f7_100%)] sm:scroll-mt-24">
+          <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:min-h-[600px] lg:grid-cols-[1fr_0.95fr]">
             <div className="max-w-3xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-white/75 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm backdrop-blur">
+              <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-md border border-emerald-200 bg-white/75 px-3 py-2 text-xs font-semibold leading-5 text-emerald-800 shadow-sm backdrop-blur sm:px-4 sm:text-sm">
                 <Icon name="LockKeyhole" size={16} />
-                Закрытая бета для ручного подключения клиентов
+                <span>Закрытая бета для ручного подключения клиентов</span>
               </div>
-              <h1 className="max-w-2xl text-4xl font-black leading-[1.08] tracking-normal text-slate-900 md:text-5xl">
+              <h1 className="max-w-2xl text-3xl font-black leading-[1.1] tracking-normal text-slate-900 sm:text-4xl md:text-5xl">
                 Сервис автоматической чистки площадок РСЯ 24/7
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
+              <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-slate-600 sm:mt-6 sm:text-lg sm:leading-8">
                 Уберите рутину! Эффективная чистка площадок РСЯ по заданным фильтрам.
               </p>
-              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row">
                 <Button
                   size="lg"
                   onClick={openBetaModal}
-                  className="h-14 rounded-md bg-emerald-600 px-7 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+                  className="h-auto min-h-14 w-full rounded-md bg-emerald-600 px-5 py-4 text-sm font-black leading-5 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:w-auto sm:px-7 sm:text-base"
                 >
                   <Icon name="Rocket" size={19} className="mr-2" />
                   Оставить заявку на закрытый бета-тест
@@ -197,12 +197,12 @@ export default function LandingPage() {
             </div>
 
             <div className="relative">
-              <div className="absolute -inset-6 rounded-[2rem] bg-emerald-200/25 blur-3xl" aria-hidden="true" />
-              <div className="relative mx-auto max-w-[560px] overflow-hidden rounded-[2rem] border border-emerald-100 bg-white/85 p-3 shadow-2xl shadow-emerald-900/10 backdrop-blur">
+              <div className="absolute -inset-4 rounded-[1.5rem] bg-emerald-200/25 blur-3xl sm:-inset-6 sm:rounded-[2rem]" aria-hidden="true" />
+              <div className="relative mx-auto max-w-[420px] overflow-hidden rounded-2xl border border-emerald-100 bg-white/85 p-2 shadow-2xl shadow-emerald-900/10 backdrop-blur sm:max-w-[560px] sm:rounded-[2rem] sm:p-3">
                 <img
                   src="/images/rsya-cleaning-hero.png"
                   alt="Чистка площадок РСЯ: preview перед блокировкой в Direct API"
-                  className="w-full rounded-[1.55rem] object-cover"
+                  className="w-full rounded-xl object-cover sm:rounded-[1.55rem]"
                   width="1448"
                   height="1086"
                 />
@@ -211,18 +211,18 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="benefits" className="scroll-mt-24 border-y border-emerald-100 bg-white py-16">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-9 max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Преимущества платформы</p>
-              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-4xl">
+        <section id="benefits" className="scroll-mt-20 border-y border-emerald-100 bg-white py-12 sm:scroll-mt-24 sm:py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="mb-7 max-w-3xl sm:mb-9">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Преимущества платформы</p>
+              <h2 className="mt-3 text-2xl font-black tracking-normal text-slate-900 sm:text-3xl md:text-4xl">
                 Чистка РСЯ работает по правилам, а не на глаз
               </h2>
             </div>
 
             <div className="grid gap-5 md:grid-cols-3">
               {benefits.map((benefit) => (
-                <article key={benefit.title} className="rounded-xl border border-emerald-100 bg-[#f8fffb] p-6 shadow-sm">
+                <article key={benefit.title} className="rounded-xl border border-emerald-100 bg-[#f8fffb] p-5 shadow-sm sm:p-6">
                   <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                     <Icon name={benefit.icon} size={23} />
                   </div>
@@ -234,39 +234,39 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="savings" className="scroll-mt-24 bg-white py-20">
-          <div className="w-full px-6 py-10 text-center">
-            <p className="mb-8 text-2xl font-black tracking-normal text-emerald-900 md:text-4xl">
+        <section id="savings" className="scroll-mt-20 bg-white py-14 sm:scroll-mt-24 sm:py-20">
+          <div className="w-full px-4 py-8 text-center sm:px-6 sm:py-10">
+            <p className="mb-6 text-xl font-black tracking-normal text-emerald-900 sm:mb-8 sm:text-2xl md:text-4xl">
               Всего помогли сэкономить
             </p>
 
-            <div className="whitespace-nowrap text-[13vw] font-black leading-none tracking-[-0.08em] text-emerald-950">
+            <div className="whitespace-nowrap text-[2.65rem] font-black leading-none tracking-normal text-emerald-950 sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem]">
               {formattedSavings}
             </div>
 
             <Button
               size="lg"
               onClick={openBetaModal}
-              className="mt-10 h-14 rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+              className="mt-8 h-auto min-h-14 w-full rounded-xl bg-emerald-600 px-6 py-4 text-sm font-black leading-5 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:mt-10 sm:w-auto sm:px-8 sm:text-base"
             >
               Записаться на закрытый бета-тест
             </Button>
           </div>
         </section>
 
-        <section id="economy" className="mx-auto max-w-7xl scroll-mt-24 px-6 py-20">
-          <div className="overflow-hidden rounded-[1.75rem] border border-emerald-100 bg-white shadow-xl shadow-emerald-900/5">
+        <section id="economy" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-12 sm:scroll-mt-24 sm:px-6 sm:py-20">
+          <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-xl shadow-emerald-900/5 sm:rounded-[1.75rem]">
             <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
-              <div className="bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,#ecfdf5,#ffffff)] p-8 md:p-10">
-                <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Экономия бюджета</p>
-                <div className="mt-7 inline-flex items-end gap-3">
-                  <span className="text-7xl font-black leading-none text-emerald-700 md:text-8xl">30%</span>
+              <div className="bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,#ecfdf5,#ffffff)] p-5 sm:p-8 md:p-10">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Экономия бюджета</p>
+                <div className="mt-6 inline-flex items-end gap-3 sm:mt-7">
+                  <span className="text-6xl font-black leading-none text-emerald-700 sm:text-7xl md:text-8xl">30%</span>
                   <span className="pb-3 text-xl font-black text-slate-900">до</span>
                 </div>
-                <h2 className="mt-6 max-w-xl text-3xl font-black tracking-normal text-slate-900 md:text-4xl">
+                <h2 className="mt-5 max-w-xl text-2xl font-black tracking-normal text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
                   меньше бюджета уходит на мусорные площадки
                 </h2>
-                <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-slate-600">
+                <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-slate-600 sm:mt-5 sm:text-base sm:leading-8">
                   Быстрая чистка останавливает площадки, которые тратят деньги без заявок и конверсий, пока они не успели съесть существенную часть бюджета.
                 </p>
                 <div className="mt-8 rounded-xl border border-emerald-100 bg-white/80 p-4">
@@ -282,7 +282,7 @@ export default function LandingPage() {
 
               <div className="grid gap-px bg-emerald-100 p-px md:grid-cols-3 lg:grid-cols-1">
                 {savings.map((item) => (
-                  <article key={item.title} className="grid gap-4 bg-white p-6 md:grid-cols-[56px_1fr] md:p-7">
+                  <article key={item.title} className="grid gap-4 bg-white p-5 sm:p-6 md:grid-cols-[56px_1fr] md:p-7">
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
                       <Icon name={item.icon} size={23} />
                     </div>
@@ -297,25 +297,25 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="how-it-works" className="scroll-mt-24 bg-white py-20">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-12 max-w-3xl">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Как это работает</p>
-              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-5xl">
+        <section id="how-it-works" className="scroll-mt-20 bg-white py-12 sm:scroll-mt-24 sm:py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="mb-8 max-w-3xl sm:mb-12">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Как это работает</p>
+              <h2 className="mt-3 text-2xl font-black tracking-normal text-slate-900 sm:text-3xl md:text-5xl">
                 Настроили один раз, дальше чистка идет по расписанию
               </h2>
             </div>
 
             <div className="grid gap-5 md:grid-cols-3">
               {steps.map((step, index) => (
-                <article key={step.title} className="relative rounded-2xl border border-emerald-100 bg-[#f8fffb] p-7">
-                  <div className="mb-8 flex items-center justify-between">
+                <article key={step.title} className="relative rounded-2xl border border-emerald-100 bg-[#f8fffb] p-5 sm:p-7">
+                  <div className="mb-6 flex items-center justify-between sm:mb-8">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                       <Icon name={step.icon} size={23} />
                     </div>
                     <span className="text-5xl font-black leading-none text-emerald-100">0{index + 1}</span>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900">{step.title}</h3>
+                  <h3 className="text-xl font-black text-slate-900 sm:text-2xl">{step.title}</h3>
                   <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">{step.text}</p>
                 </article>
               ))}
@@ -323,21 +323,21 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="result" className="scroll-mt-24 bg-[#f6fbf8] py-20">
-          <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <section id="result" className="scroll-mt-20 bg-[#f6fbf8] py-12 sm:scroll-mt-24 sm:py-20">
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div>
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Результат для клиента</p>
-              <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-900 md:text-5xl">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Результат для клиента</p>
+              <h2 className="mt-3 text-2xl font-black tracking-normal text-slate-900 sm:text-3xl md:text-5xl">
                 Контроль площадок без ежедневной рутины
               </h2>
-              <p className="mt-5 max-w-xl text-base font-semibold leading-8 text-slate-600">
+              <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-slate-600 sm:mt-5 sm:text-base sm:leading-8">
                 Клиент получает не просто список заблокированных доменов, а понятную систему контроля качества трафика в РСЯ.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               {outcomes.map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-white p-5 shadow-sm">
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
                   <Icon name="CheckCircle2" size={20} className="shrink-0 text-emerald-600" />
                   <span className="text-base font-black text-slate-800">{item}</span>
                 </div>
@@ -346,20 +346,20 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="request" className="scroll-mt-24 border-y border-emerald-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#f8fffb_54%,#edfafa_100%)] py-20 text-slate-900">
-          <div className="mx-auto max-w-5xl px-6 text-center">
-            <p className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Закрытый бета-тест</p>
-            <h2 className="mt-3 text-3xl font-black tracking-normal md:text-5xl">
+        <section id="request" className="scroll-mt-20 border-y border-emerald-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#f8fffb_54%,#edfafa_100%)] py-12 text-slate-900 sm:scroll-mt-24 sm:py-20">
+          <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Закрытый бета-тест</p>
+            <h2 className="mt-3 text-2xl font-black tracking-normal sm:text-3xl md:text-5xl">
               Оставьте заявку на подключение
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-base font-semibold leading-7 text-slate-600">
+            <p className="mx-auto mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
               Уникальная возможность подключить сервис автоматической чистки площадок РСЯ до публичного запуска.
             </p>
 
             <Button
               size="lg"
               onClick={openBetaModal}
-              className="mt-8 h-14 rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700"
+              className="mt-8 h-14 w-full rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:w-auto"
             >
               Оставить заявку
             </Button>
@@ -373,34 +373,34 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-emerald-100 bg-white py-10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 md:flex-row md:items-center md:justify-between">
+      <footer className="border-t border-emerald-100 bg-white py-8 sm:py-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 text-center sm:px-6 md:flex-row md:items-center md:justify-between md:text-left">
           <img
             src="/images/directkit-logo.png"
             alt="DirectKit"
-            className="h-8 w-auto object-contain"
+            className="h-7 w-auto object-contain sm:h-8"
             width="108"
             height="36"
           />
-          <nav className="flex flex-wrap gap-x-7 gap-y-3 text-sm font-bold text-slate-500">
+          <nav className="flex max-w-sm flex-wrap justify-center gap-x-5 gap-y-3 text-sm font-bold text-slate-500 sm:max-w-none sm:gap-x-7 md:justify-end">
             <button onClick={() => scrollToSection('benefits')} className="hover:text-emerald-700">Преимущества</button>
             <button onClick={() => scrollToSection('savings')} className="hover:text-emerald-700">Экономия</button>
             <button onClick={() => scrollToSection('how-it-works')} className="hover:text-emerald-700">Как работает</button>
             <button onClick={() => scrollToSection('result')} className="hover:text-emerald-700">Результат</button>
             <button onClick={openBetaModal} className="hover:text-emerald-700">Оставить заявку</button>
-            <a href={`mailto:${leadEmail}`} className="hover:text-emerald-700">{leadEmail}</a>
+            <a href={`mailto:${leadEmail}`} className="break-all hover:text-emerald-700">{leadEmail}</a>
           </nav>
         </div>
       </footer>
 
       <Dialog open={isBetaModalOpen} onOpenChange={setIsBetaModalOpen}>
-        <DialogContent className="max-w-md overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl">
-          <div className="bg-[linear-gradient(135deg,#ecfdf5,#ffffff)] px-6 pb-5 pt-6">
+        <DialogContent className="max-h-[calc(100vh-24px)] w-[calc(100vw-24px)] max-w-md overflow-y-auto overflow-x-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl">
+          <div className="bg-[linear-gradient(135deg,#ecfdf5,#ffffff)] px-5 pb-5 pt-6 sm:px-6">
             <DialogHeader className="space-y-3 text-left">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
                 <Icon name="Sparkles" size={22} />
               </div>
-              <DialogTitle className="text-2xl font-black leading-tight text-slate-900">
+              <DialogTitle className="pr-6 text-xl font-black leading-tight text-slate-900 sm:text-2xl">
                 Заявка на закрытый бета-тест
               </DialogTitle>
               <DialogDescription className="text-sm font-semibold leading-6 text-slate-600">
@@ -410,7 +410,7 @@ export default function LandingPage() {
           </div>
 
           {betaSubmitted ? (
-            <div className="px-6 pb-6">
+            <div className="px-5 pb-6 sm:px-6">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center">
                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-white">
                   <Icon name="Check" size={22} />
@@ -422,7 +422,7 @@ export default function LandingPage() {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleBetaSubmit} className="space-y-4 px-6 pb-6">
+            <form onSubmit={handleBetaSubmit} className="space-y-4 px-5 pb-6 sm:px-6">
               <label className="block">
                 <span className="mb-2 block text-sm font-black text-slate-800">Телефон</span>
                 <Input

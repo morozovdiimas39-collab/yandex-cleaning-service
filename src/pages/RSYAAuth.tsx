@@ -13,6 +13,8 @@ const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const YANDEX_CLIENT_ID = 'fa264103fca547b7baa436de1a416fbe';
 
+const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
+
 interface DirectAccount {
   login: string;
   name: string;
@@ -201,6 +203,13 @@ export default function RSYAAuth() {
       const campaignsCount = Number(data.campaigns_count || 0);
       const message = `Доступ подтвержден, кампаний найдено: ${campaignsCount}`;
       setAccessCheck({ status: 'ok', message });
+      if (projectId) {
+        sessionStorage.setItem(authDraftKey(projectId), JSON.stringify({
+          yandex_token: token,
+          client_login: login,
+          checked_at: new Date().toISOString()
+        }));
+      }
       return { ok: true, message };
     } catch (error) {
       console.error('Error checking Direct access:', error);
@@ -260,6 +269,12 @@ export default function RSYAAuth() {
       });
 
       if (!response.ok) throw new Error('Ошибка сохранения токена');
+
+      sessionStorage.setItem(authDraftKey(projectId), JSON.stringify({
+        yandex_token: yandexToken.trim(),
+        client_login: clientLogin.trim(),
+        checked_at: new Date().toISOString()
+      }));
 
       toast({ title: '✅ Доступ к Директу сохранён' });
       navigate(`/rsya/${projectId}/setup`);

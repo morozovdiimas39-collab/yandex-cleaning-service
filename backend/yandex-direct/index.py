@@ -630,8 +630,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             source_campaigns: List[dict] = []
             seen_ids: set = set()
 
-            # 1) Все кампании из Reports API
+            # 1) Метаданные из Reports API используем только для кампаний,
+            # которые уже подтвердил campaigns.get с тем же Client-Login.
+            # Это защищает от подмешивания кампаний владельца OAuth-токена,
+            # если Reports вернул данные не того кабинета.
             for cid, meta in report_campaign_meta.items():
+                if campaigns_get_by_id and cid not in campaigns_get_by_id:
+                    print(f'[DEBUG] Skip report-only campaign {cid}: not present in campaigns.get for client_login={client_login!r}')
+                    continue
                 c = dict(campaigns_get_by_id.get(cid) or {})
                 c['Id'] = cid
                 c['Name'] = c.get('Name') or meta.get('name') or 'Без названия'

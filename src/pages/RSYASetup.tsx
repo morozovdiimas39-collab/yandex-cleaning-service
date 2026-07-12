@@ -25,6 +25,7 @@ interface Counter {
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
+const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
 
 export default function RSYASetup() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -38,6 +39,7 @@ export default function RSYASetup() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
   const [campaignsError, setCampaignsError] = useState('');
+  const [activeClientLogin, setActiveClientLogin] = useState('');
   
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
   const [selectedCounters, setSelectedCounters] = useState<Set<string>>(new Set());
@@ -69,8 +71,16 @@ export default function RSYASetup() {
       }
       
       const projectData = await projectResponse.json();
-      const token = projectData.project.yandex_token;
-      const clientLogin = projectData.project.client_login || '';
+      const draftRaw = projectId ? sessionStorage.getItem(authDraftKey(projectId)) : null;
+      let authDraft: { yandex_token?: string; client_login?: string } = {};
+      try {
+        authDraft = draftRaw ? JSON.parse(draftRaw) : {};
+      } catch {
+        authDraft = {};
+      }
+      const token = projectData.project.yandex_token || authDraft.yandex_token;
+      const clientLogin = projectData.project.client_login || authDraft.client_login || '';
+      setActiveClientLogin(clientLogin);
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -92,6 +102,11 @@ export default function RSYASetup() {
         const data = await campaignsRes.json();
         const loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
+        if ((data.client_login || '') !== clientLogin) {
+          setCampaignsError(
+            `Кампании загружены не из выбранного Client-Login. Ожидали "${clientLogin || 'без Client-Login'}", backend вернул "${data.client_login || 'без Client-Login'}".`
+          );
+        }
         if (data.error) {
           setCampaignsError(data.error_detail || data.message || data.error);
         } else if (loadedCampaigns.length === 0) {
@@ -138,6 +153,7 @@ export default function RSYASetup() {
           project_id: parseInt(projectId!),
           campaign_ids: Array.from(selectedCampaigns),
           counter_ids: Array.from(selectedCounters),
+          client_login: activeClientLogin,
           auto_add_campaigns: autoAddNewCampaigns,
           is_configured: true
         })
@@ -186,7 +202,10 @@ export default function RSYASetup() {
           <Card>
             <CardHeader>
               <CardTitle>1. Кампании для отслеживания</CardTitle>
-              <CardDescription>Выберите кампании из которых будут собираться площадки</CardDescription>
+              <CardDescription>
+                Выберите кампании из которых будут собираться площадки
+                {activeClientLogin ? ` · Client-Login: ${activeClientLogin}` : ' · Прямой аккаунт токена'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-h-60 overflow-y-auto">

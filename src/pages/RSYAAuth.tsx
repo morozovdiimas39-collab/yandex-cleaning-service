@@ -20,6 +20,11 @@ interface DirectAccount {
   role?: string;
 }
 
+interface AccessCheckState {
+  status: 'ok' | 'error';
+  message: string;
+}
+
 export default function RSYAAuth() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,6 +38,8 @@ export default function RSYAAuth() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [accessCheck, setAccessCheck] = useState<AccessCheckState | null>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -48,6 +55,7 @@ export default function RSYAAuth() {
         const token = event.data.token;
         if (token) {
           setYandexToken(token);
+          setAccessCheck(null);
           setAccountsLoaded(false);
           loadAccounts(token);
           toast({ title: '✅ Токен получен из Яндекса!' });
@@ -132,6 +140,53 @@ export default function RSYAAuth() {
     }
   };
 
+  const checkDirectAccess = async (
+    tokenOverride?: string,
+    clientLoginOverride?: string
+  ): Promise<{ ok: boolean; message: string }> => {
+    const token = (tokenOverride ?? yandexToken).trim();
+    const login = (clientLoginOverride ?? clientLogin).trim();
+
+    if (!token) {
+      const message = 'Сначала вставьте OAuth-токен';
+      setAccessCheck({ status: 'error', message });
+      toast({ title: message, variant: 'destructive' });
+      return { ok: false, message };
+    }
+
+    try {
+      setCheckingAccess(true);
+      setAccessCheck(null);
+
+      const response = await fetch(`${YANDEX_DIRECT_URL}?action=check_access`, {
+        headers: {
+          'X-Auth-Token': token,
+          ...(login ? { 'X-Client-Login': login } : {})
+        }
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        const detail = data.error_detail ? ` ${data.error_detail}` : '';
+        const message = `${data.error || 'Доступ к кампаниям не подтвержден.'}${detail}`.trim();
+        setAccessCheck({ status: 'error', message });
+        return { ok: false, message };
+      }
+
+      const campaignsCount = Number(data.campaigns_count || 0);
+      const message = `Доступ подтвержден, кампаний найдено: ${campaignsCount}`;
+      setAccessCheck({ status: 'ok', message });
+      return { ok: true, message };
+    } catch (error) {
+      console.error('Error checking Direct access:', error);
+      const message = 'Не удалось проверить доступ к Директу';
+      setAccessCheck({ status: 'error', message });
+      return { ok: false, message };
+    } finally {
+      setCheckingAccess(false);
+    }
+  };
+
   const openYandexOAuth = () => {
     const width = 600;
     const height = 700;
@@ -155,6 +210,16 @@ export default function RSYAAuth() {
 
     try {
       setSavingToken(true);
+
+      const access = await checkDirectAccess(yandexToken.trim(), clientLogin.trim());
+      if (!access.ok) {
+        toast({
+          title: 'Доступ не подтвержден',
+          description: access.message,
+          variant: 'destructive'
+        });
+        return;
+      }
 
       const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'PUT',
@@ -248,6 +313,7 @@ export default function RSYAAuth() {
                   value={yandexToken}
                   onChange={(event) => {
                     setYandexToken(event.target.value);
+                    setAccessCheck(null);
                     setAccountsLoaded(false);
                   }}
                 />
@@ -286,7 +352,10 @@ export default function RSYAAuth() {
                         <button
                           key={`${account.source}-${account.login}`}
                           type="button"
-                          onClick={() => setClientLogin(accountClientLogin)}
+                          onClick={() => {
+                            setClientLogin(accountClientLogin);
+                            setAccessCheck(null);
+                          }}
                           className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition ${
                             active
                               ? 'border-green-500 bg-white shadow-sm ring-2 ring-green-100'
@@ -314,11 +383,43 @@ export default function RSYAAuth() {
                     type="text"
                     placeholder="login-clienta-bez-sobaki"
                     value={clientLogin}
-                    onChange={(event) => setClientLogin(event.target.value.trim())}
+                    onChange={(event) => {
+                      setClientLogin(event.target.value.trim());
+                      setAccessCheck(null);
+                    }}
                   />
                   <p className="text-xs text-slate-500">
                     Оставьте пустым только если токен выдан прямо на аккаунт, где лежат кампании.
                   </p>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => checkDirectAccess()}
+                    disabled={checkingAccess || !yandexToken.trim()}
+                    className="shrink-0"
+                  >
+                    {checkingAccess ? (
+                      <Icon name="Loader2" className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Icon name="ShieldCheck" className="mr-2 h-4 w-4" />
+                    )}
+                    Проверить доступ
+                  </Button>
+
+                  {accessCheck && (
+                    <div
+                      className={`rounded-lg px-3 py-2 text-sm ${
+                        accessCheck.status === 'ok'
+                          ? 'border border-green-200 bg-green-50 text-green-800'
+                          : 'border border-red-200 bg-red-50 text-red-800'
+                      }`}
+                    >
+                      {accessCheck.message}
+                    </div>
+                  )}
                 </div>
 
                 {accountsLoaded && accounts.length === 0 && (
@@ -330,7 +431,7 @@ export default function RSYAAuth() {
 
               <Button
                 onClick={saveToken}
-                disabled={savingToken || !yandexToken.trim()}
+                disabled={savingToken || checkingAccess || !yandexToken.trim()}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
                 {savingToken ? (

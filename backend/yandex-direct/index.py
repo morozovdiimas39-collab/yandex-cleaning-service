@@ -133,6 +133,115 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'accounts': accounts, 'errors': errors}, ensure_ascii=False)
         }
 
+    # GET ?action=check_access - быстрая проверка, что токен + Client-Login видят кампании
+    if method == 'GET' and query_params.get('action') == 'check_access':
+        headers_raw = event.get('headers', {})
+        token = headers_raw.get('X-Auth-Token') or headers_raw.get('x-auth-token')
+        client_login = (
+            headers_raw.get('X-Client-Login')
+            or headers_raw.get('x-client-login')
+            or query_params.get('client_login')
+            or ''
+        ).strip()
+
+        if not token:
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'isBase64Encoded': False,
+                'body': json.dumps({'success': False, 'error': 'Отсутствует токен авторизации'}, ensure_ascii=False)
+            }
+
+        request_headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept-Language': 'ru'
+        }
+        if client_login:
+            request_headers['Client-Login'] = client_login
+
+        try:
+            is_sandbox = query_params.get('sandbox') == 'true'
+            api_url = (
+                'https://api-sandbox.direct.yandex.com/json/v501/campaigns'
+                if is_sandbox else
+                'https://api.direct.yandex.com/json/v501/campaigns'
+            )
+            response = requests.post(
+                api_url,
+                headers=request_headers,
+                json={
+                    'method': 'get',
+                    'params': {
+                        'SelectionCriteria': {},
+                        'FieldNames': ['Id', 'Name', 'Type', 'Status']
+                    }
+                },
+                timeout=20
+            )
+
+            try:
+                data = response.json()
+            except Exception:
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'isBase64Encoded': False,
+                    'body': json.dumps({
+                        'success': False,
+                        'error': f'Директ вернул не JSON: HTTP {response.status_code}',
+                        'error_detail': response.text[:500]
+                    }, ensure_ascii=False)
+                }
+
+            if response.status_code != 200:
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'isBase64Encoded': False,
+                    'body': json.dumps({
+                        'success': False,
+                        'error': f'Директ вернул HTTP {response.status_code}',
+                        'error_detail': data
+                    }, ensure_ascii=False)
+                }
+
+            if 'error' in data:
+                error_info = data['error']
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'isBase64Encoded': False,
+                    'body': json.dumps({
+                        'success': False,
+                        'error': error_info.get('error_string') or 'Ошибка API Яндекс.Директ',
+                        'error_detail': error_info.get('error_detail') or '',
+                        'error_code': error_info.get('error_code'),
+                        'client_login': client_login
+                    }, ensure_ascii=False)
+                }
+
+            campaigns = data.get('result', {}).get('Campaigns', []) or []
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'isBase64Encoded': False,
+                'body': json.dumps({
+                    'success': len(campaigns) > 0,
+                    'campaigns_count': len(campaigns),
+                    'campaigns_sample': campaigns[:5],
+                    'client_login': client_login,
+                    'error': '' if campaigns else 'Кампании не найдены для этой связки OAuth-токена и Client-Login'
+                }, ensure_ascii=False)
+            }
+        except Exception as e:
+            print(f'[ERROR] Failed to check Direct access: {str(e)}')
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'isBase64Encoded': False,
+                'body': json.dumps({'success': False, 'error': str(e), 'client_login': client_login}, ensure_ascii=False)
+            }
+
     # GET ?action=counters - получить все счётчики Метрики
     if method == 'GET' and query_params.get('action') == 'counters':
         headers_raw = event.get('headers', {})

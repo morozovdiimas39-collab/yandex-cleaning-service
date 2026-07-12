@@ -42,7 +42,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cursor.execute("""
             SELECT pr.id, pr.project_id, pr.task_id, pr.campaign_ids, 
                    pr.date_from::text, pr.date_to::text, pr.report_name,
-                   p.yandex_token
+                   p.yandex_token, p.client_login
             FROM t_p97630513_yandex_cleaning_serv.rsya_pending_reports pr
             JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = pr.project_id
             WHERE pr.status = 'pending'
@@ -128,6 +128,7 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
     project_id = report['project_id']
     task_id = report['task_id']
     token = report['yandex_token']
+    client_login = (report.get('client_login') or '').strip()
     campaign_ids = json.loads(report['campaign_ids']) if isinstance(report['campaign_ids'], str) else report['campaign_ids']
     date_from = report['date_from']
     date_to = report['date_to']
@@ -144,6 +145,9 @@ def check_and_process_report(report: Dict[str, Any], cursor, conn) -> str:
         'skipReportSummary': 'true',
         'skipColumnHeader': 'false'
     }
+    if client_login:
+        headers['Client-Login'] = client_login
+        print(f'🔐 Using Client-Login for async report: {client_login}')
     
     report_data = {
         'params': {

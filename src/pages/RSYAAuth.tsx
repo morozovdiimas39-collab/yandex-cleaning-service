@@ -168,7 +168,14 @@ export default function RSYAAuth() {
 
       if (!data.success) {
         const detail = data.error_detail ? ` ${data.error_detail}` : '';
-        const message = `${data.error || 'Доступ к кампаниям не подтвержден.'}${detail}`.trim();
+        let message = `${data.error || 'Доступ к кампаниям не подтвержден.'}${detail}`.trim();
+        if (Number(data.error_code) === 8800) {
+          message = `Яндекс не нашел Client-Login "${login}". Для eLama/организации нужен именно логин рекламного клиента в Директе, не номер кабинета.`;
+        } else if (data.campaigns_count === 0) {
+          message = login
+            ? `Доступ есть, но по Client-Login "${login}" кампании не найдены. Проверьте, что это логин клиента с кампаниями.`
+            : 'Токен принят, но кампании не найдены. Если кампании в eLama/агентском кабинете, укажите Client-Login рекламного клиента.';
+        }
         setAccessCheck({ status: 'error', message });
         return { ok: false, message };
       }

@@ -26,6 +26,7 @@ jobs:
           - auth
           - fetch-git-file
           - rsya-automation
+          - rsya-async-poller
           - rsya-batch-worker
           - rsya-block-worker
           - rsya-dlq-processor

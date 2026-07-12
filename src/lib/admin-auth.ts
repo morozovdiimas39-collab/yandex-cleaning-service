@@ -36,13 +36,14 @@ export const clearAdminSession = () => {
 
 export const adminAuthRequest = async (body: Record<string, unknown>) => {
   const session = getAdminSession();
-  const headers = new Headers({ 'Content-Type': 'application/json' });
-  if (session?.token) headers.set('Authorization', `Bearer ${session.token}`);
+  const requestBody = session?.token
+    ? { ...body, session_token: session.token }
+    : body;
 
   return fetch(BACKEND_URLS['admin-auth'], {
     method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
     cache: 'no-store',
   });
 };

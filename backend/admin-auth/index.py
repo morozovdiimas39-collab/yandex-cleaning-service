@@ -190,7 +190,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'must_change_password': bool(admin['must_change_password']),
             })
 
-        token = get_bearer_token(event)
+        token = get_bearer_token(event) or str(body.get('session_token') or '').strip()
         if not token:
             return response(401, {'error': 'Unauthorized'})
 

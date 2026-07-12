@@ -19,10 +19,12 @@ SCHEMA = 't_p97630513_yandex_cleaning_serv'
 
 
 def verify_admin_session(cur, headers: Dict[str, Any]):
-    authorization = headers.get('authorization') or headers.get('Authorization') or ''
-    if not authorization.lower().startswith('bearer '):
-        return None
-    token = authorization[7:].strip()
+    token = (headers.get('x-admin-session') or headers.get('X-Admin-Session') or '').strip()
+    if not token:
+        authorization = headers.get('authorization') or headers.get('Authorization') or ''
+        if not authorization.lower().startswith('bearer '):
+            return None
+        token = authorization[7:].strip()
     if len(token) < 32:
         return None
     token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
@@ -55,7 +57,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, Authorization',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Admin-Session',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''

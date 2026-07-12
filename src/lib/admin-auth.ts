@@ -56,7 +56,7 @@ export const adminFetch = async (input: RequestInfo | URL, init: RequestInit = {
   }
 
   const headers = new Headers(init.headers || {});
-  headers.set('Authorization', `Bearer ${session.token}`);
+  headers.set('X-Admin-Session', session.token);
 
   const response = await fetch(input, { ...init, headers });
   if (response.status === 401 || response.status === 403) {

@@ -17,6 +17,9 @@ from psycopg2.extras import RealDictCursor
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
 
 def get_bearer_token(headers: Dict[str, Any]):
+    session_token = headers.get('x-admin-session') or headers.get('X-Admin-Session') or ''
+    if session_token:
+        return session_token.strip() if len(session_token.strip()) >= 32 else None
     authorization = headers.get('authorization') or headers.get('Authorization') or ''
     if not authorization.lower().startswith('bearer '):
         return None
@@ -57,7 +60,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, Authorization',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Admin-Session',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''

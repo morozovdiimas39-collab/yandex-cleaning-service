@@ -78,7 +78,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stats_action = params.get('stats')
         
         # Админские действия требуют короткоживущую серверную сессию.
-        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'pause_all_rsya', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
+        if action in ['analytics', 'rsya_projects', 'rsya_project_detail', 'rsya_task_detail', 'rsya_execution_detail', 'rsya_dashboard_stats', 'rsya_workers_health', 'rsya_errors', 'delete_old_batches', 'delete_all_pending_batches', 'clean_campaign_locks', 'pause_all_rsya', 'delete_project', 'delete_task', 'delete_all_projects', 'get_schedules', 'update_schedule', 'trigger_schedule']:
             if not verify_admin_session(cur, headers):
                 return {
                     'statusCode': 401,
@@ -164,6 +164,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                     'body': json.dumps(workers_data, default=str)
+                }
+
+            elif action == 'rsya_errors':
+                errors_data = get_rsya_errors(cur, params)
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(errors_data, default=str)
                 }
             
             elif action == 'delete_old_batches':
@@ -1503,6 +1511,62 @@ def get_rsya_workers_health(cur) -> Dict[str, Any]:
         'hourly_activity': hourly_activity,
         'recent_errors': recent_errors,
         'queue_snapshots': queue_snapshots
+    }
+
+
+def get_rsya_errors(cur, params: Dict[str, Any]) -> Dict[str, Any]:
+    '''Полная история ошибок запусков РСЯ для операционной админки.'''
+    limit = min(max(int(params.get('limit', 50)), 1), 200)
+    offset = max(int(params.get('offset', 0)), 0)
+
+    cur.execute(f"""
+        SELECT COUNT(*) AS total
+        FROM {SCHEMA}.rsya_cleaning_execution_logs
+        WHERE status = 'error' OR error_message IS NOT NULL
+    """)
+    total = int(cur.fetchone()['total'] or 0)
+
+    cur.execute(f"""
+        SELECT
+            l.id,
+            l.execution_type,
+            l.project_id,
+            p.name AS project_name,
+            p.user_id,
+            p.client_login,
+            l.task_id,
+            t.description AS task_description,
+            t.config AS task_config,
+            l.started_at,
+            l.completed_at,
+            l.created_at,
+            l.status,
+            l.request_id,
+            l.placements_found,
+            l.placements_matched,
+            l.placements_sent_to_queue,
+            l.placements_blocked,
+            l.error_message,
+            l.metadata,
+            CASE
+                WHEN l.completed_at IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (l.completed_at - l.started_at))
+                ELSE NULL
+            END AS duration_seconds
+        FROM {SCHEMA}.rsya_cleaning_execution_logs l
+        LEFT JOIN {SCHEMA}.rsya_projects p ON p.id = l.project_id
+        LEFT JOIN {SCHEMA}.rsya_tasks t ON t.id = l.task_id
+        WHERE l.status = 'error' OR l.error_message IS NOT NULL
+        ORDER BY l.started_at DESC NULLS LAST, l.id DESC
+        LIMIT %s OFFSET %s
+    """, (limit, offset))
+
+    return {
+        'errors': cur.fetchall(),
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+        'has_more': offset + limit < total,
     }
 
 

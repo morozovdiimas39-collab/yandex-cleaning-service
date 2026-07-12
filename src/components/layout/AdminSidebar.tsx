@@ -7,6 +7,7 @@ const menuItems = [
   { title: 'Обзор', path: '/admin', icon: 'LayoutDashboard' },
   { title: 'Проекты и задачи', path: '/admin/rsya-cleaning', icon: 'FolderKanban' },
   { title: 'Пользователи', path: '/admin/users', icon: 'Users' },
+  { title: 'Ошибки запусков', path: '/admin/errors', icon: 'CircleAlert' },
   { title: 'Состояние системы', path: '/admin/rsya-workers', icon: 'Activity' },
 ];
 

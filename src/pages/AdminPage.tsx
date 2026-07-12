@@ -121,7 +121,7 @@ export default function AdminPage() {
           }}
           onLoadMore={() => !loadingMore && hasMore && loadUsers(offset)} onUpdateUser={updateSubscription} onDeleteUser={deleteUser}
         />
-      ) : <DashboardTab stats={stats} adminOverview={adminOverview} />}
+      ) : <DashboardTab stats={stats} adminOverview={adminOverview} onUpdateSubscription={updateSubscription} />}
     </AdminShell>
   );
 }

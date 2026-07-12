@@ -9,8 +9,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     ? ['Проекты и задачи', 'Контроль проектов, расписаний и результатов чистки']
     : location.pathname.startsWith('/admin/users')
       ? ['Пользователи', 'Подписки, доступы и клиентская база']
-      : location.pathname.startsWith('/admin/rsya-workers')
-        ? ['Состояние системы', 'Очереди, воркеры и технические ошибки']
+      : location.pathname.startsWith('/admin/errors')
+        ? ['Ошибки запусков', 'Полная история ошибок и технические подробности']
+        : location.pathname.startsWith('/admin/rsya-workers')
+          ? ['Состояние системы', 'Очереди, воркеры и технические ошибки']
         : ['Дашборд', 'Ключевые метрики и инструменты управления'];
 
   return (

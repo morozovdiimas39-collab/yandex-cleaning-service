@@ -164,7 +164,7 @@ def validate_task_config(config: Dict[str, Any], combine_operator: str) -> List[
     return reasons[:3]
 
 
-def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: str, goal_ids: Optional[List[str]]) -> Dict[str, Any]:
+def create_report(campaign_id: str, yandex_token: str, client_login: str, date_from: str, date_to: str, goal_ids: Optional[List[str]]) -> Dict[str, Any]:
     normalized_goal_ids = [str(goal_id).strip() for goal_id in (goal_ids or []) if str(goal_id).strip()][:10]
     goal_suffix = ''
     if normalized_goal_ids:
@@ -194,16 +194,20 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
         payload['params']['AttributionModels'] = ['AUTO']
 
     try:
+        headers = {
+            'Authorization': f'Bearer {yandex_token}',
+            'Accept-Language': 'ru',
+            'processingMode': 'auto',
+            'returnMoneyInMicros': 'false',
+            'skipReportHeader': 'true',
+            'skipReportSummary': 'true',
+        }
+        if client_login:
+            headers['Client-Login'] = client_login
+
         resp = requests.post(
             'https://api.direct.yandex.com/json/v5/reports',
-            headers={
-                'Authorization': f'Bearer {yandex_token}',
-                'Accept-Language': 'ru',
-                'processingMode': 'auto',
-                'returnMoneyInMicros': 'false',
-                'skipReportHeader': 'true',
-                'skipReportSummary': 'true',
-            },
+            headers=headers,
             json=payload,
             timeout=30,
         )
@@ -267,8 +271,12 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
     return platforms
 
 
-def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
+def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> Optional[List[str]]:
     try:
+        headers = {'Authorization': f'Bearer {token}', 'Accept-Language': 'ru'}
+        if client_login:
+            headers['Client-Login'] = client_login
+
         resp = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',
             json={
@@ -278,7 +286,7 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
                     'FieldNames': ['Id', 'ExcludedSites', 'Status'],
                 },
             },
-            headers={'Authorization': f'Bearer {token}', 'Accept-Language': 'ru'},
+            headers=headers,
             timeout=30,
         )
         time.sleep(API_DELAY)
@@ -346,7 +354,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         conn = psycopg2.connect(dsn)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(f"""
-            SELECT id, name, yandex_token, campaign_ids
+            SELECT id, name, yandex_token, campaign_ids, client_login
             FROM {SCHEMA}.rsya_projects
             WHERE id = %s AND user_id = %s
         """, (project_id, user_id_int))
@@ -359,6 +367,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return response(404, {'error': 'Project not found'})
     if not project.get('yandex_token'):
         return response(400, {'error': 'Project has no Yandex token'})
+    client_login = (project.get('client_login') or '').strip()
 
     campaign_ids = project.get('campaign_ids') or []
     if isinstance(campaign_ids, str):
@@ -381,7 +390,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     matched = 0
 
     for campaign_id in selected_campaign_ids:
-        report = create_report(campaign_id, project['yandex_token'], date_from, date_to, goal_ids)
+        report = create_report(campaign_id, project['yandex_token'], client_login, date_from, date_to, goal_ids)
         if report['status'] in (201, 202):
             reports_pending.append({'campaign_id': campaign_id, 'report_name': report.get('report_name')})
             continue
@@ -389,7 +398,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             errors.append({'campaign_id': campaign_id, 'status': report['status'], 'error': report.get('error')})
             continue
 
-        excluded = get_excluded_sites(project['yandex_token'], campaign_id)
+        excluded = get_excluded_sites(project['yandex_token'], campaign_id, client_login)
         excluded_set = set(excluded or [])
 
         for platform in parse_tsv_report(report['data']):
@@ -418,6 +427,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         'success': True,
         'project_id': project_id,
         'project_name': project.get('name'),
+        'client_login': client_login,
         'period': {'date_from': date_from, 'date_to': date_to},
         'sampled': len(selected_campaign_ids) < len(campaign_ids),
         'campaigns_checked': selected_campaign_ids,

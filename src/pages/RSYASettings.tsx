@@ -80,6 +80,7 @@ export default function RSYASettings() {
       
       const projectData = await projectResponse.json();
       const token = projectData.project.yandex_token;
+      const clientLogin = projectData.project.client_login || '';
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -90,7 +91,8 @@ export default function RSYASettings() {
       const [campaignsRes, countersRes] = await Promise.all([
         fetch(YANDEX_DIRECT_URL, {
           headers: {
-            'X-Auth-Token': token
+            'X-Auth-Token': token,
+            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
           }
         }),
         fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })

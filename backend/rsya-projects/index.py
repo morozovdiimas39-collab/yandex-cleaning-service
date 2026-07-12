@@ -883,6 +883,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 update_fields.append('yandex_token = %s')
                 update_values.append(put_body_data['yandex_token'])
 
+            if 'client_login' in put_body_data:
+                update_fields.append('client_login = %s')
+                client_login = (put_body_data.get('client_login') or '').strip()
+                update_values.append(client_login or None)
+
             if 'campaign_ids' in put_body_data:
                 update_fields.append('campaign_ids = %s')
                 update_values.append(json.dumps(put_body_data['campaign_ids']))

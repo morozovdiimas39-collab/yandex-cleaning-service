@@ -62,7 +62,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.project_id,
                     s.interval_hours,
                     p.yandex_token,
-                    p.campaign_ids
+                    p.campaign_ids,
+                    p.client_login
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.project_id = %s
@@ -77,7 +78,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.project_id,
                     s.interval_hours,
                     p.yandex_token,
-                    p.campaign_ids
+                    p.campaign_ids,
+                    p.client_login
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.is_active = TRUE
@@ -93,7 +95,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.project_id,
                     s.interval_hours,
                     p.yandex_token,
-                    p.campaign_ids
+                    p.campaign_ids,
+                    p.client_login
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.is_active = TRUE
@@ -186,6 +189,7 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_
     project_id = project['project_id']
     campaign_ids = project['campaign_ids']
     yandex_token = project['yandex_token']
+    client_login = (project.get('client_login') or '').strip()
     
     if isinstance(campaign_ids, str):
         campaign_ids = json.loads(campaign_ids)
@@ -260,6 +264,7 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_
             'project_id': project_id,
             'campaign_ids': batch_campaign_ids,
             'yandex_token': yandex_token,
+            'client_login': client_login,
             'batch_number': batch_number,
             'total_batches': total_batches
         }

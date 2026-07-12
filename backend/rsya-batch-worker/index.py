@@ -101,6 +101,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     project_id = data.get('project_id')
     campaign_ids = data.get('campaign_ids', [])
     yandex_token = data.get('yandex_token')
+    client_login = (data.get('client_login') or '').strip()
     
     if not all([batch_id, project_id, campaign_ids, yandex_token]):
         return {
@@ -163,6 +164,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 result = process_campaign(
                     campaign_id, 
                     yandex_token, 
+                    client_login,
                     project_id,
                     cursor, 
                     conn, 
@@ -266,6 +268,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 def process_campaign(
     campaign_id: str, 
     yandex_token: str, 
+    client_login: str,
     project_id: int,
     cursor, 
     conn, 
@@ -300,16 +303,16 @@ def process_campaign(
             print(f"🎯 Project {project_id}: loading Direct reports for goals {selected_goal_ids}", flush=True)
         
         # 3. Получаем площадки за 3 периода (сегодня, вчера, 7 дней)
-        platforms_today = get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id, first_task_id)
-        platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id, first_task_id)
-        platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id, first_task_id)
+        platforms_today = get_platforms_with_retry(campaign_id, yandex_token, client_login, 0, 0, cursor, conn, project_id, first_task_id)
+        platforms_yesterday = get_platforms_with_retry(campaign_id, yandex_token, client_login, 1, 1, cursor, conn, project_id, first_task_id)
+        platforms_7d = get_platforms_with_retry(campaign_id, yandex_token, client_login, 7, 0, cursor, conn, project_id, first_task_id)
 
         goal_platform_sets = []
         if selected_goal_ids:
             goal_platform_sets = [
-                get_platforms_with_retry(campaign_id, yandex_token, 0, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
-                get_platforms_with_retry(campaign_id, yandex_token, 1, 1, cursor, conn, project_id, first_task_id, selected_goal_ids),
-                get_platforms_with_retry(campaign_id, yandex_token, 7, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
+                get_platforms_with_retry(campaign_id, yandex_token, client_login, 0, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
+                get_platforms_with_retry(campaign_id, yandex_token, client_login, 1, 1, cursor, conn, project_id, first_task_id, selected_goal_ids),
+                get_platforms_with_retry(campaign_id, yandex_token, client_login, 7, 0, cursor, conn, project_id, first_task_id, selected_goal_ids),
             ]
         
         # Если все отчёты async (201/202) → пропускаем (обработает поллер)
@@ -353,7 +356,7 @@ def process_campaign(
         print(f"📊 Campaign {campaign_id}: {len(candidates)} candidates to check", flush=True)
         
         # 5. Получаем уже заблокированные площадки
-        blocked_sites = get_blocked_sites(campaign_id, yandex_token)
+        blocked_sites = get_blocked_sites(campaign_id, yandex_token, client_login)
         blocked_domains = set(s['domain'].lower() for s in blocked_sites)
         
         # 6. Фильтруем площадки по задачам
@@ -418,13 +421,13 @@ def process_campaign(
             # Удаляем наименее вредные (если нужно)
             to_unblock = [s for s in blocked_sites if s not in top_1000]
             if to_unblock:
-                unblock_sites(campaign_id, yandex_token, [s['domain'] for s in to_unblock])
+                unblock_sites(campaign_id, yandex_token, client_login, [s['domain'] for s in to_unblock])
                 print(f"🔄 Campaign {campaign_id}: rotated {len(to_unblock)} platforms")
         
         # 8. Добавляем новые блокировки в Директе
         actually_blocked = 0
         if to_block:
-            if block_sites(campaign_id, yandex_token, [p['domain'] for p in to_block]):
+            if block_sites(campaign_id, yandex_token, client_login, [p['domain'] for p in to_block]):
                 actually_blocked = len(to_block)
                 print(f"🚫 Campaign {campaign_id}: blocked {actually_blocked} platforms in Yandex", flush=True)
             else:
@@ -710,7 +713,7 @@ def process_from_database() -> Dict[str, Any]:
         
         # Получаем 1 pending batch
         cursor.execute("""
-            SELECT b.id, b.project_id, b.campaign_ids, p.yandex_token
+            SELECT b.id, b.project_id, b.campaign_ids, p.yandex_token, p.client_login
             FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches b
             JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = b.project_id
             WHERE b.status = 'pending'
@@ -739,7 +742,8 @@ def process_from_database() -> Dict[str, Any]:
                 'batch_id': batch['id'],
                 'project_id': batch['project_id'],
                 'campaign_ids': json.loads(batch['campaign_ids']) if isinstance(batch['campaign_ids'], str) else batch['campaign_ids'],
-                'yandex_token': batch['yandex_token']
+                'yandex_token': batch['yandex_token'],
+                'client_login': batch.get('client_login') or ''
             })
         }
         
@@ -801,6 +805,7 @@ def release_campaign_lock(campaign_id: str, cursor, conn, project_id: int) -> No
 def get_platforms_with_retry(
     campaign_id: str, 
     yandex_token: str, 
+    client_login: str,
     days_ago: int,
     days_end: int,
     cursor,
@@ -819,7 +824,7 @@ def get_platforms_with_retry(
             date_to = (datetime.now() - timedelta(days=days_end)).strftime('%Y-%m-%d')
             
             # Запрашиваем отчёт у Яндекса
-            response = create_report(campaign_id, yandex_token, date_from, date_to, goal_ids)
+            response = create_report(campaign_id, yandex_token, client_login, date_from, date_to, goal_ids)
             
             if response['status'] == 200:
                 # Отчёт готов → парсим TSV
@@ -868,7 +873,7 @@ def get_platforms_with_retry(
     return None
 
 
-def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: str, goal_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+def create_report(campaign_id: str, yandex_token: str, client_login: str, date_from: str, date_to: str, goal_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     '''Создаёт отчёт через Yandex Direct API'''
     url = 'https://api.direct.yandex.com/json/v5/reports'
     headers = {
@@ -879,6 +884,8 @@ def create_report(campaign_id: str, yandex_token: str, date_from: str, date_to: 
         'skipReportHeader': 'true',
         'skipReportSummary': 'true'
     }
+    if client_login:
+        headers['Client-Login'] = client_login
     
     normalized_goal_ids = [str(goal_id).strip() for goal_id in (goal_ids or []) if str(goal_id).strip()][:10]
     goal_suffix = ''
@@ -998,19 +1005,19 @@ def parse_tsv_report(tsv_data: str) -> List[Dict[str, Any]]:
     return platforms
 
 
-def get_blocked_sites(campaign_id: str, yandex_token: str) -> List[Dict[str, Any]]:
+def get_blocked_sites(campaign_id: str, yandex_token: str, client_login: str = '') -> List[Dict[str, Any]]:
     '''Получает уже заблокированные площадки именно из Campaign.ExcludedSites.'''
-    excluded_sites = get_excluded_sites(yandex_token, campaign_id)
+    excluded_sites = get_excluded_sites(yandex_token, campaign_id, client_login)
     if excluded_sites is None or excluded_sites == 'UNMODIFIABLE':
         return []
     return [{'domain': site, 'cost': 0} for site in excluded_sites]
 
 
-def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool:
+def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> bool:
     '''Блокирует площадки через Yandex Direct API'''
     
     # Получаем текущий список ExcludedSites
-    current_excluded = get_excluded_sites(yandex_token, campaign_id)
+    current_excluded = get_excluded_sites(yandex_token, campaign_id, client_login)
     
     if current_excluded == 'UNMODIFIABLE':
         print(f'⚠️ Campaign {campaign_id} cannot be modified, skipping ExcludedSites update')
@@ -1038,7 +1045,7 @@ def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool
     print(f'📝 Campaign {campaign_id}: Adding {len(domains_to_add)} domains (current: {len(current_excluded)}, new total: {len(new_excluded_list)})')
     
     # Обновляем в Яндексе
-    success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list)
+    success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
     
     if success:
         print(f'✅ Blocked {len(domains_to_add)} domains in campaign {campaign_id}')
@@ -1048,11 +1055,11 @@ def block_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool
     return success
 
 
-def unblock_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bool:
+def unblock_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> bool:
     '''Разблокирует площадки (ротация)'''
     
     # Получаем текущий список ExcludedSites
-    current_excluded = get_excluded_sites(yandex_token, campaign_id)
+    current_excluded = get_excluded_sites(yandex_token, campaign_id, client_login)
     
     if current_excluded is None:
         print(f'❌ Failed to fetch ExcludedSites for campaign {campaign_id}')
@@ -1066,7 +1073,7 @@ def unblock_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bo
     print(f'📝 Campaign {campaign_id}: Removing {len(domains_to_remove)} domains (current: {len(current_excluded)}, new total: {len(new_excluded_list)})')
     
     # Обновляем в Яндексе
-    success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list)
+    success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
     
     if success:
         print(f'✅ Unblocked {len(domains_to_remove)} domains in campaign {campaign_id}')
@@ -1076,10 +1083,17 @@ def unblock_sites(campaign_id: str, yandex_token: str, domains: List[str]) -> bo
     return success
 
 
-def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
+def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> Optional[List[str]]:
     '''Получение списка ExcludedSites из Яндекс.Директ'''
     
     try:
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept-Language': 'ru'
+        }
+        if client_login:
+            headers['Client-Login'] = client_login
+
         response = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',
             json={
@@ -1091,10 +1105,7 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
                     'FieldNames': ['Id', 'ExcludedSites', 'Status']
                 }
             },
-            headers={
-                'Authorization': f'Bearer {token}',
-                'Accept-Language': 'ru'
-            },
+            headers=headers,
             timeout=30
         )
         time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
@@ -1146,7 +1157,7 @@ def get_excluded_sites(token: str, campaign_id: str) -> Optional[List[str]]:
         return None
 
 
-def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str]) -> bool:
+def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str], client_login: str = '') -> bool:
     '''Обновление списка ExcludedSites в Яндекс.Директ'''
     
     try:
@@ -1221,6 +1232,13 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 print(f'  ... and {len(valid_sites) - 600} more')
                 break
         
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept-Language': 'ru'
+        }
+        if client_login:
+            headers['Client-Login'] = client_login
+
         response = requests.post(
             'https://api.direct.yandex.com/json/v5/campaigns',
             json={
@@ -1234,10 +1252,7 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                     }]
                 }
             },
-            headers={
-                'Authorization': f'Bearer {token}',
-                'Accept-Language': 'ru'
-            },
+            headers=headers,
             timeout=30
         )
         time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API

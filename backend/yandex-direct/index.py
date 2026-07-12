@@ -23,7 +23,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
+                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-Client-Login',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''
@@ -41,6 +41,98 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'clientId': client_id})
         }
     
+    # GET ?action=accounts - получить доступные рекламные аккаунты для токена
+    if method == 'GET' and query_params.get('action') == 'accounts':
+        headers_raw = event.get('headers', {})
+        token = headers_raw.get('X-Auth-Token') or headers_raw.get('x-auth-token')
+
+        if not token:
+            return {
+                'statusCode': 401,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'isBase64Encoded': False,
+                'body': json.dumps({'error': 'Отсутствует токен авторизации'})
+            }
+
+        accounts = []
+        errors = []
+
+        def add_account(login: str, name: str = '', source: str = 'direct', role: str = ''):
+            login = (login or '').strip()
+            if not login:
+                return
+            if any(account['login'].lower() == login.lower() for account in accounts):
+                return
+            accounts.append({
+                'login': login,
+                'name': name or login,
+                'source': source,
+                'role': role
+            })
+
+        try:
+            info_response = requests.get(
+                'https://login.yandex.ru/info?format=json',
+                headers={'Authorization': f'OAuth {token}'},
+                timeout=10
+            )
+            if info_response.status_code == 200:
+                info = info_response.json()
+                add_account(info.get('login'), info.get('real_name') or info.get('display_name') or '', 'owner', 'OAuth user')
+            else:
+                errors.append(f'login_info:{info_response.status_code}')
+        except Exception as e:
+            errors.append(f'login_info:{str(e)}')
+
+        direct_headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept-Language': 'ru'
+        }
+
+        try:
+            agency_response = requests.post(
+                'https://api.direct.yandex.com/json/v5/agencyclients',
+                headers=direct_headers,
+                json={
+                    'method': 'get',
+                    'params': {
+                        'SelectionCriteria': {'Archived': 'NO'},
+                        'FieldNames': ['Login', 'ClientInfo', 'Archived', 'Type']
+                    }
+                },
+                timeout=20
+            )
+            agency_data = agency_response.json()
+            if 'error' in agency_data:
+                # Не агентский токен обычно вернет ошибку. Это не блокер: оставляем ручной Client-Login.
+                errors.append(f"agencyclients:{agency_data['error'].get('error_code')}:{agency_data['error'].get('error_string')}")
+            else:
+                for client in agency_data.get('result', {}).get('Clients', []) or []:
+                    add_account(
+                        client.get('Login'),
+                        client.get('ClientInfo') or client.get('Login') or '',
+                        'agency',
+                        client.get('Type') or 'client'
+                    )
+        except Exception as e:
+            errors.append(f'agencyclients:{str(e)}')
+
+        current_client_login = (
+            headers_raw.get('X-Client-Login')
+            or headers_raw.get('x-client-login')
+            or query_params.get('client_login')
+            or ''
+        ).strip()
+        if current_client_login:
+            add_account(current_client_login, current_client_login, 'manual', 'selected')
+
+        return {
+            'statusCode': 200,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'isBase64Encoded': False,
+            'body': json.dumps({'accounts': accounts, 'errors': errors}, ensure_ascii=False)
+        }
+
     # GET ?action=counters - получить все счётчики Метрики
     if method == 'GET' and query_params.get('action') == 'counters':
         headers_raw = event.get('headers', {})
@@ -222,6 +314,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if method == 'GET':
         headers = event.get('headers', {})
         token = headers.get('X-Auth-Token') or headers.get('x-auth-token')
+        client_login = (
+            headers.get('X-Client-Login')
+            or headers.get('x-client-login')
+            or query_params.get('client_login')
+            or ''
+        ).strip()
         
         if not token:
             return {
@@ -252,6 +350,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # И для песочницы, и для продакшна используем Bearer OAuth токен
             request_headers['Authorization'] = f'Bearer {token}'
+            if client_login:
+                request_headers['Client-Login'] = client_login
+                print(f'[DEBUG] Using Client-Login: {client_login}')
             
             response = requests.post(
                 api_url,
@@ -731,7 +832,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 },
-                'body': json.dumps({'campaigns': campaigns})
+                'body': json.dumps({'campaigns': campaigns, 'client_login': client_login})
             }
             
         except Exception as e:
@@ -764,7 +865,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({
                     'campaigns': fallback_campaigns,
                     'error': f'Ошибка: {str(e)}',
-                    'message': 'Не удалось подключиться к API Яндекс.Директ'
+                    'message': 'Не удалось подключиться к API Яндекс.Директ',
+                    'client_login': locals().get('client_login', '')
                 })
             }
     

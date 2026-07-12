@@ -91,7 +91,11 @@ export default function AdminProtectedRoute({ children }: { children: ReactNode 
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setError(err.message || 'Не удалось изменить пароль');
+      if (err instanceof TypeError) {
+        setError('Запрос не дошел до сервера. Обновите страницу и попробуйте еще раз.');
+      } else {
+        setError(err.message || 'Не удалось изменить пароль');
+      }
     } finally {
       setLoading(false);
     }

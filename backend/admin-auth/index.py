@@ -36,7 +36,7 @@ def get_connection():
     dsn = os.environ.get('DATABASE_URL')
     if not dsn:
         raise RuntimeError('DATABASE_URL not configured')
-    return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
+    return psycopg2.connect(dsn, connect_timeout=5, cursor_factory=RealDictCursor)
 
 
 def get_request_meta(event: Dict[str, Any]):
@@ -123,6 +123,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     action = str(body.get('action') or '').strip().lower()
     ip_address, user_agent = get_request_meta(event)
+    print(f'admin-auth action={action or "-"}')
 
     try:
         conn = get_connection()

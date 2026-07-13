@@ -16,6 +16,7 @@ interface Campaign {
   type?: string;
   /** РСЯ | ТК | МК — эвристика с бэкенда; если пусто, смотри type */
   channel?: string;
+  counter_ids?: string[];
 }
 
 interface Counter {
@@ -34,6 +35,26 @@ interface Goal {
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
+
+const buildCountersFromCampaigns = (campaigns: Campaign[], campaignIds?: string[]): Counter[] => {
+  const allowedIds = campaignIds ? new Set(campaignIds.map(String)) : null;
+  const countersById = new Map<string, Counter>();
+
+  campaigns.forEach((campaign) => {
+    if (allowedIds && !allowedIds.has(String(campaign.id))) return;
+    (campaign.counter_ids || []).forEach((counterId) => {
+      const id = String(counterId).trim();
+      if (!id || countersById.has(id)) return;
+      countersById.set(id, {
+        id,
+        name: `Счётчик ${id}`,
+        site: `Из кампаний Директа`
+      });
+    });
+  });
+
+  return Array.from(countersById.values());
+};
 
 export default function RSYASettings() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -98,6 +119,9 @@ export default function RSYASettings() {
         return;
       }
 
+      let loadedCampaigns: Campaign[] = [];
+      const savedCampaignIds = projectData.project.campaign_ids || [];
+
       const [campaignsRes, countersRes] = await Promise.all([
         fetch(YANDEX_DIRECT_URL, {
           headers: {
@@ -110,7 +134,7 @@ export default function RSYASettings() {
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
-        const loadedCampaigns = data.campaigns || [];
+        loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
         if ((data.client_login || '') !== clientLogin) {
           setCampaignsError(
@@ -123,7 +147,6 @@ export default function RSYASettings() {
           setCampaignsError('Кампании не найдены. Проверьте, что OAuth-токен выдан пользователю с доступом к Яндекс.Директ.');
         }
         
-        const savedCampaignIds = projectData.project.campaign_ids || [];
         setSelectedCampaigns(new Set(savedCampaignIds));
       } else {
         setCampaigns([]);
@@ -132,7 +155,11 @@ export default function RSYASettings() {
 
       if (countersRes.ok) {
         const data = await countersRes.json();
-        setCounters(data.counters || []);
+        const metrikaCounters = data.counters || [];
+        const fallbackCounters = metrikaCounters.length === 0
+          ? buildCountersFromCampaigns(loadedCampaigns, savedCampaignIds)
+          : [];
+        setCounters(metrikaCounters.length > 0 ? metrikaCounters : fallbackCounters);
         
         const savedCounterIds = projectData.project.counter_ids || [];
         setSelectedCounters(new Set(savedCounterIds));

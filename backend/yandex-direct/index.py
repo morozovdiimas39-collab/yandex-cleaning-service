@@ -5,6 +5,38 @@ from typing import Dict, Any, List
 import requests
 import time
 
+def extract_campaign_counter_ids(campaign: Dict[str, Any]) -> List[str]:
+    counter_ids: List[str] = []
+
+    def add_values(value: Any) -> None:
+        if not value:
+            return
+        if isinstance(value, dict):
+            for key in ('Items', 'CounterIds', 'Ids'):
+                add_values(value.get(key))
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                add_values(item)
+            return
+        normalized = str(value).strip()
+        if normalized and normalized not in counter_ids:
+            counter_ids.append(normalized)
+
+    add_values(campaign.get('CounterIds'))
+    for field_name in (
+        'TextCampaign',
+        'DynamicTextCampaign',
+        'SmartCampaign',
+        'UnifiedCampaign',
+        'CpmBannerCampaign',
+    ):
+        nested = campaign.get(field_name)
+        if isinstance(nested, dict):
+            add_values(nested.get('CounterIds'))
+
+    return counter_ids
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
     Business: Работа с API Яндекс.Директ - получение кампаний РСЯ и OAuth конфиг
@@ -513,10 +545,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'params': {
                         'SelectionCriteria': {},
                         'FieldNames': ['Id', 'Name', 'Type', 'Status'],
-                        'TextCampaignFieldNames': ['BiddingStrategy'],
+                        'TextCampaignFieldNames': ['BiddingStrategy', 'CounterIds'],
                         'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
                         'SmartCampaignFieldNames': ['BiddingStrategy'],
-                        'UnifiedCampaignFieldNames': ['BiddingStrategy']
+                        'UnifiedCampaignFieldNames': ['BiddingStrategy', 'CounterIds'],
+                        'CpmBannerCampaignFieldNames': ['CounterIds']
                     }
                 },
                 timeout=10
@@ -840,6 +873,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 channel = entry['channel']
                 campaign_type = c.get('Type')
                 campaign_id = str(c.get('Id'))
+                counter_ids = extract_campaign_counter_ids(c)
 
                 platforms = []
                 goals = []
@@ -977,6 +1011,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'type': campaign_type,
                     'status': c.get('Status'),
                     'channel': channel,
+                    'counter_ids': counter_ids,
                     'platforms': platforms,
                     'goals': goals
                 })
@@ -1008,6 +1043,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'type': c.get('Type', 'UNKNOWN'),
                         'status': c.get('Status', 'UNKNOWN'),
                         'channel': '',
+                        'counter_ids': extract_campaign_counter_ids(c),
                         'platforms': [],
                         'goals': []
                     })

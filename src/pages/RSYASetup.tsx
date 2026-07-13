@@ -15,6 +15,7 @@ interface Campaign {
   /** Тип кампании из API Директа, например TEXT_CAMPAIGN */
   type?: string;
   channel?: string;
+  counter_ids?: string[];
 }
 
 interface Counter {
@@ -26,6 +27,24 @@ interface Counter {
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
+
+const buildCountersFromCampaigns = (campaigns: Campaign[]): Counter[] => {
+  const countersById = new Map<string, Counter>();
+
+  campaigns.forEach((campaign) => {
+    (campaign.counter_ids || []).forEach((counterId) => {
+      const id = String(counterId).trim();
+      if (!id || countersById.has(id)) return;
+      countersById.set(id, {
+        id,
+        name: `Счётчик ${id}`,
+        site: `Из кампаний Директа`
+      });
+    });
+  });
+
+  return Array.from(countersById.values());
+};
 
 export default function RSYASetup() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -88,6 +107,8 @@ export default function RSYASetup() {
         return;
       }
 
+      let loadedCampaigns: Campaign[] = [];
+
       const [campaignsRes, countersRes] = await Promise.all([
         fetch(YANDEX_DIRECT_URL, {
           headers: {
@@ -100,7 +121,7 @@ export default function RSYASetup() {
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
-        const loadedCampaigns = data.campaigns || [];
+        loadedCampaigns = data.campaigns || [];
         setCampaigns(loadedCampaigns);
         if ((data.client_login || '') !== clientLogin) {
           setCampaignsError(
@@ -123,7 +144,8 @@ export default function RSYASetup() {
 
       if (countersRes.ok) {
         const data = await countersRes.json();
-        setCounters(data.counters || []);
+        const metrikaCounters = data.counters || [];
+        setCounters(metrikaCounters.length > 0 ? metrikaCounters : buildCountersFromCampaigns(loadedCampaigns));
       }
       
     } catch (error) {

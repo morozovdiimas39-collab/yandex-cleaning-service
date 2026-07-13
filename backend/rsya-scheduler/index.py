@@ -11,6 +11,18 @@ import requests
 AVG_TIME_PER_CAMPAIGN = 7  # секунд на обработку 1 кампании (по факту ~6-7 сек)
 SAFE_TIMEOUT = 25  # 25 сек (Cloud Function timeout 30 сек с запасом)
 BATCH_SIZE = 7  # 7 кампаний × 7 сек = ~49 сек, но с параллельной обработкой укладываемся в 25 сек
+VALID_PROJECT_FILTER = """
+                  AND p.is_configured = TRUE
+                  AND p.campaign_ids IS NOT NULL
+                  AND NULLIF(BTRIM(p.campaign_ids), '') IS NOT NULL
+                  AND p.campaign_ids <> '[]'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM t_p97630513_yandex_cleaning_serv.rsya_tasks t
+                      WHERE t.project_id = p.id
+                        AND t.enabled = TRUE
+                  )
+"""
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -69,7 +81,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 WHERE s.project_id = %s
                   AND s.is_active = TRUE
                   AND p.yandex_token IS NOT NULL
-            """, (int(target_project_id),))
+                  {valid_project_filter}
+            """.format(valid_project_filter=VALID_PROJECT_FILTER), (int(target_project_id),))
         elif force_all:
             # Игнорируем расписание — берём ВСЕ активные проекты
             cursor.execute("""
@@ -84,9 +97,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.is_active = TRUE
                   AND p.yandex_token IS NOT NULL
+                  {valid_project_filter}
                 ORDER BY s.project_id
                 LIMIT 10
-            """)
+            """.format(valid_project_filter=VALID_PROJECT_FILTER))
         else:
             # Обычный режим — по расписанию
             cursor.execute("""
@@ -102,9 +116,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 WHERE s.is_active = TRUE
                   AND s.next_run_at <= CURRENT_TIMESTAMP
                   AND p.yandex_token IS NOT NULL
+                  {valid_project_filter}
                 ORDER BY s.next_run_at
                 LIMIT 5
-            """)
+            """.format(valid_project_filter=VALID_PROJECT_FILTER))
         
         projects = cursor.fetchall()
         print(f"📊 Found {len(projects)} projects to schedule")
@@ -187,12 +202,10 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_
     Returns: количество созданных батчей
     '''
     project_id = project['project_id']
-    campaign_ids = project['campaign_ids']
+    campaign_ids = parse_campaign_ids(project.get('campaign_ids'))
     yandex_token = project['yandex_token']
     client_login = (project.get('client_login') or '').strip()
     
-    if isinstance(campaign_ids, str):
-        campaign_ids = json.loads(campaign_ids)
     # Один campaign_id — один батч, иначе воркеры разных батчей дерутся за одни и те же кампании (locked by another worker)
     campaign_ids = list(dict.fromkeys(campaign_ids))
     
@@ -273,6 +286,22 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_
         send_to_mq(batch_data)
     
     return total_batches
+
+
+def parse_campaign_ids(raw_campaign_ids: Any) -> List[str]:
+    '''Нормализует campaign_ids из БД и не даёт черновикам ломать scheduler.'''
+    if raw_campaign_ids is None:
+        return []
+    if isinstance(raw_campaign_ids, str):
+        raw_campaign_ids = raw_campaign_ids.strip()
+        if not raw_campaign_ids:
+            return []
+        parsed = json.loads(raw_campaign_ids)
+    else:
+        parsed = raw_campaign_ids
+    if not isinstance(parsed, list):
+        return []
+    return [str(campaign_id).strip() for campaign_id in parsed if str(campaign_id).strip()]
 
 
 def send_to_mq(message: Dict[str, Any]) -> None:

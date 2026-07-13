@@ -184,8 +184,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             redirect_uri = 'https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5'
-            # Запрашиваем права на Директ и Метрику
-            scope = 'direct:api metrika:read'
+            # Запрашиваем только доступ к Директу: для представителя лишние scope могут
+            # привести к unauthorized_client еще до проверки прав в Яндекс.Директе.
+            scope = 'direct:api'
             auth_url = f'https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&scope={scope}&state={user_id}'
             
             return {

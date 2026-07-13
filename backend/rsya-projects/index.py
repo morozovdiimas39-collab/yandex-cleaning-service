@@ -884,9 +884,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 update_values.append(put_body_data['yandex_token'])
 
             if 'client_login' in put_body_data:
-                update_fields.append('client_login = %s')
                 client_login = (put_body_data.get('client_login') or '').strip()
-                update_values.append(client_login or None)
+                if client_login:
+                    update_fields.append('client_login = %s')
+                    update_values.append(client_login)
 
             if 'campaign_ids' in put_body_data:
                 update_fields.append('campaign_ids = %s')
@@ -955,6 +956,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             project_id = body_data.get('project_id')
             campaigns = body_data.get('campaigns', [])
             goals = body_data.get('goals', [])
+            client_login = (body_data.get('client_login') or body_data.get('clientLogin') or '').strip()
             
             if not project_id:
                 cursor.close()
@@ -1005,8 +1007,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             # Помечаем проект как настроенный
             cursor.execute(
-                "UPDATE t_p97630513_yandex_cleaning_serv.rsya_projects SET is_configured = true, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                (project_id,)
+                """
+                UPDATE t_p97630513_yandex_cleaning_serv.rsya_projects
+                SET is_configured = true,
+                    client_login = COALESCE(NULLIF(%s, ''), client_login),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (client_login, project_id)
             )
             
             conn.commit()

@@ -226,7 +226,7 @@ export default function RSYAAuth() {
     const height = 700;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    const scope = encodeURIComponent('direct:api metrika:read');
+    const scope = encodeURIComponent('direct:api');
     const authUrl = `https://oauth.yandex.ru/authorize?response_type=token&client_id=${YANDEX_CLIENT_ID}&scope=${scope}`;
 
     window.open(

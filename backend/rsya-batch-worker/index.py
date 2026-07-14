@@ -5,6 +5,7 @@ import sys
 import time
 import io
 import hashlib
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import boto3  # нужен в рантайме при вызове по триггеру MQ
@@ -16,6 +17,8 @@ import requests
 RETRY_DELAYS = [5, 10, 20, 40, 60]  # Exponential backoff
 MAX_WAIT_FOR_429 = 60  # Максимум ждём 60 сек при 429
 API_DELAY = 0.6  # Задержка между API запросами (лимит: 20 req / 10 sec)
+DIRECT_CAMPAIGNS_TIMEOUT = 60
+DIRECT_CAMPAIGNS_RETRY_DELAYS = [3, 8, 15, 30]
 
 IMPORTANT_PLATFORMS = {
     'yandex.ru', 'ya.ru', 'dzen.ru', 'kinopoisk.ru', 'mail.ru', 'vk.com', 'ok.ru',
@@ -29,6 +32,38 @@ IMPORTANT_PLATFORMS = {
 def is_important_platform(domain: str) -> bool:
     domain = (domain or '').lower().strip()
     return any(domain == important or domain.endswith('.' + important) for important in IMPORTANT_PLATFORMS)
+
+
+def post_direct_campaigns_with_retry(headers: Dict[str, str], payload: Dict[str, Any], operation: str) -> Optional[requests.Response]:
+    url = 'https://api.direct.yandex.com/json/v5/campaigns'
+    last_error = None
+
+    for attempt, delay in enumerate(DIRECT_CAMPAIGNS_RETRY_DELAYS, start=1):
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=DIRECT_CAMPAIGNS_TIMEOUT
+            )
+            time.sleep(API_DELAY)
+            return response
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            last_error = e
+            print(
+                f'⏱️ Direct campaigns {operation} timeout/connection error '
+                f'(attempt {attempt}/{len(DIRECT_CAMPAIGNS_RETRY_DELAYS)}): {e}',
+                flush=True
+            )
+            if attempt < len(DIRECT_CAMPAIGNS_RETRY_DELAYS):
+                time.sleep(delay)
+        except Exception as e:
+            last_error = e
+            print(f'❌ Direct campaigns {operation} unexpected error: {e}', flush=True)
+            break
+
+    print(f'❌ Direct campaigns {operation} failed after retries: {last_error}', flush=True)
+    return None
 
 
 def mark_batch_failed_fresh_conn(batch_id: int, error_message: str) -> bool:
@@ -346,6 +381,20 @@ def process_campaign(
         candidates = list(all_platforms.values())
         
         if not candidates:
+            print(f"ℹ️ Campaign {campaign_id}: no report candidates", flush=True)
+            write_execution_logs(
+                cursor,
+                conn,
+                project_id,
+                campaign_id,
+                tasks,
+                candidates,
+                {task['id']: [] for task in tasks},
+                {task['id']: [] for task in tasks},
+                set(),
+                True,
+                context
+            )
             return {
                 'campaign_id': campaign_id,
                 'status': 'success',
@@ -426,11 +475,14 @@ def process_campaign(
         
         # 8. Добавляем новые блокировки в Директе
         actually_blocked = 0
+        block_attempt_success = True
         if to_block:
-            if block_sites(campaign_id, yandex_token, client_login, [p['domain'] for p in to_block]):
-                actually_blocked = len(to_block)
+            blocked_count = block_sites(campaign_id, yandex_token, client_login, [p['domain'] for p in to_block])
+            if blocked_count is not None:
+                actually_blocked = blocked_count
                 print(f"🚫 Campaign {campaign_id}: blocked {actually_blocked} platforms in Yandex", flush=True)
             else:
+                block_attempt_success = False
                 print(f"❌ Campaign {campaign_id}: block_sites API failed, 0 blocked", flush=True)
                 return {
                     'campaign_id': campaign_id,
@@ -448,8 +500,9 @@ def process_campaign(
             task_matches,
             task_kept_examples,
             to_block_domains,
-            actually_blocked > 0,
-            context
+            block_attempt_success,
+            context,
+            actually_blocked
         )
 
         return {
@@ -473,7 +526,8 @@ def write_execution_logs(
     task_kept_examples: Dict[int, List[Dict[str, Any]]],
     to_block_domains,
     block_success: bool,
-    context: Any
+    context: Any,
+    actual_blocked_count: Optional[int] = None
 ) -> None:
     request_id = getattr(context, 'request_id', None) or 'batch-worker'
     candidates_count = len(candidates)
@@ -493,6 +547,8 @@ def write_execution_logs(
             'important_platforms_checked': sorted(IMPORTANT_PLATFORMS),
         }
 
+        blocked_count = actual_blocked_count if actual_blocked_count is not None else len(blocked_examples)
+
         cursor.execute("""
             INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs
             (project_id, task_id, execution_type, started_at, completed_at, finished_at,
@@ -506,12 +562,14 @@ def write_execution_logs(
             candidates_count,
             len(matched),
             len(blocked_examples),
-            len(blocked_examples) if block_success else 0,
+            blocked_count if block_success else 0,
             'completed' if block_success or not blocked_examples else 'error',
             str(request_id),
             json.dumps(metadata, ensure_ascii=False)
         ))
         execution_log_id = cursor.fetchone()['id']
+
+        blocking_action = 'blocked' if block_success and blocked_count > 0 else 'matched_not_blocked'
 
         for platform in blocked_examples[:100]:
             cursor.execute("""
@@ -525,7 +583,7 @@ def write_execution_logs(
                 task_id,
                 int(campaign_id),
                 platform['domain'],
-                'blocked' if block_success else 'matched_not_blocked',
+                blocking_action,
                 int(platform.get('clicks', 0) or 0),
                 float(platform.get('cost', 0) or 0),
                 int(platform.get('conversions', 0) or 0),
@@ -633,7 +691,11 @@ def merge_platform_metrics(target: Dict[str, Any], source: Dict[str, Any], merge
 
 def _domain_matches_keyword(domain: str, keyword: str) -> bool:
     if '.' in keyword:
-        return domain.startswith(keyword)
+        if keyword.endswith('.') and not keyword.startswith('.'):
+            return domain.startswith(keyword)
+        if keyword.startswith('.') and not keyword.endswith('.'):
+            return domain.endswith(keyword)
+        return keyword in domain
     return keyword in domain
 
 
@@ -671,7 +733,7 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
         ('max_ctr', lambda value: platform.get('ctr', 0) <= value),
         ('min_conversions', lambda value: _platform_conversions_for_config(platform, config) >= value),
         ('min_cpa', lambda value: _platform_cpa_for_config(platform, config) >= value),
-        ('max_cpa', lambda value: _platform_cpa_for_config(platform, config) >= value),
+        ('max_cpa', lambda value: _platform_cpa_for_config(platform, config) <= value),
     ]
 
     for key, predicate in metric_rules:
@@ -818,13 +880,14 @@ def get_platforms_with_retry(
     Получает площадки с clicks >= 1 за период с retry при 429
     Returns: list площадок или None (если async report)
     '''
+    report_name = None
     for attempt, delay in enumerate(RETRY_DELAYS):
         try:
             date_from = (datetime.now() - timedelta(days=days_ago)).strftime('%Y-%m-%d')
             date_to = (datetime.now() - timedelta(days=days_end)).strftime('%Y-%m-%d')
             
             # Запрашиваем отчёт у Яндекса
-            response = create_report(campaign_id, yandex_token, client_login, date_from, date_to, goal_ids)
+            response = create_report(campaign_id, yandex_token, client_login, date_from, date_to, goal_ids, report_name)
             
             if response['status'] == 200:
                 # Отчёт готов → парсим TSV
@@ -832,18 +895,11 @@ def get_platforms_with_retry(
                 return platforms
             
             elif response['status'] in [201, 202]:
-                # Отчёт готовится → сохраняем в pending (task_id и report_id NOT NULL в таблице)
-                report_name = response.get('report_name', f"platforms_{campaign_id}_{date_from}")
-                report_id = report_name
-                cursor.execute("""
-                    INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports 
-                    (project_id, task_id, report_id, campaign_ids, date_from, date_to, report_name, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
-                    ON CONFLICT (report_id) DO NOTHING
-                """, (project_id, task_id, report_id, json.dumps([campaign_id]), date_from, date_to, report_name))
-                conn.commit()
-                print(f"⏳ Report {report_name} is pending (campaign {campaign_id})")
-                return None
+                # Отчёт готовится. Повторный запрос с тем же ReportName забирает готовый отчёт.
+                report_name = response.get('report_name') or report_name or f"platforms_{campaign_id}_{date_from}_{date_to}"
+                print(f"⏳ Report {report_name} is pending (campaign {campaign_id}), waiting {delay}s", flush=True)
+                time.sleep(delay)
+                continue
             
             elif response['status'] == 429:
                 # 429 или 400 с кодом 56 (create_report возвращает 429) → retry с backoff
@@ -851,6 +907,15 @@ def get_platforms_with_retry(
                     print(f"⚠️ Rate/limit exceeded, skipping campaign {campaign_id}")
                     return None
                 print(f"⏱️ Limit exceeded, waiting {delay}s... (attempt {attempt + 1}/{len(RETRY_DELAYS)})")
+                time.sleep(delay)
+                continue
+
+            elif response['status'] in [408, 500, 502, 503, 504]:
+                print(
+                    f"⏱️ Temporary Direct report error {response['status']}, waiting {delay}s... "
+                    f"(attempt {attempt + 1}/{len(RETRY_DELAYS)})",
+                    flush=True
+                )
                 time.sleep(delay)
                 continue
             
@@ -870,10 +935,23 @@ def get_platforms_with_retry(
                 continue
             return None
     
+    if report_name:
+        try:
+            report_id = report_name
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_pending_reports
+                (project_id, task_id, report_id, campaign_ids, date_from, date_to, report_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')
+                ON CONFLICT (report_id) DO NOTHING
+            """, (project_id, task_id, report_id, json.dumps([campaign_id]), date_from, date_to, report_name))
+            conn.commit()
+            print(f"⏳ Report {report_name} still pending after retries (campaign {campaign_id})", flush=True)
+        except Exception as e:
+            print(f"❌ Failed to save pending report {report_name}: {e}", flush=True)
     return None
 
 
-def create_report(campaign_id: str, yandex_token: str, client_login: str, date_from: str, date_to: str, goal_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+def create_report(campaign_id: str, yandex_token: str, client_login: str, date_from: str, date_to: str, goal_ids: Optional[List[str]] = None, report_name: Optional[str] = None) -> Dict[str, Any]:
     '''Создаёт отчёт через Yandex Direct API'''
     url = 'https://api.direct.yandex.com/json/v5/reports'
     headers = {
@@ -911,7 +989,7 @@ def create_report(campaign_id: str, yandex_token: str, client_login: str, date_f
                 'DateTo': date_to
             },
             'FieldNames': ['Placement', 'Clicks', 'Cost', 'Conversions', 'Impressions'],
-            'ReportName': f'platforms_{campaign_id}_{date_from}_{date_to}{goal_suffix}_{int(time.time())}',
+            'ReportName': report_name or f'platforms_{campaign_id}_{date_from}_{date_to}{goal_suffix}_{int(time.time())}',
             'ReportType': 'CUSTOM_REPORT',
             'DateRangeType': 'CUSTOM_DATE',
             'Format': 'TSV',
@@ -925,7 +1003,7 @@ def create_report(campaign_id: str, yandex_token: str, client_login: str, date_f
         payload['params']['AttributionModels'] = ['AUTO']
     
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        resp = requests.post(url, headers=headers, json=payload, timeout=60)
         time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
         
         if resp.status_code == 200:
@@ -1013,7 +1091,12 @@ def get_blocked_sites(campaign_id: str, yandex_token: str, client_login: str = '
     return [{'domain': site, 'cost': 0} for site in excluded_sites]
 
 
-def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> bool:
+def _canonical_excluded_site(site: str) -> str:
+    site = (site or '').strip().lower()
+    return site[4:] if site.startswith('www.') else site
+
+
+def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> Optional[int]:
     '''Блокирует площадки через Yandex Direct API'''
     
     # Получаем текущий список ExcludedSites
@@ -1021,11 +1104,11 @@ def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains:
     
     if current_excluded == 'UNMODIFIABLE':
         print(f'⚠️ Campaign {campaign_id} cannot be modified, skipping ExcludedSites update')
-        return False
+        return None
 
     if current_excluded is None:
         print(f'❌ Failed to fetch ExcludedSites for campaign {campaign_id}')
-        return False
+        return None
     
     # Приводим все домены к lowercase (Яндекс чувствителен к регистру)
     current_excluded_normalized = [d.lower() for d in current_excluded]
@@ -1033,26 +1116,44 @@ def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains:
     
     # Фильтруем домены которых еще нет в списке
     current_excluded_set = set(current_excluded_normalized)
-    domains_to_add = [d for d in domains_normalized if d not in current_excluded_set]
+    current_excluded_canonical = set(_canonical_excluded_site(d) for d in current_excluded_normalized)
+    domains_to_add = []
+    domains_to_add_canonical = set()
+    for domain in domains_normalized:
+        canonical = _canonical_excluded_site(domain)
+        if canonical in current_excluded_canonical or canonical in domains_to_add_canonical:
+            continue
+        domains_to_add.append(domain)
+        domains_to_add_canonical.add(canonical)
     
     if not domains_to_add:
         print(f'✅ All {len(domains)} domains already blocked in campaign {campaign_id}')
-        return True
+        return 0
     
     # Добавляем новые домены (используем set для уникальности)
-    new_excluded_list = list(set(current_excluded_normalized + domains_to_add))
+    new_excluded_list = []
+    seen_canonical = set()
+    for site in current_excluded_normalized + domains_to_add:
+        canonical = _canonical_excluded_site(site)
+        if canonical in seen_canonical:
+            continue
+        new_excluded_list.append(site)
+        seen_canonical.add(canonical)
     
     print(f'📝 Campaign {campaign_id}: Adding {len(domains_to_add)} domains (current: {len(current_excluded)}, new total: {len(new_excluded_list)})')
     
     # Обновляем в Яндексе
-    success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
-    
-    if success:
-        print(f'✅ Blocked {len(domains_to_add)} domains in campaign {campaign_id}')
+    applied_sites = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
+
+    if applied_sites is not None:
+        applied_set = set(site.lower() for site in applied_sites)
+        actually_added = len(applied_set - current_excluded_set)
+        print(f'✅ Blocked {actually_added} domains in campaign {campaign_id}')
+        return actually_added
     else:
         print(f'❌ Failed to block domains in campaign {campaign_id}')
-    
-    return success
+
+    return None
 
 
 def unblock_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> bool:
@@ -1074,13 +1175,13 @@ def unblock_sites(campaign_id: str, yandex_token: str, client_login: str, domain
     
     # Обновляем в Яндексе
     success = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
-    
-    if success:
+
+    if success is not None:
         print(f'✅ Unblocked {len(domains_to_remove)} domains in campaign {campaign_id}')
     else:
         print(f'❌ Failed to unblock domains in campaign {campaign_id}')
-    
-    return success
+
+    return success is not None
 
 
 def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> Optional[List[str]]:
@@ -1094,9 +1195,9 @@ def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> 
         if client_login:
             headers['Client-Login'] = client_login
 
-        response = requests.post(
-            'https://api.direct.yandex.com/json/v5/campaigns',
-            json={
+        response = post_direct_campaigns_with_retry(
+            headers,
+            {
                 'method': 'get',
                 'params': {
                     'SelectionCriteria': {
@@ -1105,10 +1206,10 @@ def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> 
                     'FieldNames': ['Id', 'ExcludedSites', 'Status']
                 }
             },
-            headers=headers,
-            timeout=30
+            'get ExcludedSites'
         )
-        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
+        if response is None:
+            return None
         
         if response.status_code != 200:
             print(f'❌ Yandex API error: {response.status_code}, {response.text[:500]}')
@@ -1157,13 +1258,14 @@ def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> 
         return None
 
 
-def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str], client_login: str = '') -> bool:
+def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str], client_login: str = '') -> Optional[List[str]]:
     '''Обновление списка ExcludedSites в Яндекс.Директ'''
     
     try:
         # Валидация доменов перед отправкой
         valid_sites = []
         invalid_sites = []
+        seen_canonical = set()
         
         for site in excluded_sites:
             # Пропускаем пустые строки
@@ -1208,7 +1310,13 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 invalid_sites.append((site_clean, 'double_dot'))
                 continue
             
+            canonical = _canonical_excluded_site(site_clean)
+            if canonical in seen_canonical:
+                invalid_sites.append((site_clean, 'duplicate'))
+                continue
+
             valid_sites.append(site_clean)
+            seen_canonical.add(canonical)
         
         # Логируем невалидные домены
         if invalid_sites:
@@ -1220,17 +1328,13 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
         
         if not valid_sites:
             print(f'❌ No valid domains to update')
-            return False
+            return None
         
         print(f'🔄 Updating campaign {campaign_id}: {len(valid_sites)} valid domains (filtered {len(invalid_sites)})')
         
-        # ЛОГИРУЕМ ВСЕ ДОМЕНЫ для отладки ошибки 5006
-        print(f'📋 ALL {len(valid_sites)} DOMAINS TO SEND:')
-        for i, domain in enumerate(valid_sites):
-            print(f'  [{i}] {domain}')
-            if i >= 600:  # Лимит на вывод
-                print(f'  ... and {len(valid_sites) - 600} more')
-                break
+        print(f'📋 ExcludedSites preview: {valid_sites[:10]}')
+        if len(valid_sites) > 10:
+            print(f'  ... and {len(valid_sites) - 10} more')
         
         headers = {
             'Authorization': f'Bearer {token}',
@@ -1239,50 +1343,73 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
         if client_login:
             headers['Client-Login'] = client_login
 
-        response = requests.post(
-            'https://api.direct.yandex.com/json/v5/campaigns',
-            json={
-                'method': 'update',
-                'params': {
-                    'Campaigns': [{
-                        'Id': int(campaign_id),
-                        'ExcludedSites': {
-                            'Items': valid_sites
-                        }
-                    }]
-                }
-            },
-            headers=headers,
-            timeout=30
-        )
-        time.sleep(API_DELAY)  # Задержка для соблюдения лимитов API
-        
-        print(f'📡 HTTP Status: {response.status_code}')
-        
-        if response.status_code != 200:
-            print(f'❌ FULL API ERROR: {response.text}')
-            return False
-        
-        data = response.json()
-        print(f'📥 FULL API RESPONSE: {json.dumps(data, ensure_ascii=False)}')
-        
-        # Проверяем что обновление прошло успешно
-        if 'result' in data:
-            update_results = data['result'].get('UpdateResults', [])
-            if update_results and 'Id' in update_results[0]:
+        for update_attempt in range(1, 21):
+            response = post_direct_campaigns_with_retry(
+                headers,
+                {
+                    'method': 'update',
+                    'params': {
+                        'Campaigns': [{
+                            'Id': int(campaign_id),
+                            'ExcludedSites': {
+                                'Items': valid_sites
+                            }
+                        }]
+                    }
+                },
+                'update ExcludedSites'
+            )
+            if response is None:
+                return None
+            
+            print(f'📡 HTTP Status: {response.status_code}')
+            
+            if response.status_code != 200:
+                print(f'❌ FULL API ERROR: {response.text}')
+                return None
+            
+            data = response.json()
+            print(f'📥 FULL API RESPONSE: {json.dumps(data, ensure_ascii=False)}')
+            
+            update_results = data.get('result', {}).get('UpdateResults', [])
+            first_result = update_results[0] if update_results else {}
+            result_errors = first_result.get('Errors') or []
+
+            if first_result.get('Id') and not result_errors:
                 print(f'✅ Campaign {campaign_id} updated successfully')
-                return True
-        
-        # Если есть ошибки
-        if 'error' in data:
-            print(f'❌ API ERROR OBJECT: {json.dumps(data["error"], ensure_ascii=False)}')
-        else:
-            print(f'❌ NO RESULT, NO ERROR - unexpected response format')
-        
-        return False
+                return valid_sites
+
+            bad_indices = []
+            for error in result_errors:
+                details = str(error.get('Details') or error.get('Message') or '')
+                match = re.search(r'ExcludedSites\[(\d+)\]', details)
+                if match:
+                    bad_indices.append(int(match.group(1)))
+
+            if bad_indices:
+                removed = []
+                for index in sorted(set(bad_indices), reverse=True):
+                    if 0 <= index < len(valid_sites):
+                        removed.append(valid_sites.pop(index))
+                print(
+                    f'⚠️ Direct rejected {len(removed)} ExcludedSites items on attempt {update_attempt}: {removed}. Retrying without them.',
+                    flush=True
+                )
+                if valid_sites:
+                    continue
+                print('❌ No valid domains left after Direct rejected ExcludedSites items')
+                return None
+
+            if 'error' in data:
+                print(f'❌ API ERROR OBJECT: {json.dumps(data["error"], ensure_ascii=False)}')
+            else:
+                print(f'❌ UpdateResults errors without ExcludedSites index: {json.dumps(result_errors, ensure_ascii=False)}')
+            return None
+
+        return None
         
     except Exception as e:
         print(f'❌ Exception in update_excluded_sites: {str(e)}')
         import traceback
         print(f'❌ Traceback: {traceback.format_exc()}')
-        return False
+        return None

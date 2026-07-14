@@ -1,6 +1,9 @@
 import json
+import hashlib
+import hmac
 import os
 import random
+import re
 import secrets
 import smtplib
 import ssl
@@ -13,6 +16,10 @@ from typing import Dict, Any, Optional
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
 LEAD_EMAIL = 'morozov.diimas39@yandex.ru'
 YANDEX_SMTP_LOGIN = 'morozov.diimas39'
+PASSWORD_ITERATIONS = 210_000
+EMAIL_CODE_TTL_MINUTES = 15
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+_AUTH_SCHEMA_READY = False
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -58,8 +65,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         cur = conn.cursor()
 
         if endpoint == 'auth':
+            ensure_email_auth_schema(cur, conn)
             return handle_auth(event, cur, conn)
         elif endpoint == 'verify':
+            ensure_email_auth_schema(cur, conn)
             return handle_verify(event, cur, conn)
         elif endpoint == 'projects':
             return handle_projects(event, cur, conn)
@@ -107,6 +116,110 @@ def parse_json_body(event: Dict[str, Any]) -> Dict[str, Any]:
         return json.loads(body_raw)
     except json.JSONDecodeError:
         return {}
+
+def ensure_email_auth_schema(cur, conn) -> None:
+    global _AUTH_SCHEMA_READY
+    if _AUTH_SCHEMA_READY:
+        return
+
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.user_email_auth (
+            user_id INTEGER PRIMARY KEY REFERENCES {SCHEMA}.users(id) ON DELETE CASCADE,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password_salt VARCHAR(64) NOT NULL,
+            password_hash VARCHAR(128) NOT NULL,
+            password_iterations INTEGER NOT NULL,
+            verification_code VARCHAR(6),
+            code_expires_at TIMESTAMP,
+            verified_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    _AUTH_SCHEMA_READY = True
+
+def normalize_email(email: str) -> str:
+    return (email or '').strip().lower()
+
+def password_is_valid(password: str) -> bool:
+    return len(password) >= 8
+
+def hash_password(password: str, salt_hex: str, iterations: int) -> str:
+    return hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode('utf-8'),
+        bytes.fromhex(salt_hex),
+        iterations
+    ).hex()
+
+def create_password_hash(password: str) -> Dict[str, Any]:
+    salt = secrets.token_hex(16)
+    return {
+        'salt': salt,
+        'hash': hash_password(password, salt, PASSWORD_ITERATIONS),
+        'iterations': PASSWORD_ITERATIONS
+    }
+
+def create_session_for_user(cur, user_id: int) -> str:
+    session_token = secrets.token_hex(32)
+    token_expires = datetime.now() + timedelta(days=30)
+    cur.execute(
+        f"UPDATE {SCHEMA}.users SET last_login_at = %s, session_token = %s, token_expires_at = %s WHERE id = %s",
+        (datetime.now(), session_token, token_expires, user_id)
+    )
+    return session_token
+
+def build_email_placeholder_phone(email: str) -> str:
+    digest = hashlib.sha1(email.encode('utf-8')).hexdigest()[:16]
+    return f'email:{digest}'
+
+def send_email_message(to_email: str, subject: str, text: str) -> bool:
+    smtp_host = os.environ.get('SMTP_HOST', 'smtp.yandex.ru')
+    smtp_port = int(os.environ.get('SMTP_PORT', '465'))
+    smtp_user = os.environ.get('SMTP_USER', YANDEX_SMTP_LOGIN)
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    smtp_from = os.environ.get('SMTP_FROM', LEAD_EMAIL)
+
+    if not smtp_password:
+        print('Email auth delivery is not configured: SMTP_PASSWORD is missing')
+        return False
+
+    message = EmailMessage()
+    message['Subject'] = subject
+    message['From'] = smtp_from
+    message['To'] = to_email
+    message.set_content(text)
+
+    use_starttls = os.environ.get('SMTP_USE_STARTTLS', '').lower() in ('1', 'true', 'yes')
+    try:
+        if use_starttls:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as smtp:
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.login(smtp_user, smtp_password)
+                smtp.send_message(message)
+        else:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ssl.create_default_context(), timeout=10) as smtp:
+                smtp.login(smtp_user, smtp_password)
+                smtp.send_message(message)
+        return True
+    except Exception as exc:
+        print(f'Email auth delivery error: {exc}')
+        return False
+
+def send_verification_email(email: str, code: str) -> bool:
+    return send_email_message(
+        email,
+        'Код подтверждения DirectKit',
+        '\n'.join([
+            'Ваш код подтверждения DirectKit:',
+            '',
+            code,
+            '',
+            f'Код действует {EMAIL_CODE_TTL_MINUTES} минут.',
+            'Если вы не регистрировались в DirectKit, просто проигнорируйте это письмо.'
+        ])
+    )
 
 def handle_landing_lead(event: Dict[str, Any]) -> Dict[str, Any]:
     method = event.get('httpMethod', 'GET')
@@ -186,6 +299,209 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
     except json.JSONDecodeError:
         body_data = {}
     action = body_data.get('action')
+
+    if action == 'register_email':
+        email = normalize_email(body_data.get('email', ''))
+        password = str(body_data.get('password') or '')
+
+        if not EMAIL_RE.match(email):
+            return response_json(400, {'error': 'Укажите корректную почту'})
+        if not password_is_valid(password):
+            return response_json(400, {'error': 'Пароль должен быть минимум 8 символов'})
+
+        code = str(random.randint(100000, 999999))
+        expires_at = datetime.now() + timedelta(minutes=EMAIL_CODE_TTL_MINUTES)
+        password_data = create_password_hash(password)
+
+        cur.execute(
+            f"SELECT user_id, verified_at FROM {SCHEMA}.user_email_auth WHERE LOWER(email) = LOWER(%s)",
+            (email,)
+        )
+        existing_user = cur.fetchone()
+
+        if existing_user and existing_user[1]:
+            return response_json(409, {'error': 'Пользователь с такой почтой уже зарегистрирован'})
+
+        if existing_user:
+            user_id = existing_user[0]
+            cur.execute(
+                f"""
+                UPDATE {SCHEMA}.user_email_auth
+                SET password_salt = %s,
+                    password_hash = %s,
+                    password_iterations = %s,
+                    verification_code = %s,
+                    code_expires_at = %s,
+                    updated_at = NOW()
+                WHERE user_id = %s
+                """,
+                (
+                    password_data['salt'],
+                    password_data['hash'],
+                    password_data['iterations'],
+                    code,
+                    expires_at,
+                    user_id
+                )
+            )
+        else:
+            cur.execute(
+                f"""
+                INSERT INTO {SCHEMA}.users (phone, verification_code, code_expires_at, is_verified)
+                VALUES (%s, NULL, NULL, FALSE)
+                RETURNING id
+                """,
+                (build_email_placeholder_phone(email),)
+            )
+            user_id = cur.fetchone()[0]
+            cur.execute(
+                f"""
+                INSERT INTO {SCHEMA}.user_email_auth (
+                    user_id, email, password_salt, password_hash, password_iterations,
+                    verification_code, code_expires_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    email,
+                    password_data['salt'],
+                    password_data['hash'],
+                    password_data['iterations'],
+                    code,
+                    expires_at
+                )
+            )
+
+        conn.commit()
+
+        if not send_verification_email(email, code):
+            return response_json(502, {'error': 'Не удалось отправить письмо с кодом'})
+
+        return response_json(200, {'success': True, 'message': 'Код отправлен на почту', 'email': email})
+
+    if action == 'resend_email_code':
+        email = normalize_email(body_data.get('email', ''))
+        if not EMAIL_RE.match(email):
+            return response_json(400, {'error': 'Укажите корректную почту'})
+
+        cur.execute(
+            f"SELECT user_id, verified_at FROM {SCHEMA}.user_email_auth WHERE LOWER(email) = LOWER(%s)",
+            (email,)
+        )
+        user = cur.fetchone()
+        if not user:
+            return response_json(404, {'error': 'Пользователь не найден'})
+        if user[1]:
+            return response_json(400, {'error': 'Почта уже подтверждена'})
+
+        code = str(random.randint(100000, 999999))
+        expires_at = datetime.now() + timedelta(minutes=EMAIL_CODE_TTL_MINUTES)
+        cur.execute(
+            f"""
+            UPDATE {SCHEMA}.user_email_auth
+            SET verification_code = %s, code_expires_at = %s, updated_at = NOW()
+            WHERE user_id = %s
+            """,
+            (code, expires_at, user[0])
+        )
+        conn.commit()
+
+        if not send_verification_email(email, code):
+            return response_json(502, {'error': 'Не удалось отправить письмо с кодом'})
+
+        return response_json(200, {'success': True, 'message': 'Код отправлен повторно'})
+
+    if action == 'verify_email':
+        email = normalize_email(body_data.get('email', ''))
+        code = str(body_data.get('code') or '').strip()
+
+        if not EMAIL_RE.match(email) or not code:
+            return response_json(400, {'error': 'Укажите почту и код'})
+
+        cur.execute(
+            f"""
+            SELECT user_id, verification_code, code_expires_at
+            FROM {SCHEMA}.user_email_auth
+            WHERE LOWER(email) = LOWER(%s)
+            """,
+            (email,)
+        )
+        user = cur.fetchone()
+        if not user:
+            return response_json(404, {'error': 'Пользователь не найден'})
+
+        user_id, stored_code, expires_at = user
+        if stored_code != code:
+            return response_json(400, {'error': 'Неверный код подтверждения'})
+        if expires_at and datetime.now() > expires_at:
+            return response_json(400, {'error': 'Код подтверждения истек'})
+
+        session_token = create_session_for_user(cur, user_id)
+        cur.execute(
+            f"""
+            UPDATE {SCHEMA}.users
+            SET is_verified = TRUE
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+        cur.execute(
+            f"""
+            UPDATE {SCHEMA}.user_email_auth
+            SET verified_at = COALESCE(verified_at, NOW()),
+                verification_code = NULL,
+                code_expires_at = NULL,
+                updated_at = NOW()
+            WHERE user_id = %s
+            """,
+            (user_id,)
+        )
+        conn.commit()
+
+        return response_json(200, {
+            'success': True,
+            'userId': user_id,
+            'email': email,
+            'sessionToken': session_token
+        })
+
+    if action == 'login_email':
+        email = normalize_email(body_data.get('email', ''))
+        password = str(body_data.get('password') or '')
+
+        if not EMAIL_RE.match(email) or not password:
+            return response_json(400, {'error': 'Укажите почту и пароль'})
+
+        cur.execute(
+            f"""
+            SELECT user_id, password_salt, password_hash, password_iterations, verified_at
+            FROM {SCHEMA}.user_email_auth
+            WHERE LOWER(email) = LOWER(%s)
+            """,
+            (email,)
+        )
+        user = cur.fetchone()
+        if not user or not user[1] or not user[2]:
+            return response_json(401, {'error': 'Неверная почта или пароль'})
+
+        user_id, salt, stored_hash, iterations, verified_at = user
+        supplied_hash = hash_password(password, salt, int(iterations or PASSWORD_ITERATIONS))
+        if not hmac.compare_digest(supplied_hash, stored_hash):
+            return response_json(401, {'error': 'Неверная почта или пароль'})
+
+        if not verified_at:
+            return response_json(403, {'error': 'Подтвердите почту кодом', 'requiresVerification': True})
+
+        session_token = create_session_for_user(cur, user_id)
+        conn.commit()
+
+        return response_json(200, {
+            'success': True,
+            'userId': user_id,
+            'email': email,
+            'sessionToken': session_token
+        })
     
     if action == 'send_code':
         phone = body_data.get('phone', '').strip()
@@ -306,14 +622,23 @@ def handle_verify(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
     user_id = verify_session(cur, session_token)
     
     if user_id:
-        cur.execute(f"SELECT phone FROM {SCHEMA}.users WHERE id = %s", (user_id,))
+        cur.execute(
+            f"""
+            SELECT u.phone, a.email
+            FROM {SCHEMA}.users u
+            LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
+            WHERE u.id = %s
+            """,
+            (user_id,)
+        )
         result = cur.fetchone()
         phone = result[0] if result else None
+        email = result[1] if result else None
         
         return {
             'statusCode': 200,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'valid': True, 'userId': user_id, 'phone': phone})
+            'body': json.dumps({'valid': True, 'userId': user_id, 'phone': phone, 'email': email})
         }
     else:
         return {

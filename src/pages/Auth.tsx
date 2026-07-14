@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,16 +11,16 @@ import { BACKEND_URLS } from '@/config/backend-urls';
 
 const API_URL = BACKEND_URLS.api;
 
-type AuthStep = 'phone' | 'code';
+type AuthMode = 'login' | 'register' | 'verify';
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
-  const [step, setStep] = useState<AuthStep>('phone');
-  const [phone, setPhone] = useState('');
+  const [mode, setMode] = useState<AuthMode>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sentCode, setSentCode] = useState('1234');
-  const [referralCode, setReferralCode] = useState<string>('');
   const { toast } = useToast();
   const { setAuthData } = useAuth();
   const navigate = useNavigate();
@@ -28,229 +28,304 @@ export default function Auth() {
   useEffect(() => {
     const ref = searchParams.get('ref');
     if (ref) {
-      setReferralCode(ref);
       localStorage.setItem('referral_code', ref);
     }
   }, [searchParams]);
 
-  const formatPhone = (value: string) => {
-    let digits = value.replace(/\D/g, '');
-    
-    if (digits.length === 0) return '';
-    
-    if (digits[0] === '8') {
-      digits = '7' + digits.slice(1);
-    }
-    if (digits[0] !== '7') {
-      digits = '7' + digits;
-    }
-    
-    let result = '+7';
-    if (digits.length > 1) {
-      result += ` (${digits.slice(1, 4)}`;
-    }
-    if (digits.length >= 4) {
-      result += `) ${digits.slice(4, 7)}`;
-    }
-    if (digits.length >= 7) {
-      result += `-${digits.slice(7, 9)}`;
-    }
-    if (digits.length >= 9) {
-      result += `-${digits.slice(9, 11)}`;
-    }
-    
-    return result;
+  const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+  const saveSession = (data: { userId: number; email: string; sessionToken: string }) => {
+    const normalizedEmail = normalizeEmail(data.email);
+    const user = {
+      id: data.userId,
+      email: normalizedEmail,
+      phone: '',
+      userId: `user_${data.userId}`,
+      createdAt: new Date().toISOString(),
+      sessionToken: data.sessionToken,
+      session_token: data.sessionToken,
+    };
+
+    setAuthData(user, data.sessionToken);
+    toast({ title: 'Вход выполнен', description: 'Добро пожаловать в DirectKit' });
+    setTimeout(() => navigate('/rsya'), 300);
   };
 
-  const handlePhoneSubmit = async () => {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length !== 11) {
-      toast({ title: 'Введите корректный номер телефона', variant: 'destructive' });
+  const requestAuth = async (payload: Record<string, string>) => {
+    const response = await fetch(`${API_URL}?endpoint=auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось выполнить запрос');
+    }
+    return data;
+  };
+
+  const handleRegister = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail.includes('@')) {
+      toast({ title: 'Укажите корректную почту', variant: 'destructive' });
+      return;
+    }
+    if (password.length < 8) {
+      toast({ title: 'Пароль должен быть минимум 8 символов', variant: 'destructive' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast({ title: 'Пароли не совпадают', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
-    
     try {
-      const response = await fetch(`${API_URL}?endpoint=auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'send_code',
-          phone: `+${digits}`
-        })
+      await requestAuth({
+        action: 'register_email',
+        email: normalizedEmail,
+        password,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSentCode(data.code);
-        setStep('code');
-        toast({ 
-          title: '📱 Код отправлен', 
-          description: `Введите код: ${data.code}` 
-        });
-      } else {
-        toast({ 
-          title: 'Ошибка', 
-          description: 'Не удалось отправить код', 
-          variant: 'destructive' 
-        });
-      }
+      setEmail(normalizedEmail);
+      setMode('verify');
+      toast({ title: 'Код отправлен', description: 'Проверьте почту и введите код подтверждения' });
     } catch (error) {
-      toast({ 
-        title: 'Ошибка соединения', 
-        description: 'Проверьте интернет-подключение', 
-        variant: 'destructive' 
+      toast({
+        title: 'Ошибка регистрации',
+        description: error instanceof Error ? error.message : 'Попробуйте еще раз',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCodeSubmit = async () => {
-    if (code.length !== 4) {
-      toast({ title: 'Введите 4-значный код', variant: 'destructive' });
+  const handleLogin = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !password) {
+      toast({ title: 'Укажите почту и пароль', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
-
     try {
-      const digits = phone.replace(/\D/g, '');
-      const response = await fetch(`${API_URL}?endpoint=auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'verify_code',
-          phone: `+${digits}`,
-          code: code
-        })
+      const data = await requestAuth({
+        action: 'login_email',
+        email: normalizedEmail,
+        password,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        const user = {
-          id: data.userId,
-          phone: data.phone,
-          userId: `user_${data.userId}_${Date.now().toString(36)}`,
-          createdAt: new Date().toISOString(),
-          sessionToken: data.sessionToken
-        };
-        
-        setAuthData(user, data.sessionToken);
-        
-        toast({ 
-          title: '✅ Вход выполнен', 
-          description: 'Добро пожаловать!' 
-        });
-        
-        setTimeout(() => {
-          navigate('/clustering');
-        }, 500);
-      } else {
-        const errorData = await response.json();
-        toast({ 
-          title: 'Ошибка', 
-          description: errorData.error || 'Неверный код', 
-          variant: 'destructive' 
-        });
-      }
+      saveSession(data);
     } catch (error) {
-      toast({ 
-        title: 'Ошибка соединения', 
-        description: 'Проверьте интернет-подключение', 
-        variant: 'destructive' 
+      const message = error instanceof Error ? error.message : 'Проверьте данные и попробуйте еще раз';
+      if (message.includes('Подтвердите')) {
+        setEmail(normalizedEmail);
+        setMode('verify');
+      }
+      toast({ title: 'Не удалось войти', description: message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (code.length !== 6) {
+      toast({ title: 'Введите 6-значный код', variant: 'destructive' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await requestAuth({
+        action: 'verify_email',
+        email: normalizedEmail,
+        code,
+      });
+      saveSession(data);
+    } catch (error) {
+      toast({
+        title: 'Код не подошел',
+        description: error instanceof Error ? error.message : 'Проверьте код из письма',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
+
+  const handleResendCode = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return;
+
+    setLoading(true);
+    try {
+      await requestAuth({
+        action: 'resend_email_code',
+        email: normalizedEmail,
+      });
+      toast({ title: 'Код отправлен повторно' });
+    } catch (error) {
+      toast({
+        title: 'Не удалось отправить код',
+        description: error instanceof Error ? error.message : 'Попробуйте позже',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitOnEnter = (handler: () => void) => (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') handler();
+  };
+
+  const isLogin = mode === 'login';
+  const isRegister = mode === 'register';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-              <Icon name="Zap" size={20} className="text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold">DirectKit</CardTitle>
-          </div>
-          <CardDescription>
-            {step === 'phone' ? 'Введите номер телефона для входа' : 'Введите код из SMS'}
-          </CardDescription>
+    <div className="min-h-screen bg-slate-50 px-4 py-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center">
+        <div className="grid w-full items-center gap-8 lg:grid-cols-[1fr_440px]">
+          <div className="hidden lg:block">
+            <Link to="/" className="mb-10 inline-flex items-center gap-3 text-slate-700 hover:text-slate-950">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
+                <Icon name="ShieldCheck" size={22} />
+              </div>
+              <div>
+                <div className="text-xl font-semibold text-slate-950">DirectKit</div>
+                <div className="text-sm text-slate-500">Чистка площадок РСЯ 24/7</div>
+              </div>
+            </Link>
 
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {step === 'phone' ? (
-            <>
+            <div className="max-w-xl">
+              <div className="mb-5 inline-flex rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                Закрытый бета-тест
+              </div>
+              <h1 className="text-5xl font-bold leading-tight tracking-normal text-slate-950">
+                Вход в сервис автоматической чистки площадок
+              </h1>
+              <p className="mt-5 text-lg leading-8 text-slate-600">
+                Регистрируйтесь по почте, подтверждайте кодом и подключайте проекты без SMS и ручной выдачи доступа.
+              </p>
+            </div>
+          </div>
+
+          <Card className="border-slate-200 shadow-xl shadow-slate-200/60">
+            <CardHeader className="space-y-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Icon name={mode === 'verify' ? 'MailCheck' : 'LockKeyhole'} size={24} />
+              </div>
+              <div>
+                <CardTitle className="text-2xl text-slate-950">
+                  {isLogin && 'Вход'}
+                  {isRegister && 'Регистрация'}
+                  {mode === 'verify' && 'Подтверждение почты'}
+                </CardTitle>
+                <CardDescription className="mt-2 text-base">
+                  {isLogin && 'Введите почту и пароль от аккаунта DirectKit'}
+                  {isRegister && 'Создайте аккаунт, код подтверждения придет на почту'}
+                  {mode === 'verify' && `Введите код, который мы отправили на ${email || 'почту'}`}
+                </CardDescription>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="phone">Номер телефона</Label>
+                <Label htmlFor="email">Почта</Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+7 (999) 123-45-67"
-                  value={phone}
-                  onChange={(e) => setPhone(formatPhone(e.target.value))}
-                  maxLength={18}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePhoneSubmit()}
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  onKeyDown={submitOnEnter(isLogin ? handleLogin : isRegister ? handleRegister : handleVerify)}
+                  autoComplete="email"
+                  disabled={mode === 'verify'}
                 />
               </div>
-              <Button 
-                onClick={handlePhoneSubmit}
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? 'Отправка...' : 'Получить код'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="code">Код подтверждения</Label>
-                <Input
-                  id="code"
-                  type="text"
-                  placeholder="1234"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  maxLength={4}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCodeSubmit()}
-                  autoFocus
-                />
-                <p className="text-sm text-muted-foreground">
-                  Код отправлен на {phone}
-                </p>
-                {sentCode && (
-                  <p className="text-sm font-mono font-semibold text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-200">
-                    Для теста: код <span className="text-lg">{sentCode}</span>
-                  </p>
-                )}
-              </div>
-              <Button 
-                onClick={handleCodeSubmit}
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? 'Проверка...' : 'Войти'}
-              </Button>
+
+              {mode !== 'verify' && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Пароль</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Минимум 8 символов"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    onKeyDown={submitOnEnter(isLogin ? handleLogin : handleRegister)}
+                    autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  />
+                </div>
+              )}
+
+              {isRegister && (
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Повторите пароль</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="Еще раз пароль"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    onKeyDown={submitOnEnter(handleRegister)}
+                    autoComplete="new-password"
+                  />
+                </div>
+              )}
+
+              {mode === 'verify' && (
+                <div className="space-y-2">
+                  <Label htmlFor="code">Код из письма</Label>
+                  <Input
+                    id="code"
+                    inputMode="numeric"
+                    placeholder="000000"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={submitOnEnter(handleVerify)}
+                    maxLength={6}
+                    autoFocus
+                  />
+                </div>
+              )}
+
               <Button
-                variant="outline"
-                onClick={() => setStep('phone')}
-                className="w-full"
+                onClick={isLogin ? handleLogin : isRegister ? handleRegister : handleVerify}
                 disabled={loading}
+                className="h-12 w-full bg-emerald-600 text-base font-semibold hover:bg-emerald-700"
               >
-                Изменить номер
+                {loading && <Icon name="Loader2" size={18} className="mr-2 animate-spin" />}
+                {isLogin && 'Войти'}
+                {isRegister && 'Зарегистрироваться'}
+                {mode === 'verify' && 'Подтвердить почту'}
               </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+
+              {mode === 'verify' ? (
+                <div className="grid gap-2 text-center text-sm text-slate-600">
+                  <button type="button" className="font-medium text-emerald-700 hover:text-emerald-800" onClick={handleResendCode} disabled={loading}>
+                    Отправить код еще раз
+                  </button>
+                  <button type="button" className="text-slate-500 hover:text-slate-800" onClick={() => setMode('register')} disabled={loading}>
+                    Изменить почту
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-sm text-slate-600">
+                  {isLogin ? 'Еще нет аккаунта?' : 'Уже есть аккаунт?'}{' '}
+                  <button
+                    type="button"
+                    className="font-semibold text-emerald-700 hover:text-emerald-800"
+                    onClick={() => setMode(isLogin ? 'register' : 'login')}
+                  >
+                    {isLogin ? 'Зарегистрироваться' : 'Войти'}
+                  </button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

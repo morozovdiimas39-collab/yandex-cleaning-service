@@ -346,7 +346,11 @@ def _normalize_list(value) -> List[str]:
 
 def _domain_matches_keyword(domain: str, keyword: str) -> bool:
     if '.' in keyword:
-        return domain.startswith(keyword)
+        if keyword.endswith('.') and not keyword.startswith('.'):
+            return domain.startswith(keyword)
+        if keyword.startswith('.') and not keyword.endswith('.'):
+            return domain.endswith(keyword)
+        return keyword in domain
     return keyword in domain
 
 

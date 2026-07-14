@@ -3,10 +3,12 @@ import { BACKEND_URLS } from '@/config/backend-urls';
 
 export interface User {
   id: number;
-  phone: string;
+  phone?: string;
+  email?: string;
   userId: string;
   createdAt: string;
   sessionToken: string;
+  session_token?: string;
   hasAccess?: boolean;
   subscriptionExpiresAt?: string;
 }

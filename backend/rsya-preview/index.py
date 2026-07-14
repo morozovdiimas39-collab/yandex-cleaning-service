@@ -82,7 +82,11 @@ def platform_cpa_for_config(platform: Dict[str, Any], config: Dict[str, Any]) ->
 
 def domain_matches_keyword(domain: str, keyword: str) -> bool:
     if '.' in keyword:
-        return domain.startswith(keyword)
+        if keyword.endswith('.') and not keyword.startswith('.'):
+            return domain.startswith(keyword)
+        if keyword.startswith('.') and not keyword.endswith('.'):
+            return domain.endswith(keyword)
+        return keyword in domain
     return keyword in domain
 
 
@@ -113,7 +117,7 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
         ('max_ctr', lambda value: platform.get('ctr', 0) <= value),
         ('min_conversions', lambda value: platform_conversions_for_config(platform, config) >= value),
         ('min_cpa', lambda value: platform_cpa_for_config(platform, config) >= value),
-        ('max_cpa', lambda value: platform_cpa_for_config(platform, config) >= value),
+        ('max_cpa', lambda value: platform_cpa_for_config(platform, config) <= value),
     ]
 
     for key, predicate in metric_rules:

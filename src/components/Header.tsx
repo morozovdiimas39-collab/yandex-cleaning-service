@@ -17,13 +17,13 @@ export default function Header() {
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div 
-            onClick={() => navigate('/clustering')}
+            onClick={() => navigate('/rsya')}
             className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-              <Icon name="Sparkles" className="h-5 w-5 text-white" />
+              <Icon name="ShieldCheck" className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-semibold text-slate-800">Сбор ключей</span>
+            <span className="text-xl font-semibold text-slate-800">DirectKit</span>
           </div>
 
           {user && (
@@ -31,29 +31,20 @@ export default function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/clustering')}
-                className="text-slate-600 hover:text-slate-800"
-              >
-                <Icon name="Search" className="h-4 w-4 mr-2" />
-                Сбор фраз Wordstat
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
                 onClick={() => navigate('/rsya')}
                 className="text-slate-600 hover:text-slate-800"
               >
-                <Icon name="ShieldOff" className="h-4 w-4 mr-2" />
-                Чистка площадок РСЯ
+                <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
+                Чистка площадок
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/how-to-use')}
+                onClick={() => window.open('https://t.me/mooz26', '_blank', 'noopener,noreferrer')}
                 className="text-slate-600 hover:text-slate-800"
               >
-                <Icon name="HelpCircle" className="h-4 w-4 mr-2" />
-                Как пользоваться
+                <Icon name="LifeBuoy" className="h-4 w-4 mr-2" />
+                Получить помощь
               </Button>
               <a 
                 href="https://t.me/mooz26" 
@@ -69,7 +60,7 @@ export default function Header() {
               <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
                 <Icon name="User" size={14} className="text-slate-500" />
                 <span className="text-xs font-mono text-slate-700">
-                  {user.userId}
+                  {user.email || user.phone || user.userId}
                 </span>
               </div>
               <Button

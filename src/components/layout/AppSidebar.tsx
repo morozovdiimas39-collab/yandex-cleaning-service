@@ -1,70 +1,86 @@
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
-import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+
+const menuItems = [
+  { icon: 'ShieldCheck', label: 'Чистка площадок', path: '/rsya' },
+  { icon: 'LifeBuoy', label: 'Получить помощь', href: 'https://t.me/mooz26' },
+  { icon: 'Headphones', label: 'Поддержка', href: 'mailto:support@directkit.ru' },
+  { icon: 'Send', label: 'Мой Telegram', href: 'https://t.me/mooz26' },
+  { icon: 'UserRound', label: 'Профиль', path: '/profile' },
+];
 
 export default function AppSidebar() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const phone = localStorage.getItem('directkit_phone') || '';
+  const location = useLocation();
+  const { user, logout } = useAuth();
+
+  const handleItemClick = (item: (typeof menuItems)[number]) => {
+    if (item.href) {
+      window.open(item.href, item.href.startsWith('mailto:') ? '_self' : '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (item.path) navigate(item.path);
+  };
+
+  const isActive = (path?: string) => {
+    if (!path) return false;
+    if (path === '/rsya') return location.pathname === '/rsya' || location.pathname.startsWith('/rsya/');
+    return location.pathname === path;
+  };
 
   const handleLogout = () => {
-    localStorage.removeItem('directkit_auth');
-    localStorage.removeItem('directkit_phone');
+    logout();
     navigate('/auth');
-    toast({ title: '👋 До встречи!', description: 'Вы вышли из системы' });
   };
 
   return (
-    <aside className="fixed top-0 left-0 h-full w-64 bg-white border-r border-slate-200 z-50">
-      <div className="p-4 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Icon name="Zap" size={20} className="text-white" />
+    <aside className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-4">
+        <button
+          type="button"
+          onClick={() => navigate('/rsya')}
+          className="flex w-full items-center gap-3 rounded-lg text-left transition-opacity hover:opacity-80"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+            <Icon name="ShieldCheck" size={22} />
           </div>
-          <div className="overflow-hidden">
-            <h2 className="font-bold text-lg bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
-              DirectKit
-            </h2>
+          <div className="min-w-0">
+            <div className="truncate text-lg font-semibold text-slate-950">DirectKit</div>
+            <div className="truncate text-xs text-slate-500">Чистка площадок РСЯ</div>
           </div>
-        </div>
+        </button>
       </div>
 
-      <nav className="p-4 space-y-2">
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          onClick={() => navigate('/clustering')}
-        >
-          <Icon name="Search" size={20} />
-          <span>Сбор ключей</span>
-        </button>
-
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
-          onClick={() => navigate('/rsya')}
-        >
-          <Icon name="ShieldOff" size={20} />
-          <span>Чистка площадок РСЯ</span>
-        </button>
-
+      <nav className="flex-1 space-y-1 p-3">
+        {menuItems.map((item) => (
+          <Button
+            key={item.path || item.href}
+            variant="ghost"
+            onClick={() => handleItemClick(item)}
+            className={cn(
+              'h-11 w-full justify-start gap-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+              item.path && isActive(item.path) && 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800',
+            )}
+          >
+            <Icon name={item.icon} size={18} />
+            {item.label}
+          </Button>
+        ))}
       </nav>
 
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-            {phone.slice(3, 4)}
-          </div>
-          <div className="overflow-hidden flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{phone}</p>
+      <div className="space-y-3 border-t border-slate-200 p-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="text-xs text-slate-500">Аккаунт</div>
+          <div className="mt-1 truncate text-sm font-medium text-slate-800">
+            {user?.email || user?.phone || user?.userId || 'Пользователь'}
           </div>
         </div>
-        <Button
-          onClick={handleLogout}
-          variant="outline"
-          className="w-full"
-        >
+        <Button onClick={handleLogout} variant="outline" className="h-11 w-full justify-start gap-3">
           <Icon name="LogOut" size={18} />
-          <span className="ml-2">Выйти</span>
+          Выйти
         </Button>
       </div>
     </aside>

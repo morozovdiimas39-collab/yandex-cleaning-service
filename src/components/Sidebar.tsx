@@ -43,27 +43,14 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
   };
 
   const menuItems = [
-    {
-      icon: 'Search',
-      label: 'Сбор фраз Wordstat',
-      path: '/clustering',
-    },
-    {
-      icon: 'ShieldOff',
-      label: 'Чистка площадок РСЯ',
-      path: '/rsya',
-    },
-    {
-      icon: 'HelpCircle',
-      label: 'Как пользоваться',
-      path: '/how-to-use',
-    },
+    { icon: 'ShieldCheck', label: 'Чистка площадок', path: '/rsya' },
+    { icon: 'LifeBuoy', label: 'Получить помощь', href: 'https://t.me/mooz26' },
+    { icon: 'Headphones', label: 'Поддержка', href: 'mailto:support@directkit.ru' },
+    { icon: 'Send', label: 'Мой Telegram', href: 'https://t.me/mooz26' },
+    { icon: 'UserRound', label: 'Профиль', path: '/profile' },
   ];
 
   const isActive = (path: string) => {
-    if (path === '/clustering') {
-      return location.pathname === '/clustering' || location.pathname.startsWith('/clustering/');
-    }
     if (path === '/rsya') {
       return location.pathname === '/rsya' || location.pathname.startsWith('/rsya/');
     }
@@ -121,14 +108,20 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
           <nav className={cn('flex-1 space-y-1 py-4', narrow ? 'px-1.5' : 'px-3')}>
             {menuItems.map((item) => (
               <Button
-                key={item.path}
+                key={item.path || item.href}
                 variant="ghost"
                 title={narrow ? item.label : undefined}
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  if (item.href) {
+                    window.open(item.href, item.href.startsWith('mailto:') ? '_self' : '_blank', 'noopener,noreferrer');
+                  } else if (item.path) {
+                    navigate(item.path);
+                  }
+                }}
                 className={cn(
                   'w-full text-slate-600 hover:bg-slate-100 hover:text-slate-800',
                   narrow ? 'justify-center px-0' : 'justify-start',
-                  isActive(item.path) &&
+                  item.path && isActive(item.path) &&
                     'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800',
                 )}
               >
@@ -147,20 +140,6 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
               narrow ? 'px-1.5' : 'px-3',
             )}
           >
-            <a
-              href="https://t.me/mooz26"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Telegram @mooz26"
-              className={cn(
-                'flex items-center rounded-lg border border-slate-200 bg-slate-100 transition-colors hover:bg-slate-200',
-                narrow ? 'justify-center p-2' : 'gap-2 px-3 py-2',
-              )}
-            >
-              <Icon name="MessageCircle" size={16} className="shrink-0 text-slate-500" />
-              {!narrow && <span className="text-sm text-slate-700">@mooz26</span>}
-            </a>
-
             <div
               title={narrow ? user.userId : undefined}
               className={cn(
@@ -170,7 +149,7 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
             >
               <Icon name="User" size={16} className="shrink-0 text-slate-500" />
               {!narrow && (
-                <span className="truncate text-sm font-mono text-slate-700">{user.userId}</span>
+                <span className="truncate text-sm text-slate-700">{user.email || user.phone || user.userId}</span>
               )}
             </div>
 

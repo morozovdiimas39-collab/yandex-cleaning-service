@@ -171,10 +171,45 @@ def create_session_for_user(cur, user_id: int) -> str:
     return session_token
 
 def build_email_placeholder_phone(email: str) -> str:
-    digest = hashlib.sha1(email.encode('utf-8')).hexdigest()[:16]
+    digest = hashlib.sha1(email.encode('utf-8')).hexdigest()[:14]
     return f'email:{digest}'
 
 def send_email_message(to_email: str, subject: str, text: str) -> bool:
+    postbox_access_key = os.environ.get('POSTBOX_ACCESS_KEY_ID') or os.environ.get('AWS_ACCESS_KEY_ID')
+    postbox_secret_key = os.environ.get('POSTBOX_SECRET_ACCESS_KEY') or os.environ.get('AWS_SECRET_ACCESS_KEY')
+    if postbox_access_key and postbox_secret_key:
+        try:
+            import boto3
+            from botocore.config import Config
+
+            from_email = os.environ.get('POSTBOX_FROM_EMAIL', 'DirectKit <no-reply@directkit.ru>')
+            endpoint_url = os.environ.get('POSTBOX_ENDPOINT_URL', 'https://postbox.cloud.yandex.net')
+            region_name = os.environ.get('POSTBOX_REGION', 'ru-central1')
+
+            message = EmailMessage()
+            message['Subject'] = subject
+            message['From'] = from_email
+            message['To'] = to_email
+            message.set_content(text)
+
+            client = boto3.client(
+                'sesv2',
+                endpoint_url=endpoint_url,
+                region_name=region_name,
+                aws_access_key_id=postbox_access_key,
+                aws_secret_access_key=postbox_secret_key,
+                config=Config(connect_timeout=4, read_timeout=8, retries={'max_attempts': 1}),
+            )
+            client.send_email(
+                FromEmailAddress=from_email,
+                Destination={'ToAddresses': [to_email]},
+                Content={'Raw': {'Data': message.as_bytes()}},
+            )
+            return True
+        except Exception as exc:
+            print(f'Postbox delivery error: {exc}')
+            return False
+
     smtp_host = os.environ.get('SMTP_HOST', 'smtp.yandex.ru')
     smtp_port = int(os.environ.get('SMTP_PORT', '465'))
     smtp_user = os.environ.get('SMTP_USER', YANDEX_SMTP_LOGIN)

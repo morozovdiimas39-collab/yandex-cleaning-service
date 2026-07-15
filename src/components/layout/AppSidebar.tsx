@@ -37,7 +37,11 @@ export default function AppSidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-slate-200 bg-white">
+    <div
+      role="navigation"
+      aria-label="Основное меню"
+      className="fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-slate-200 bg-white"
+    >
       <div className="border-b border-slate-200 p-4">
         <button
           type="button"
@@ -83,6 +87,6 @@ export default function AppSidebar() {
           Выйти
         </Button>
       </div>
-    </aside>
+    </div>
   );
 }

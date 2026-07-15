@@ -60,7 +60,9 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
   const narrow = collapsible && collapsed;
 
   return (
-    <aside
+    <div
+      role="navigation"
+      aria-label="Основное меню"
       className={cn(
         'sticky top-0 flex h-screen shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-200 ease-out',
         narrow ? 'w-[4.5rem]' : 'w-64',
@@ -168,6 +170,6 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
           </div>
         </>
       )}
-    </aside>
+    </div>
   );
 }

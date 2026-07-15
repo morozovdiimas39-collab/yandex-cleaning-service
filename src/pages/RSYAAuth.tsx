@@ -19,6 +19,13 @@ interface AccessCheckState {
   message: string;
 }
 
+interface DirectAccount {
+  login: string;
+  name: string;
+  source: 'owner' | 'agency' | 'manual' | 'direct' | string;
+  role?: string;
+}
+
 export default function RSYAAuth() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -31,6 +38,9 @@ export default function RSYAAuth() {
   const [savingToken, setSavingToken] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [accessCheck, setAccessCheck] = useState<AccessCheckState | null>(null);
+  const [agencyAccounts, setAgencyAccounts] = useState<DirectAccount[]>([]);
+  const [accountsChecked, setAccountsChecked] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -47,6 +57,8 @@ export default function RSYAAuth() {
         if (token) {
           setYandexToken(token);
           setAccessCheck(null);
+          setAccountsChecked(false);
+          setAgencyAccounts([]);
           toast({ title: '✅ Токен получен из Яндекса!' });
         }
       }
@@ -147,6 +159,46 @@ export default function RSYAAuth() {
       return { ok: false, message };
     } finally {
       setCheckingAccess(false);
+    }
+  };
+
+  const loadAgencyAccounts = async () => {
+    const token = yandexToken.trim();
+    if (!token) {
+      toast({ title: 'Сначала вставьте OAuth-токен', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setLoadingAccounts(true);
+      setAccountsChecked(false);
+
+      const response = await fetch(`${YANDEX_DIRECT_URL}?action=accounts`, {
+        headers: { 'X-Auth-Token': token }
+      });
+      const data = await response.json();
+      const agencyOnly: DirectAccount[] = (data.accounts || []).filter(
+        (account: DirectAccount) => account.source === 'agency'
+      );
+
+      setAgencyAccounts(agencyOnly);
+      setAccountsChecked(true);
+
+      if (agencyOnly.length > 0) {
+        toast({ title: `Найдено агентских аккаунтов: ${agencyOnly.length}` });
+      } else {
+        toast({
+          title: 'Агентские аккаунты не найдены',
+          description: 'Если нужен eLama, расшаренный или организационный кабинет, укажите Client-Login вручную.'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading agency accounts:', error);
+      setAgencyAccounts([]);
+      setAccountsChecked(true);
+      toast({ title: 'Не удалось проверить агентские аккаунты', variant: 'destructive' });
+    } finally {
+      setLoadingAccounts(false);
     }
   };
 
@@ -276,6 +328,8 @@ export default function RSYAAuth() {
                   onChange={(event) => {
                     setYandexToken(event.target.value);
                     setAccessCheck(null);
+                    setAccountsChecked(false);
+                    setAgencyAccounts([]);
                   }}
                 />
               </div>
@@ -290,6 +344,68 @@ export default function RSYAAuth() {
 
                 <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-900">
                   Прямой доступ: Client-Login не нужен.
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">Агентский доступ</div>
+                      <p className="text-xs text-slate-500">
+                        Если токен агентский, можно выбрать клиента из списка.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={loadAgencyAccounts}
+                      disabled={loadingAccounts || !yandexToken.trim()}
+                      className="shrink-0"
+                    >
+                      {loadingAccounts ? (
+                        <Icon name="Loader2" className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Icon name="RefreshCw" className="mr-2 h-4 w-4" />
+                      )}
+                      Проверить агентские аккаунты
+                    </Button>
+                  </div>
+
+                  {agencyAccounts.length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      {agencyAccounts.map((account) => {
+                        const active = clientLogin.toLowerCase() === account.login.toLowerCase();
+                        return (
+                          <button
+                            key={account.login}
+                            type="button"
+                            onClick={() => {
+                              setClientLogin(account.login);
+                              setAccessCheck(null);
+                            }}
+                            className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition ${
+                              active
+                                ? 'border-green-500 bg-green-50 shadow-sm'
+                                : 'border-slate-200 bg-white hover:border-green-300'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-semibold text-slate-900">{account.name || account.login}</div>
+                              <div className="truncate text-xs text-slate-500">Client-Login: {account.login}</div>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                              агентский
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {accountsChecked && agencyAccounts.length === 0 && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      Агентских клиентов у этого токена не найдено. Для eLama, расшаренного или организационного кабинета введите Client-Login вручную.
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

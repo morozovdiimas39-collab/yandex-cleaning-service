@@ -14,6 +14,7 @@ interface Campaign {
   status: string;
   /** Тип из API Директа */
   type?: string;
+  state?: string;
   /** РСЯ | ТК | МК — эвристика с бэкенда; если пусто, смотри type */
   channel?: string;
   network_enabled?: boolean;
@@ -37,7 +38,14 @@ const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
 
-const isNetworkCampaign = (campaign: Campaign) => campaign.network_enabled === true || campaign.channel === 'РСЯ' || campaign.channel === 'МК';
+const isVisibleNetworkCampaign = (campaign: Campaign) => {
+  const status = (campaign.status || '').toUpperCase();
+  const state = (campaign.state || '').toUpperCase();
+  const hasNetwork = campaign.network_enabled === true || campaign.channel === 'РСЯ' || campaign.channel === 'МК';
+  return hasNetwork && status !== 'DRAFT' && state !== 'ARCHIVED';
+};
+
+const isRunningCampaign = (campaign: Campaign) => (campaign.state || '').toUpperCase() === 'ON';
 
 const campaignStatusLabels: Record<string, string> = {
   ACCEPTED: 'Принята',
@@ -48,9 +56,18 @@ const campaignStatusLabels: Record<string, string> = {
   ARCHIVED: 'В архиве'
 };
 
-const getCampaignStatusLabel = (status?: string) => {
-  const normalizedStatus = (status || '').toUpperCase();
-  return campaignStatusLabels[normalizedStatus] || status || 'Неизвестно';
+const campaignStateLabels: Record<string, string> = {
+  ON: 'Запущена',
+  OFF: 'Остановлена',
+  SUSPENDED: 'Приостановлена',
+  ENDED: 'Завершена',
+  ARCHIVED: 'В архиве'
+};
+
+const getCampaignStatusLabel = (campaign: Campaign) => {
+  const state = (campaign.state || '').toUpperCase();
+  const status = (campaign.status || '').toUpperCase();
+  return campaignStateLabels[state] || campaignStatusLabels[status] || campaign.status || 'Неизвестно';
 };
 
 const buildCountersFromCampaigns = (campaigns: Campaign[], campaignIds?: string[]): Counter[] => {
@@ -151,7 +168,7 @@ export default function RSYASettings() {
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
-        loadedCampaigns = (data.campaigns || []).filter(isNetworkCampaign);
+        loadedCampaigns = (data.campaigns || []).filter(isVisibleNetworkCampaign);
         setCampaigns(loadedCampaigns);
         if ((data.client_login || '') !== clientLogin) {
           setCampaignsError(
@@ -164,8 +181,7 @@ export default function RSYASettings() {
           setCampaignsError('РСЯ-кампании с включенными показами в сетях не найдены.');
         }
         
-        const visibleCampaignIds = new Set(loadedCampaigns.map((campaign) => String(campaign.id)));
-        setSelectedCampaigns(new Set(savedCampaignIds.filter((campaignId: string) => visibleCampaignIds.has(String(campaignId)))));
+        setSelectedCampaigns(new Set(loadedCampaigns.filter(isRunningCampaign).map((campaign) => String(campaign.id))));
       } else {
         setCampaigns([]);
         setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
@@ -398,7 +414,7 @@ export default function RSYASettings() {
                       </span>
                     ) : null}
                     <span className="text-sm flex-1 min-w-0">{campaign.name}</span>
-                    <span className="text-xs text-slate-500 shrink-0">{getCampaignStatusLabel(campaign.status)}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{getCampaignStatusLabel(campaign)}</span>
                   </div>
                 ))}
               </div>

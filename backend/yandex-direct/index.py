@@ -239,7 +239,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'method': 'get',
                     'params': {
                         'SelectionCriteria': {},
-                        'FieldNames': ['Id', 'Name', 'Type', 'Status']
+                        'FieldNames': ['Id', 'Name', 'Type', 'Status', 'State']
                     }
                 },
                 timeout=20
@@ -545,7 +545,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'method': 'get',
                     'params': {
                         'SelectionCriteria': {},
-                        'FieldNames': ['Id', 'Name', 'Type', 'Status'],
+                        'FieldNames': ['Id', 'Name', 'Type', 'Status', 'State'],
                         'TextCampaignFieldNames': ['BiddingStrategy', 'CounterIds'],
                         'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
                         'SmartCampaignFieldNames': ['BiddingStrategy'],
@@ -1029,6 +1029,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'name': c.get('Name'),
                     'type': campaign_type,
                     'status': c.get('Status'),
+                    'state': c.get('State'),
                     'channel': channel,
                     'network_enabled': network_enabled,
                     'counter_ids': counter_ids,

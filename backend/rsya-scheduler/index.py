@@ -367,7 +367,7 @@ def fetch_current_rsya_campaign_ids(yandex_token: str, client_login: str) -> Lis
         'method': 'get',
         'params': {
             'SelectionCriteria': {},
-            'FieldNames': ['Id', 'Name', 'Type', 'Status'],
+            'FieldNames': ['Id', 'Name', 'Type', 'Status', 'State'],
             'TextCampaignFieldNames': ['BiddingStrategy'],
             'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
             'SmartCampaignFieldNames': ['BiddingStrategy'],
@@ -392,7 +392,12 @@ def fetch_current_rsya_campaign_ids(yandex_token: str, client_login: str) -> Lis
     return [
         str(campaign.get('Id')).strip()
         for campaign in campaigns
-        if campaign.get('Id') and is_network_enabled_campaign(campaign)
+        if (
+            campaign.get('Id')
+            and is_network_enabled_campaign(campaign)
+            and campaign.get('Status') != 'DRAFT'
+            and campaign.get('State') == 'ON'
+        )
     ]
 
 

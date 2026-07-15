@@ -30,6 +30,7 @@ def extract_campaign_counter_ids(campaign: Dict[str, Any]) -> List[str]:
         'SmartCampaign',
         'UnifiedCampaign',
         'CpmBannerCampaign',
+        'MobileAppCampaign',
     ):
         nested = campaign.get(field_name)
         if isinstance(nested, dict):
@@ -549,7 +550,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
                         'SmartCampaignFieldNames': ['BiddingStrategy'],
                         'UnifiedCampaignFieldNames': ['BiddingStrategy', 'CounterIds'],
-                        'CpmBannerCampaignFieldNames': ['CounterIds']
+                        'MobileAppCampaignFieldNames': ['BiddingStrategy'],
+                        'CpmBannerCampaignFieldNames': ['BiddingStrategy', 'CounterIds']
                     }
                 },
                 timeout=10
@@ -699,7 +701,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     return (campaign.get('SmartCampaign') or {}).get('BiddingStrategy') or {}
                 if ct == 'UNIFIED_CAMPAIGN':
                     return (campaign.get('UnifiedCampaign') or {}).get('BiddingStrategy') or {}
+                if ct == 'CPM_BANNER_CAMPAIGN':
+                    return (campaign.get('CpmBannerCampaign') or {}).get('BiddingStrategy') or {}
+                if ct == 'MOBILE_APP_CAMPAIGN':
+                    return (campaign.get('MobileAppCampaign') or {}).get('BiddingStrategy') or {}
                 return {}
+
+            def _network_enabled(c: dict) -> bool:
+                bs = _bidding_strategy_for(c)
+                nt = (bs.get('Network') or {}).get('BiddingStrategyType', '')
+                return nt != '' and nt != 'SERVING_OFF'
 
             # Бейджи channel (ТК / РСЯ / МК) не являются полями API.
             # В objects/campaign перечислены Type (TEXT_CAMPAIGN, DYNAMIC_TEXT_CAMPAIGN, …), но нет значения
@@ -736,6 +747,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         return 'МК'
                     return 'РСЯ'
 
+                if ct == 'CPM_BANNER_CAMPAIGN':
+                    return 'РСЯ'
+
+                if ct == 'MOBILE_APP_CAMPAIGN':
+                    return 'РСЯ'
+
                 return ''
 
             selected_entries = []
@@ -746,8 +763,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     continue
                 seen_ids.add(cid)
                 label = _channel_label(c) or ''
-                selected_entries.append({'campaign': c, 'channel': label})
-                print(f'[DEBUG] Include campaign {cid} "{c.get("Name")}" channel={label!r} Type={c.get("Type")}')
+                network_enabled = _network_enabled(c)
+                selected_entries.append({'campaign': c, 'channel': label, 'network_enabled': network_enabled})
+                print(f'[DEBUG] Include campaign {cid} "{c.get("Name")}" channel={label!r} network_enabled={network_enabled} Type={c.get("Type")}')
 
             print(f'[DEBUG] Selected {len(selected_entries)} campaigns (full list)')
             
@@ -871,6 +889,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             for entry in selected_entries:
                 c = entry['campaign']
                 channel = entry['channel']
+                network_enabled = bool(entry.get('network_enabled'))
                 campaign_type = c.get('Type')
                 campaign_id = str(c.get('Id'))
                 counter_ids = extract_campaign_counter_ids(c)
@@ -1011,6 +1030,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'type': campaign_type,
                     'status': c.get('Status'),
                     'channel': channel,
+                    'network_enabled': network_enabled,
                     'counter_ids': counter_ids,
                     'platforms': platforms,
                     'goals': goals

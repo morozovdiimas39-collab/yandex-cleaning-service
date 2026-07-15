@@ -16,6 +16,7 @@ interface Campaign {
   type?: string;
   /** РСЯ | ТК | МК — эвристика с бэкенда; если пусто, смотри type */
   channel?: string;
+  network_enabled?: boolean;
   counter_ids?: string[];
 }
 
@@ -36,7 +37,7 @@ const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
 
-const isRsyaCampaign = (campaign: Campaign) => campaign.channel === 'РСЯ';
+const isNetworkCampaign = (campaign: Campaign) => campaign.network_enabled === true || campaign.channel === 'РСЯ' || campaign.channel === 'МК';
 
 const campaignStatusLabels: Record<string, string> = {
   ACCEPTED: 'Принята',
@@ -150,7 +151,7 @@ export default function RSYASettings() {
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
-        loadedCampaigns = (data.campaigns || []).filter(isRsyaCampaign);
+        loadedCampaigns = (data.campaigns || []).filter(isNetworkCampaign);
         setCampaigns(loadedCampaigns);
         if ((data.client_login || '') !== clientLogin) {
           setCampaignsError(
@@ -362,7 +363,7 @@ export default function RSYASettings() {
                     {campaignsError}
                   </div>
                 )}
-                {campaigns.map(campaign => (
+                {campaigns.length > 0 && campaigns.map(campaign => (
                   <div key={campaign.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
                     <Checkbox
                       checked={selectedCampaigns.has(campaign.id)}
@@ -379,14 +380,14 @@ export default function RSYASettings() {
                     {campaign.channel ? (
                       <span
                         className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded shrink-0 ${
-                          campaign.channel === 'РСЯ'
+                          campaign.channel === 'РСЯ' || campaign.channel === 'МК'
                             ? 'bg-emerald-100 text-emerald-800'
                             : campaign.channel === 'ТК'
                               ? 'bg-sky-100 text-sky-800'
                               : 'bg-violet-100 text-violet-800'
                         }`}
                       >
-                        {campaign.channel}
+                        РСЯ
                       </span>
                     ) : campaign.type ? (
                       <span
@@ -402,6 +403,7 @@ export default function RSYASettings() {
                 ))}
               </div>
 
+              {campaigns.length > 0 && (
               <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <Checkbox
                   id="auto-add"
@@ -418,9 +420,11 @@ export default function RSYASettings() {
                   </p>
                 </div>
               </div>
+              )}
             </CardContent>
           </Card>
 
+          {campaigns.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Счётчики Яндекс.Метрики (необязательно)</CardTitle>
@@ -451,7 +455,9 @@ export default function RSYASettings() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {campaigns.length > 0 && (
           <div className="flex justify-end gap-3">
             <Button onClick={() => navigate(`/rsya/${projectId}`)} variant="outline">
               Отмена
@@ -474,6 +480,7 @@ export default function RSYASettings() {
               )}
             </Button>
           </div>
+          )}
         </div>
       </div>
     </>

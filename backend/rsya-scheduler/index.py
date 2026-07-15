@@ -75,7 +75,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.interval_hours,
                     p.yandex_token,
                     p.campaign_ids,
-                    p.client_login
+                    p.client_login,
+                    p.auto_add_campaigns
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.project_id = %s
@@ -92,7 +93,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.interval_hours,
                     p.yandex_token,
                     p.campaign_ids,
-                    p.client_login
+                    p.client_login,
+                    p.auto_add_campaigns
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.is_active = TRUE
@@ -110,7 +112,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.interval_hours,
                     p.yandex_token,
                     p.campaign_ids,
-                    p.client_login
+                    p.client_login,
+                    p.auto_add_campaigns
                 FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule s
                 JOIN t_p97630513_yandex_cleaning_serv.rsya_projects p ON p.id = s.project_id
                 WHERE s.is_active = TRUE
@@ -205,6 +208,9 @@ def schedule_project(project: Dict[str, Any], cursor, conn, context: Any, force_
     campaign_ids = parse_campaign_ids(project.get('campaign_ids'))
     yandex_token = project['yandex_token']
     client_login = (project.get('client_login') or '').strip()
+
+    if is_truthy(project.get('auto_add_campaigns')):
+        campaign_ids = merge_auto_added_rsya_campaigns(project_id, campaign_ids, yandex_token, client_login, cursor)
     
     # Один campaign_id — один батч, иначе воркеры разных батчей дерутся за одни и те же кампании (locked by another worker)
     campaign_ids = list(dict.fromkeys(campaign_ids))
@@ -302,6 +308,119 @@ def parse_campaign_ids(raw_campaign_ids: Any) -> List[str]:
     if not isinstance(parsed, list):
         return []
     return [str(campaign_id).strip() for campaign_id in parsed if str(campaign_id).strip()]
+
+
+def is_truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
+
+def get_bidding_strategy(campaign: Dict[str, Any]) -> Dict[str, Any]:
+    for key in ('TextCampaign', 'DynamicTextCampaign', 'SmartCampaign', 'UnifiedCampaign', 'CpmBannerCampaign', 'MobileAppCampaign'):
+        nested = campaign.get(key) or {}
+        strategy = nested.get('BiddingStrategy') or {}
+        if strategy:
+            return strategy
+    return {}
+
+
+def get_campaign_channel(campaign: Dict[str, Any]) -> str:
+    strategy = get_bidding_strategy(campaign)
+    network_strategy = (strategy.get('Network') or {}).get('BiddingStrategyType')
+    search_strategy = (strategy.get('Search') or {}).get('BiddingStrategyType')
+    campaign_type = campaign.get('Type')
+
+    network_enabled = bool(network_strategy and network_strategy != 'SERVING_OFF')
+    if not network_enabled:
+        return ''
+    if campaign_type == 'UNIFIED_CAMPAIGN':
+        return 'ТК'
+    if campaign_type in ('DYNAMIC_TEXT_CAMPAIGN', 'SMART_CAMPAIGN'):
+        return 'РСЯ'
+    if campaign_type == 'TEXT_CAMPAIGN':
+        if search_strategy == 'SERVING_OFF':
+            return 'РСЯ'
+        if search_strategy:
+            return 'МК'
+        return 'РСЯ'
+    return 'РСЯ'
+
+
+def is_network_enabled_campaign(campaign: Dict[str, Any]) -> bool:
+    strategy = get_bidding_strategy(campaign)
+    network_strategy = (strategy.get('Network') or {}).get('BiddingStrategyType')
+    return bool(network_strategy and network_strategy != 'SERVING_OFF')
+
+
+def fetch_current_rsya_campaign_ids(yandex_token: str, client_login: str) -> List[str]:
+    headers = {
+        'Authorization': f'Bearer {yandex_token}',
+        'Accept-Language': 'ru'
+    }
+    if client_login:
+        headers['Client-Login'] = client_login
+
+    payload = {
+        'method': 'get',
+        'params': {
+            'SelectionCriteria': {},
+            'FieldNames': ['Id', 'Name', 'Type', 'Status'],
+            'TextCampaignFieldNames': ['BiddingStrategy'],
+            'DynamicTextCampaignFieldNames': ['BiddingStrategy'],
+            'SmartCampaignFieldNames': ['BiddingStrategy'],
+            'UnifiedCampaignFieldNames': ['BiddingStrategy'],
+            'MobileAppCampaignFieldNames': ['BiddingStrategy'],
+            'CpmBannerCampaignFieldNames': ['BiddingStrategy']
+        }
+    }
+
+    response = requests.post(
+        'https://api.direct.yandex.com/json/v501/campaigns',
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
+    response.raise_for_status()
+    data = response.json()
+    if data.get('error'):
+        raise Exception(data['error'].get('error_detail') or data['error'].get('error_string') or 'Direct API error')
+
+    campaigns = ((data.get('result') or {}).get('Campaigns') or [])
+    return [
+        str(campaign.get('Id')).strip()
+        for campaign in campaigns
+        if campaign.get('Id') and is_network_enabled_campaign(campaign)
+    ]
+
+
+def merge_auto_added_rsya_campaigns(
+    project_id: int,
+    stored_campaign_ids: List[str],
+    yandex_token: str,
+    client_login: str,
+    cursor
+) -> List[str]:
+    try:
+        current_rsya_ids = fetch_current_rsya_campaign_ids(yandex_token, client_login)
+    except Exception as exc:
+        print(f"⚠️ Project {project_id}: failed to refresh RSYA campaigns for auto-add: {exc}")
+        return stored_campaign_ids
+
+    merged_campaign_ids = list(dict.fromkeys([*stored_campaign_ids, *current_rsya_ids]))
+    new_campaign_ids = [campaign_id for campaign_id in current_rsya_ids if campaign_id not in set(stored_campaign_ids)]
+    if new_campaign_ids:
+        cursor.execute("""
+            UPDATE t_p97630513_yandex_cleaning_serv.rsya_projects
+            SET campaign_ids = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (json.dumps(merged_campaign_ids), project_id))
+        print(f"➕ Project {project_id}: auto-added {len(new_campaign_ids)} RSYA campaigns")
+
+    return merged_campaign_ids
 
 
 def send_to_mq(message: Dict[str, Any]) -> None:

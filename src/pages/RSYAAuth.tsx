@@ -364,9 +364,9 @@ export default function RSYAAuth() {
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">Рекламный аккаунт</div>
+                    <div className="text-sm font-semibold text-slate-900">Куда подключаем токен</div>
                     <p className="text-xs text-slate-600">
-                      Агентские, eLama и организационные кабинеты работают через Client-Login клиента.
+                      Если кампании лежат в этом же аккаунте Яндекс.Директа, ничего выбирать не нужно.
                     </p>
                   </div>
                   <Button
@@ -384,6 +384,12 @@ export default function RSYAAuth() {
                     Найти аккаунты
                   </Button>
                 </div>
+
+                {!clientLogin.trim() && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-900">
+                    Будет использоваться прямой доступ по OAuth-токену. Client-Login не нужен.
+                  </div>
+                )}
 
                 {accounts.length > 0 && (
                   <div className="grid gap-2">
@@ -408,7 +414,7 @@ export default function RSYAAuth() {
                             <div className="truncate text-sm font-semibold text-slate-900">{account.name || account.login}</div>
                             <div className="truncate text-xs text-slate-500">
                               {account.source === 'owner' || account.source === 'direct'
-                                ? `Прямой доступ: ${account.login}, Client-Login не нужен`
+                                ? 'Это тот же аккаунт токена. Выбирать его не обязательно.'
                                 : `Client-Login: ${account.login}`}
                             </div>
                           </div>
@@ -422,10 +428,10 @@ export default function RSYAAuth() {
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Client-Login вручную</label>
+                  <label className="text-sm font-medium">Client-Login другого рекламного кабинета</label>
                   <Input
                     type="text"
-                    placeholder="login-clienta-bez-sobaki"
+                    placeholder="Заполняйте только для агентского, eLama, расшаренного или организационного доступа"
                     value={clientLogin}
                     onChange={(event) => {
                       setClientLogin(event.target.value.trim());
@@ -433,7 +439,7 @@ export default function RSYAAuth() {
                     }}
                   />
                   <p className="text-xs text-slate-500">
-                    Оставьте пустым только если токен выдан прямо на аккаунт, где лежат кампании.
+                    Оставьте пустым, если у токена уже есть прямой доступ к нужным кампаниям.
                   </p>
                 </div>
 

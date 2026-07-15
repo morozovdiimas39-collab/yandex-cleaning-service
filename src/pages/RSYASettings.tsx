@@ -36,6 +36,22 @@ const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
 
+const isRsyaCampaign = (campaign: Campaign) => campaign.channel === 'РСЯ';
+
+const campaignStatusLabels: Record<string, string> = {
+  ACCEPTED: 'Принята',
+  MODERATION: 'На модерации',
+  DRAFT: 'Черновик',
+  REJECTED: 'Отклонена',
+  SUSPENDED: 'Приостановлена',
+  ARCHIVED: 'В архиве'
+};
+
+const getCampaignStatusLabel = (status?: string) => {
+  const normalizedStatus = (status || '').toUpperCase();
+  return campaignStatusLabels[normalizedStatus] || status || 'Неизвестно';
+};
+
 const buildCountersFromCampaigns = (campaigns: Campaign[], campaignIds?: string[]): Counter[] => {
   const allowedIds = campaignIds ? new Set(campaignIds.map(String)) : null;
   const countersById = new Map<string, Counter>();
@@ -134,7 +150,7 @@ export default function RSYASettings() {
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
-        loadedCampaigns = data.campaigns || [];
+        loadedCampaigns = (data.campaigns || []).filter(isRsyaCampaign);
         setCampaigns(loadedCampaigns);
         if ((data.client_login || '') !== clientLogin) {
           setCampaignsError(
@@ -144,10 +160,11 @@ export default function RSYASettings() {
         if (data.error) {
           setCampaignsError(data.error_detail || data.message || data.error);
         } else if (loadedCampaigns.length === 0) {
-          setCampaignsError('Кампании не найдены. Проверьте, что OAuth-токен выдан пользователю с доступом к Яндекс.Директ.');
+          setCampaignsError('РСЯ-кампании с включенными показами в сетях не найдены.');
         }
         
-        setSelectedCampaigns(new Set(savedCampaignIds));
+        const visibleCampaignIds = new Set(loadedCampaigns.map((campaign) => String(campaign.id)));
+        setSelectedCampaigns(new Set(savedCampaignIds.filter((campaignId: string) => visibleCampaignIds.has(String(campaignId)))));
       } else {
         setCampaigns([]);
         setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
@@ -332,9 +349,9 @@ export default function RSYASettings() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Кампании для отслеживания</CardTitle>
+              <CardTitle>РСЯ-кампании для отслеживания</CardTitle>
               <CardDescription>
-                Выберите кампании из которых будут собираться площадки
+                Показываются только кампании с включенными показами в сетях
                 {activeClientLogin ? ` · Client-Login: ${activeClientLogin}` : ' · Прямой аккаунт токена'}
               </CardDescription>
             </CardHeader>
@@ -380,7 +397,7 @@ export default function RSYASettings() {
                       </span>
                     ) : null}
                     <span className="text-sm flex-1 min-w-0">{campaign.name}</span>
-                    <span className="text-xs text-slate-500 shrink-0">{campaign.status}</span>
+                    <span className="text-xs text-slate-500 shrink-0">{getCampaignStatusLabel(campaign.status)}</span>
                   </div>
                 ))}
               </div>
@@ -394,10 +411,10 @@ export default function RSYASettings() {
                 />
                 <div className="flex-1">
                   <label htmlFor="auto-add" className="text-sm font-medium cursor-pointer">
-                    Автоматически добавлять новые кампании
+                    Автоматически добавлять новые РСЯ-кампании
                   </label>
                   <p className="text-xs text-slate-600 mt-1">
-                    Новые кампании будут автоматически добавляться в задачи для очистки площадок в фоновом режиме
+                    Новые РСЯ-кампании с включенными показами в сетях будут добавляться в очистку площадок
                   </p>
                 </div>
               </div>

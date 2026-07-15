@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
 import AppSidebar from '@/components/layout/AppSidebar';
@@ -14,13 +13,6 @@ const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
 const YANDEX_CLIENT_ID = 'fa264103fca547b7baa436de1a416fbe';
 
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
-
-interface DirectAccount {
-  login: string;
-  name: string;
-  source: 'owner' | 'agency' | 'manual' | string;
-  role?: string;
-}
 
 interface AccessCheckState {
   status: 'ok' | 'error';
@@ -36,10 +28,6 @@ export default function RSYAAuth() {
   const [loading, setLoading] = useState(true);
   const [yandexToken, setYandexToken] = useState('');
   const [clientLogin, setClientLogin] = useState('');
-  const [accounts, setAccounts] = useState<DirectAccount[]>([]);
-  const [accountNotes, setAccountNotes] = useState<string[]>([]);
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [savingToken, setSavingToken] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [accessCheck, setAccessCheck] = useState<AccessCheckState | null>(null);
@@ -59,8 +47,6 @@ export default function RSYAAuth() {
         if (token) {
           setYandexToken(token);
           setAccessCheck(null);
-          setAccountsLoaded(false);
-          loadAccounts(token);
           toast({ title: '✅ Токен получен из Яндекса!' });
         }
       }
@@ -98,63 +84,6 @@ export default function RSYAAuth() {
       toast({ title: 'Ошибка загрузки проекта', variant: 'destructive' });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadAccounts = async (tokenOverride?: string) => {
-    const token = (tokenOverride || yandexToken).trim();
-    if (!token) {
-      toast({ title: 'Сначала вставьте OAuth-токен', variant: 'destructive' });
-      return;
-    }
-
-    try {
-      setLoadingAccounts(true);
-      const response = await fetch(`${YANDEX_DIRECT_URL}?action=accounts`, {
-        headers: {
-          'X-Auth-Token': token,
-          ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
-        }
-      });
-      const data = await response.json();
-      const loadedAccounts: DirectAccount[] = data.accounts || [];
-      const errors: string[] = data.errors || [];
-      const diagnostics: string[] = data.diagnostics || [];
-      const notes: string[] = [];
-
-      setAccounts(loadedAccounts);
-      setAccountsLoaded(true);
-
-      if (!clientLogin && loadedAccounts.length === 1 && loadedAccounts[0].source !== 'owner') {
-        setClientLogin(loadedAccounts[0].login);
-      }
-
-      if (loadedAccounts.length > 0) {
-        toast({ title: `Найдено аккаунтов: ${loadedAccounts.length}` });
-      } else {
-        toast({
-          title: 'Список аккаунтов не получен',
-          description: 'Введите Client-Login вручную, если аккаунт агентский, eLama или расшаренный.'
-        });
-      }
-
-      if (errors.some((error) => error.startsWith('agencyclients:54'))) {
-        notes.push('Этот OAuth-токен не имеет агентских прав в Директе, поэтому список клиентов организации/агентства автоматически не отдается.');
-      }
-      if (diagnostics.includes('agency_access:no')) {
-        notes.push('Если кампании лежат в eLama или организационном аккаунте, нужен токен пользователя/аккаунта, которому открыт API-доступ к этому рекламному кабинету.');
-      }
-      if (loadedAccounts.length === 1 && loadedAccounts[0].source === 'owner') {
-        notes.push(`Сейчас токен принадлежит логину ${loadedAccounts[0].login}. Другие организационные аккаунты этот токен через API не показывает.`);
-      }
-      setAccountNotes(notes);
-    } catch (error) {
-      console.error('Error loading Direct accounts:', error);
-      setAccountsLoaded(true);
-      setAccountNotes(['Не удалось получить список аккаунтов. Проверьте токен и доступ к Direct API.']);
-      toast({ title: 'Не удалось загрузить аккаунты Директа', variant: 'destructive' });
-    } finally {
-      setLoadingAccounts(false);
     }
   };
 
@@ -286,14 +215,6 @@ export default function RSYAAuth() {
     }
   };
 
-  const accountBadge = (source: string) => {
-    if (source === 'agency') return 'агентский';
-    if (source === 'owner') return 'основной';
-    if (source === 'direct') return 'прямой';
-    if (source === 'manual') return 'ручной';
-    return source || 'аккаунт';
-  };
-
   if (loading) {
     return (
       <>
@@ -355,83 +276,32 @@ export default function RSYAAuth() {
                   onChange={(event) => {
                     setYandexToken(event.target.value);
                     setAccessCheck(null);
-                    setAccountNotes([]);
-                    setAccountsLoaded(false);
                   }}
                 />
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-900">Куда подключаем токен</div>
-                    <p className="text-xs text-slate-600">
-                      Если кампании лежат в этом же аккаунте Яндекс.Директа, ничего выбирать не нужно.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => loadAccounts()}
-                    disabled={loadingAccounts || !yandexToken.trim()}
-                    className="shrink-0"
-                  >
-                    {loadingAccounts ? (
-                      <Icon name="Loader2" className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Icon name="RefreshCw" className="mr-2 h-4 w-4" />
-                    )}
-                    Найти аккаунты
-                  </Button>
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Рекламный кабинет</div>
+                  <p className="text-xs text-slate-600">
+                    По умолчанию чистим кампании в аккаунте, на который выдан OAuth-токен.
+                  </p>
                 </div>
 
-                {!clientLogin.trim() && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-900">
-                    Будет использоваться прямой доступ по OAuth-токену. Client-Login не нужен.
-                  </div>
-                )}
-
-                {accounts.length > 0 && (
-                  <div className="grid gap-2">
-                    {accounts.map((account) => {
-                      const accountClientLogin = account.source === 'owner' || account.source === 'direct' ? '' : account.login;
-                      const active = clientLogin.toLowerCase() === accountClientLogin.toLowerCase();
-                      return (
-                        <button
-                          key={`${account.source}-${account.login}`}
-                          type="button"
-                          onClick={() => {
-                            setClientLogin(accountClientLogin);
-                            setAccessCheck(null);
-                          }}
-                          className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition ${
-                            active
-                              ? 'border-green-500 bg-white shadow-sm ring-2 ring-green-100'
-                              : 'border-slate-200 bg-white hover:border-green-300'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-slate-900">{account.name || account.login}</div>
-                            <div className="truncate text-xs text-slate-500">
-                              {account.source === 'owner' || account.source === 'direct'
-                                ? 'Это тот же аккаунт токена. Выбирать его не обязательно.'
-                                : `Client-Login: ${account.login}`}
-                            </div>
-                          </div>
-                          <Badge variant={account.source === 'agency' ? 'default' : 'secondary'} className="shrink-0">
-                            {accountBadge(account.source)}
-                          </Badge>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-900">
+                  Прямой доступ: Client-Login не нужен.
+                </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Client-Login другого рекламного кабинета</label>
+                  <div>
+                    <label className="text-sm font-medium">Client-Login другого рекламного кабинета</label>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Заполняйте только если нужно чистить другой доступный кабинет: агентский, eLama, расшаренный или организационный.
+                    </p>
+                  </div>
                   <Input
                     type="text"
-                    placeholder="Заполняйте только для агентского, eLama, расшаренного или организационного доступа"
+                    placeholder="Например: client-login-bez-sobaki"
                     value={clientLogin}
                     onChange={(event) => {
                       setClientLogin(event.target.value.trim());
@@ -442,14 +312,6 @@ export default function RSYAAuth() {
                     Оставьте пустым, если у токена уже есть прямой доступ к нужным кампаниям.
                   </p>
                 </div>
-
-                {accountNotes.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
-                    {accountNotes.map((note) => (
-                      <p key={note}>{note}</p>
-                    ))}
-                  </div>
-                )}
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button
@@ -480,11 +342,6 @@ export default function RSYAAuth() {
                   )}
                 </div>
 
-                {accountsLoaded && accounts.length === 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    Список не найден автоматически. Для расшаренного, организационного или eLama-доступа введите клиентский логин вручную.
-                  </div>
-                )}
               </div>
 
               <Button

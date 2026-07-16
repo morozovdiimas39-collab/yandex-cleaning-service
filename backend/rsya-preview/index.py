@@ -98,7 +98,7 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
     if exceptions and any(exc in domain for exc in exceptions):
         return False
 
-    if config.get('protect_conversions') and platform_conversions_for_config(platform, config) > 0:
+    if (config.get('protect_conversions') or normalize_goal_ids(config)) and platform_conversions_for_config(platform, config) > 0:
         return False
 
     conditions = []
@@ -424,9 +424,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         warnings.append('Под блок попадают важные площадки. Проверьте список перед сохранением.')
     if checked and matched / checked > 0.5:
         warnings.append('Правило захватывает больше половины проверенных площадок. Лучше сузить условия.')
-    if reports_pending:
-        warnings.append('Часть отчетов Direct ушла в асинхронную подготовку, предпросмотр неполный.')
-
     return response(200, {
         'success': True,
         'project_id': project_id,

@@ -713,7 +713,7 @@ def matches_task_filters(platform: Dict[str, Any], config: Dict[str, Any], combi
     if exceptions and any(exc in domain for exc in exceptions):
         return False
 
-    if config.get('protect_conversions') and _platform_conversions_for_config(platform, config) > 0:
+    if (config.get('protect_conversions') or _normalize_goal_ids(config)) and _platform_conversions_for_config(platform, config) > 0:
         return False
 
     conditions = []

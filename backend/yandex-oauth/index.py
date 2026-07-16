@@ -2,9 +2,20 @@ import json
 import os
 from typing import Dict, Any
 import requests
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
+from urllib.parse import urlencode
+
+DEFAULT_REDIRECT_URI = 'https://functions.yandexcloud.net/d4enntdqk6omuagvamph'
+
+def response(status_code: int, body: str, content_type: str = 'application/json') -> Dict[str, Any]:
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': content_type,
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': body,
+        'isBase64Encoded': False
+    }
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -55,11 +66,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         
         token_url = 'https://oauth.yandex.ru/token'
+        redirect_uri = os.environ.get('YANDEX_OAUTH_REDIRECT_URI', DEFAULT_REDIRECT_URI)
         token_data = {
             'grant_type': 'authorization_code',
             'code': code,
             'client_id': client_id,
-            'client_secret': client_secret
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri
         }
         
         print(f'[YANDEX_OAUTH] Exchanging code for token...')
@@ -68,12 +81,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         if token_response.status_code != 200:
             print(f'[YANDEX_OAUTH] Token exchange failed: {token_response.text}')
-            return {
-                'statusCode': token_response.status_code,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': f'Token exchange failed: {token_response.text}'}),
-                'isBase64Encoded': False
-            }
+            error_html = f'''
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head><meta charset="utf-8"><title>Ошибка авторизации</title></head>
+            <body>
+                <script>
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            type: 'yandex_oauth_error',
+                            error: {json.dumps(token_response.text)}
+                        }}, '*');
+                    }}
+                </script>
+                <h2>Не удалось авторизоваться в Яндексе</h2>
+                <p>Закройте окно и попробуйте ещё раз.</p>
+            </body>
+            </html>
+            '''
+            return response(token_response.status_code, error_html, 'text/html')
         
         token_data_response = token_response.json()
         access_token = token_data_response.get('access_token')
@@ -89,56 +115,66 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             info_data = info_response.json()
             yandex_login = info_data.get('login')
         
-        user_id = state if state else yandex_login
+        print(f'[YANDEX_OAUTH] Token received, login: {yandex_login}, state: {state}')
         
-        if not user_id:
-            return {
-                'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'User ID not found'}),
-                'isBase64Encoded': False
-            }
-        
-        dsn = os.environ.get('MY_DATABASE_URL')
-        conn = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
-        cur = conn.cursor()
-        
-        expires_at = datetime.now() + timedelta(seconds=expires_in)
-        
-        cur.execute(
-            """
-            INSERT INTO yandex_tokens (user_id, access_token, refresh_token, expires_at, yandex_login, updated_at)
-            VALUES (%s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (user_id) 
-            DO UPDATE SET 
-                access_token = EXCLUDED.access_token,
-                refresh_token = EXCLUDED.refresh_token,
-                expires_at = EXCLUDED.expires_at,
-                yandex_login = EXCLUDED.yandex_login,
-                updated_at = NOW()
-            """,
-            (user_id, access_token, refresh_token, expires_at, yandex_login)
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        print(f'[YANDEX_OAUTH] Token saved for user: {user_id}, login: {yandex_login}')
-        
-        # Возвращаем HTML страницу которая закроет popup
-        success_html = '''
+        success_html = f'''
         <!DOCTYPE html>
-        <html>
-        <head><title>Авторизация успешна</title></head>
+        <html lang="ru">
+        <head>
+            <meta charset="utf-8">
+            <title>Авторизация успешна</title>
+            <style>
+                body {{
+                    margin: 0;
+                    min-height: 100vh;
+                    display: grid;
+                    place-items: center;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                    color: #0f172a;
+                    background: #f8fafc;
+                }}
+                .card {{
+                    max-width: 420px;
+                    padding: 32px;
+                    border: 1px solid #dbe5ee;
+                    border-radius: 24px;
+                    background: white;
+                    text-align: center;
+                    box-shadow: 0 18px 60px rgba(15, 23, 42, .08);
+                }}
+                .icon {{
+                    width: 56px;
+                    height: 56px;
+                    margin: 0 auto 16px;
+                    border-radius: 18px;
+                    background: #16a34a;
+                    color: white;
+                    display: grid;
+                    place-items: center;
+                    font-size: 30px;
+                }}
+            </style>
+        </head>
         <body>
-            <h2>✅ Авторизация успешна!</h2>
-            <p>Можете закрыть это окно</p>
+            <div class="card">
+                <div class="icon">✓</div>
+                <h2>Авторизация успешна</h2>
+                <p>Возвращаем доступ в DirectKit.</p>
+            </div>
             <script>
-                if (window.opener) {
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'yandex_oauth_token',
+                        token: {json.dumps(access_token)},
+                        refreshToken: {json.dumps(refresh_token)},
+                        expiresIn: {json.dumps(expires_in)},
+                        yandexLogin: {json.dumps(yandex_login)},
+                        state: {json.dumps(state)}
+                    }}, '*');
                     window.close();
-                } else {
+                }} else {{
                     setTimeout(() => window.close(), 2000);
-                }
+                }}
             </script>
         </body>
         </html>
@@ -183,11 +219,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'isBase64Encoded': False
                 }
             
-            redirect_uri = 'https://functions.yandexcloud.net/d4evvvtl510ma4bh4iq5'
+            redirect_uri = os.environ.get('YANDEX_OAUTH_REDIRECT_URI', DEFAULT_REDIRECT_URI)
             # Запрашиваем только доступ к Директу: для представителя лишние scope могут
             # привести к unauthorized_client еще до проверки прав в Яндекс.Директе.
             scope = 'direct:api'
-            auth_url = f'https://oauth.yandex.ru/authorize?response_type=code&client_id={client_id}&scope={scope}&state={user_id}'
+            auth_url = 'https://oauth.yandex.ru/authorize?' + urlencode({
+                'response_type': 'code',
+                'client_id': client_id,
+                'scope': scope,
+                'state': user_id,
+                'redirect_uri': redirect_uri,
+                'force_confirm': 'yes'
+            })
             
             return {
                 'statusCode': 200,
@@ -196,37 +239,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'isBase64Encoded': False
             }
         
-        dsn = os.environ.get('MY_DATABASE_URL')
-        conn = psycopg2.connect(dsn, cursor_factory=RealDictCursor)
-        cur = conn.cursor()
-        
-        cur.execute(
-            "SELECT * FROM yandex_tokens WHERE user_id = %s",
-            (user_id,)
-        )
-        token_record = cur.fetchone()
-        cur.close()
-        conn.close()
-        
-        if not token_record:
-            return {
-                'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': 'Token not found', 'connected': False}),
-                'isBase64Encoded': False
-            }
-        
-        return {
-            'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({
-                'connected': True,
-                'access_token': token_record['access_token'],
-                'yandex_login': token_record['yandex_login'],
-                'expires_at': token_record['expires_at'].isoformat() if token_record['expires_at'] else None
-            }),
-            'isBase64Encoded': False
-        }
+        return response(400, json.dumps({'error': 'Unsupported action'}))
     
     return {
         'statusCode': 405,

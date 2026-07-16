@@ -7,16 +7,15 @@
       "expectedStatus": 200
     },
     {
-      "name": "POST проверка статуса подключения",
+      "name": "POST неизвестное действие",
       "method": "POST",
       "headers": {
         "X-User-Id": "test_user_123"
       },
       "body": {},
-      "expectedStatus": 404,
+      "expectedStatus": 400,
       "expectedBody": {
-        "error": "Token not found",
-        "connected": false
+        "error": "Unsupported action"
       }
     }
   ]

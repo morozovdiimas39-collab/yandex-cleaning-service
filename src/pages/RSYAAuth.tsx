@@ -10,7 +10,7 @@ import { BACKEND_URLS } from '@/config/backend-urls';
 
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
 const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'];
-const YANDEX_CLIENT_ID = 'fa264103fca547b7baa436de1a416fbe';
+const YANDEX_OAUTH_URL = BACKEND_URLS['yandex-oauth'];
 
 const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'new'}`;
 
@@ -49,8 +49,15 @@ export default function RSYAAuth() {
           setYandexToken(token);
           setAccessCheck(null);
           setShowAuthFields(true);
-          toast({ title: '✅ Токен получен из Яндекса!' });
+          toast({ title: '✅ Авторизация Яндекса получена' });
         }
+      } else if (event.data?.type === 'yandex_oauth_error') {
+        setShowAuthFields(true);
+        toast({
+          title: 'Не удалось авторизоваться в Яндексе',
+          description: String(event.data.error || '').slice(0, 180),
+          variant: 'destructive'
+        });
       }
     };
 
@@ -154,14 +161,44 @@ export default function RSYAAuth() {
     }
   };
 
-  const openYandexOAuth = () => {
+  const openYandexOAuth = async () => {
     setShowAuthFields(true);
+    if (!YANDEX_OAUTH_URL) {
+      toast({ title: 'OAuth-функция не настроена', variant: 'destructive' });
+      return;
+    }
+
+    let authUrl = '';
+    try {
+      const response = await fetch(YANDEX_OAUTH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': userId
+        },
+        body: JSON.stringify({
+          action: 'auth-url',
+          project_id: projectId ? parseInt(projectId) : null
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.auth_url) {
+        throw new Error(data?.error || 'Не удалось подготовить авторизацию');
+      }
+      authUrl = data.auth_url;
+    } catch (error: any) {
+      toast({
+        title: 'Не удалось открыть авторизацию',
+        description: error.message,
+        variant: 'destructive'
+      });
+      return;
+    }
+
     const width = 600;
     const height = 700;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    const scope = encodeURIComponent('direct:api');
-    const authUrl = `https://oauth.yandex.ru/authorize?response_type=token&client_id=${YANDEX_CLIENT_ID}&scope=${scope}`;
 
     window.open(
       authUrl,

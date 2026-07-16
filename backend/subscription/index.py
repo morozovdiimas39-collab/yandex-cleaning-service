@@ -91,6 +91,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
                 return {
                     'userId': str(row['id']),
+                    'email': row.get('email', ''),
                     'phone': row.get('phone', ''),
                     'planType': sub_plan or 'free',
                     'status': row.get('status') or ('active' if has_access else 'none'),
@@ -105,12 +106,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 offset = int(query_params.get('offset', 0))
                 # Список всех пользователей из users + подписка (схема обязательна)
                 cur.execute(
-                    f"""SELECT u.id, u.phone, u.created_at,
+                    f"""SELECT u.id, u.phone, u.created_at, a.email,
                               s.user_id AS sub_user_id, s.plan_type, s.status,
                               s.trial_started_at, s.trial_ends_at,
                               s.subscription_started_at, s.subscription_ends_at,
                               s.created_at AS sub_created_at
                        FROM {SCHEMA}.users u
+                       LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
                        LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
                        ORDER BY u.created_at DESC
                        LIMIT %s OFFSET %s""",
@@ -145,16 +147,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
 
                 cur.execute(
-                    f"""SELECT u.id, u.phone, u.created_at,
+                    f"""SELECT u.id, u.phone, u.created_at, a.email,
                               s.user_id AS sub_user_id, s.plan_type, s.status,
                               s.trial_started_at, s.trial_ends_at,
                               s.subscription_started_at, s.subscription_ends_at,
                               s.is_infinite, s.created_at AS sub_created_at
                        FROM {SCHEMA}.users u
+                       LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
                        LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
-                       WHERE CAST(u.id AS TEXT) = %s OR u.phone = %s
+                       WHERE CAST(u.id AS TEXT) = %s OR u.phone = %s OR LOWER(a.email) = LOWER(%s)
                        LIMIT 1""",
-                    (target_user_id, target_user_id)
+                    (target_user_id, target_user_id, target_user_id)
                 )
                 row = cur.fetchone()
 

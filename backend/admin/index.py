@@ -339,6 +339,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 SELECT 
                     u.id,
                     u.phone,
+                    a.email,
                     u.is_verified,
                     u.created_at,
                     u.last_login_at,
@@ -350,6 +351,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     s.is_infinite,
                     s.allowed_services
                 FROM """ + SCHEMA + """.users u
+                LEFT JOIN """ + SCHEMA + """.user_email_auth a ON a.user_id = u.id
                 LEFT JOIN """ + SCHEMA + """.subscriptions s ON u.id::text = s.user_id
                 ORDER BY u.created_at DESC
             """)
@@ -377,6 +379,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 result.append({
                     'id': user['id'],
+                    'email': user['email'],
                     'phone': user['phone'],
                     'isVerified': user['is_verified'],
                     'isAdmin': user['is_admin'],
@@ -1678,10 +1681,28 @@ def delete_project(cur, conn, project_id: int):
     
     stats = {
         'tasks': 0,
+        'block_queue': 0,
         'execution_logs': 0,
         'blocking_logs': 0,
-        'campaign_batches': 0
+        'campaign_batches': 0,
+        'platform_stats': 0,
+        'campaigns': 0,
+        'goals': 0,
+        'schedule': 0,
+        'pending_reports': 0,
+        'campaign_locks': 0
     }
+
+    cur.execute("SELECT id FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s", (project_id,))
+    if not cur.fetchone():
+        return {
+            'success': False,
+            'message': f'Проект #{project_id} не найден',
+            'deleted': stats
+        }
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.block_queue WHERE project_id = %s", (project_id,))
+    stats['block_queue'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs WHERE project_id = %s", (project_id,))
     stats['blocking_logs'] = cur.rowcount
@@ -1691,9 +1712,27 @@ def delete_project(cur, conn, project_id: int):
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE project_id = %s", (project_id,))
     stats['campaign_batches'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s", (project_id,))
+    stats['campaign_locks'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE project_id = %s", (project_id,))
     stats['tasks'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_platform_stats WHERE project_id = %s", (project_id,))
+    stats['platform_stats'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaigns WHERE project_id = %s", (project_id,))
+    stats['campaigns'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_goals WHERE project_id = %s", (project_id,))
+    stats['goals'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_project_schedule WHERE project_id = %s", (project_id,))
+    stats['schedule'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_pending_reports WHERE project_id = %s", (project_id,))
+    stats['pending_reports'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_projects WHERE id = %s", (project_id,))
     
@@ -1712,14 +1751,33 @@ def delete_task(cur, conn, task_id: int):
     stats = {
         'execution_logs': 0,
         'blocking_logs': 0,
-        'campaign_batches': 0
+        'campaign_batches': 0,
+        'campaign_locks': 0
     }
+
+    cur.execute("SELECT id, project_id FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s", (task_id,))
+    task = cur.fetchone()
+    if not task:
+        return {
+            'success': False,
+            'message': f'Задача #{task_id} не найдена',
+            'deleted': stats
+        }
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_blocking_logs WHERE task_id = %s", (task_id,))
     stats['blocking_logs'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs WHERE task_id = %s", (task_id,))
     stats['execution_logs'] = cur.rowcount
+
+    cur.execute(
+        "DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches WHERE project_id = %s AND status IN ('pending', 'processing')",
+        (task['project_id'],)
+    )
+    stats['campaign_batches'] = cur.rowcount
+
+    cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_locks WHERE project_id = %s", (task['project_id'],))
+    stats['campaign_locks'] = cur.rowcount
     
     cur.execute("DELETE FROM t_p97630513_yandex_cleaning_serv.rsya_tasks WHERE id = %s", (task_id,))
     

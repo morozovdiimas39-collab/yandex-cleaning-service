@@ -28,6 +28,8 @@ type ViewMode = 'projects' | 'project-detail' | 'task-detail' | 'execution-detai
 interface Project {
   id: number;
   user_id: string;
+  user_email?: string | null;
+  user_phone?: string | null;
   name: string;
   client_login: string | null;
   is_configured: boolean;
@@ -64,6 +66,10 @@ const formatDateTime = (value?: string | null) => (
 );
 
 const formatNumber = (value: number | string | null | undefined) => Number(value || 0).toLocaleString('ru-RU');
+
+const getUserContact = (item: { user_id?: string | number | null; user_email?: string | null; user_phone?: string | null }) => {
+  return item.user_email || item.user_phone || (item.user_id ? `ID: ${item.user_id}` : 'Пользователь не указан');
+};
 
 const getBatchBadgeClass = (status?: string | null) => {
   if (status === 'completed') return 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100';
@@ -308,6 +314,8 @@ const RSYACleaningDashboard = () => {
     const taskNames = (p.task_names || []).join(' ').toLowerCase();
     const matchesSearch = p.name.toLowerCase().includes(query) ||
                           (p.client_login && p.client_login.toLowerCase().includes(query)) ||
+                          (p.user_email && p.user_email.toLowerCase().includes(query)) ||
+                          (p.user_phone && p.user_phone.toLowerCase().includes(query)) ||
                           taskNames.includes(query) ||
                           String(p.id).includes(query) ||
                           String(p.user_id).includes(query);
@@ -414,7 +422,7 @@ const RSYACleaningDashboard = () => {
                               <div key={proj.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => loadProjectDetail(proj.id)}>
                                 <div>
                                   <div className="font-medium">{proj.name}</div>
-                                  <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                                  <div className="text-xs text-muted-foreground">{getUserContact(proj)}</div>
                                 </div>
                                 <div className="text-right">
                                   <div className="text-lg font-bold text-blue-600">{proj.executions}</div>
@@ -440,7 +448,7 @@ const RSYACleaningDashboard = () => {
                               <div key={proj.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => loadProjectDetail(proj.id)}>
                                 <div>
                                   <div className="font-medium">{proj.name}</div>
-                                  <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                                  <div className="text-xs text-muted-foreground">{getUserContact(proj)}</div>
                                 </div>
                                 <div className="text-right">
                                   <div className="text-lg font-bold text-red-600">{proj.total_blocked}</div>
@@ -470,7 +478,7 @@ const RSYACleaningDashboard = () => {
                             <div key={proj.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100" onClick={() => loadProjectDetail(proj.id)}>
                               <div>
                                 <div className="font-medium">{proj.name}</div>
-                                <div className="text-xs text-muted-foreground">User: {proj.user_id}</div>
+                                <div className="text-xs text-muted-foreground">{getUserContact(proj)}</div>
                               </div>
                               <div className="text-right">
                                 <div className="text-lg font-bold text-orange-600">{proj.errors} ошибок</div>
@@ -537,7 +545,7 @@ const RSYACleaningDashboard = () => {
                 <div className="relative flex-1">
                   <Icon name="Search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <Input
-                    placeholder="Поиск по проекту, задаче, логину, ID пользователя..."
+                    placeholder="Поиск по проекту, задаче, email, телефону, логину, ID..."
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
@@ -621,8 +629,9 @@ const RSYACleaningDashboard = () => {
                                 </div>
                               </TableCell>
                               <TableCell className="align-top">
-                                <div className="text-sm text-slate-700">{project.client_login || 'Client-Login не указан'}</div>
-                                <div className="mt-1 text-xs text-slate-400">User ID: {project.user_id}</div>
+                                <div className="text-sm font-medium text-slate-800">{getUserContact(project)}</div>
+                                <div className="mt-1 text-xs text-slate-400">ID: {project.user_id}</div>
+                                <div className="mt-1 text-xs text-slate-500">{project.client_login || 'Client-Login не указан'}</div>
                               </TableCell>
                               <TableCell className="text-center">
                                 <Badge className={project.active_tasks_count > 0 ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-100'}>
@@ -727,7 +736,7 @@ const RSYACleaningDashboard = () => {
                   </div>
                   <h1 className="text-3xl font-bold text-slate-950">{projectDetail.project_info.name}</h1>
                   <p className="mt-1 text-sm text-slate-500">
-                    User ID: {projectDetail.project_info.user_id} · Client-Login: {projectDetail.project_info.client_login || 'не указан'}
+                    {getUserContact(projectDetail.project_info)} · ID: {projectDetail.project_info.user_id} · Client-Login: {projectDetail.project_info.client_login || 'не указан'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

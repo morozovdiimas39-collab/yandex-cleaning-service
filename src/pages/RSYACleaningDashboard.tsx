@@ -126,6 +126,8 @@ const RSYACleaningDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null);
   const [error, setError] = useState<string>('');
 
   const ITEMS_PER_PAGE = 20;
@@ -218,6 +220,62 @@ const RSYACleaningDashboard = () => {
       setError(err.message || 'Ошибка загрузки деталей выполнения');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteProject = async (projectId: number, projectName: string) => {
+    const confirmed = window.confirm(
+      `Удалить проект "${projectName}" (#${projectId})?\n\nБудут удалены проект, задачи, расписание, батчи и логи чистки. Действие нельзя отменить.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingProjectId(projectId);
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=delete_project&project_id=${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+      alert(data.message || 'Проект удален');
+      setProjectDetail(null);
+      setSelectedProjectId(null);
+      setViewMode('projects');
+      await Promise.all([loadProjects(), loadDashboardStats()]);
+    } catch (err: any) {
+      alert(`Не удалось удалить проект: ${err.message || err}`);
+    } finally {
+      setDeletingProjectId(null);
+    }
+  };
+
+  const deleteTask = async (taskId: number, taskDescription: string) => {
+    const confirmed = window.confirm(
+      `Удалить задачу "${taskDescription}" (t${taskId})?\n\nБудут удалены задача, связанные логи и активные батчи проекта. Действие нельзя отменить.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingTaskId(taskId);
+      const response = await adminFetch(`${BACKEND_URLS.admin}?action=delete_task&task_id=${taskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+      alert(data.message || 'Задача удалена');
+      if (selectedProjectId) {
+        await loadProjectDetail(selectedProjectId);
+      }
+      await Promise.all([loadProjects(), loadDashboardStats()]);
+    } catch (err: any) {
+      alert(`Не удалось удалить задачу: ${err.message || err}`);
+    } finally {
+      setDeletingTaskId(null);
     }
   };
 
@@ -529,6 +587,7 @@ const RSYACleaningDashboard = () => {
 	                            <TableHead>Следующий запуск</TableHead>
 	                            <TableHead>Батч</TableHead>
 	                            <TableHead className="text-center">Статус</TableHead>
+	                            <TableHead className="w-[88px] text-right">Удалить</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -597,6 +656,21 @@ const RSYACleaningDashboard = () => {
                                   <Badge variant="secondary">Неактивен</Badge>
                                 )}
                               </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  disabled={deletingProjectId === project.id}
+                                  title="Удалить проект"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    deleteProject(project.id, project.name);
+                                  }}
+                                >
+                                  {deletingProjectId === project.id ? <Icon name="Loader2" size={16} className="animate-spin" /> : <Icon name="Trash2" size={16} />}
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -656,10 +730,21 @@ const RSYACleaningDashboard = () => {
                     User ID: {projectDetail.project_info.user_id} · Client-Login: {projectDetail.project_info.client_login || 'не указан'}
                   </p>
                 </div>
-                <Button variant="outline" onClick={() => loadProjectDetail(projectDetail.project_info.id)}>
-                  <Icon name="RefreshCw" size={16} className="mr-2" />
-                  Обновить проект
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => loadProjectDetail(projectDetail.project_info.id)}>
+                    <Icon name="RefreshCw" size={16} className="mr-2" />
+                    Обновить проект
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                    disabled={deletingProjectId === projectDetail.project_info.id}
+                    onClick={() => deleteProject(projectDetail.project_info.id, projectDetail.project_info.name)}
+                  >
+                    {deletingProjectId === projectDetail.project_info.id ? <Icon name="Loader2" size={16} className="mr-2 animate-spin" /> : <Icon name="Trash2" size={16} className="mr-2" />}
+                    Удалить проект
+                  </Button>
+                </div>
               </div>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6">
@@ -757,6 +842,7 @@ const RSYACleaningDashboard = () => {
                           <TableHead className="text-right">Заблокировано</TableHead>
                           <TableHead className="text-right">Ошибок</TableHead>
                           <TableHead>Последний запуск</TableHead>
+                          <TableHead className="w-[88px] text-right">Удалить</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -804,6 +890,21 @@ const RSYACleaningDashboard = () => {
                                   ? formatDateTime(task.last_executed_at)
                                   : <span className="text-muted-foreground">Нет запусков</span>
                                 }
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  disabled={deletingTaskId === task.id}
+                                  title="Удалить задачу"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    deleteTask(task.id, task.description);
+                                  }}
+                                >
+                                  {deletingTaskId === task.id ? <Icon name="Loader2" size={16} className="animate-spin" /> : <Icon name="Trash2" size={16} />}
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );

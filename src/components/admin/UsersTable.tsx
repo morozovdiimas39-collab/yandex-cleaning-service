@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Icon from '@/components/ui/icon';
 
-interface User { userId: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
 interface Props { users: User[]; onUpdateUser: (userId: string, planType: string, days: number) => void; onDeleteUser: (userId: string) => void; }
 
 const formatDate = (value?: string | null) => {
@@ -27,8 +27,10 @@ export default function UsersTable({ users, onUpdateUser, onDeleteUser }: Props)
           {users.map((user) => {
             const isEditing = editingUser === user.userId;
             const active = user.status === 'active' || user.hasAccess;
+            const primaryContact = user.email || user.phone || 'Контакт не указан';
+            const secondaryContact = user.email && user.phone ? user.phone : null;
             return <tr key={user.userId} className="transition-colors hover:bg-slate-50/70">
-              <td className="px-5 py-4"><div className="font-medium text-slate-950">{user.phone || 'Телефон не указан'}</div><div className="mt-1 max-w-[250px] truncate font-mono text-xs text-slate-400" title={user.userId}>{user.userId}</div></td>
+              <td className="px-5 py-4"><div className="font-medium text-slate-950">{primaryContact}</div>{secondaryContact && <div className="mt-1 text-xs text-slate-500">{secondaryContact}</div>}<div className="mt-1 max-w-[250px] truncate font-mono text-xs text-slate-400" title={user.userId}>ID: {user.userId}</div></td>
               <td className="px-5 py-4">{isEditing ? <select className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm" value={editData.planType} onChange={(e) => setEditData({ ...editData, planType: e.target.value })}><option value="trial">Trial</option><option value="monthly">Monthly</option></select> : <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{user.planType === 'monthly' ? 'Monthly' : user.planType === 'trial' ? 'Trial' : 'Без тарифа'}</span>}</td>
               <td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 text-sm font-medium ${active ? 'text-emerald-700' : 'text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-300'}`} />{active ? 'Активен' : 'Нет доступа'}</span></td>
               <td className="px-5 py-4 text-sm tabular-nums text-slate-600">{formatDate(user.expiresAt)}</td>

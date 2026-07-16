@@ -7,7 +7,7 @@ import AdminShell from '@/components/layout/AdminShell';
 import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
 
-interface User { userId: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
 interface Stats { total: number; activeTrial: number; activeMonthly: number; newToday: number; expiringWeek: number; }
 interface AdminOverview {
   overview: { totalProjects: number; activeProjects: number; totalTasks: number; activeTasks: number; totalUsers: number; totalClusteringProjects: number; totalWordstatTasks: number; totalBlockQueue: number; };
@@ -98,7 +98,7 @@ export default function AdminPage() {
     return [...users]
       .filter((user) => filterStatus === 'all' || user.status === filterStatus)
       .filter((user) => filterPlan === 'all' || user.planType === filterPlan)
-      .filter((user) => !query || user.userId.toLowerCase().includes(query) || (user.phone || '').toLowerCase().includes(query))
+      .filter((user) => !query || user.userId.toLowerCase().includes(query) || (user.email || '').toLowerCase().includes(query) || (user.phone || '').toLowerCase().includes(query))
       .sort((a, b) => {
         const left = String(a[sortBy as keyof User] || '');
         const right = String(b[sortBy as keyof User] || '');

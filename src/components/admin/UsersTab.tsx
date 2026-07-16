@@ -4,7 +4,7 @@ import Icon from '@/components/ui/icon';
 import UsersTable from './UsersTable';
 import UsersFilters from './UsersFilters';
 
-interface User { userId: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
 interface Props {
   users: User[]; total: number; loading: boolean; loadingMore: boolean; hasMore: boolean;
   filterStatus: string; filterPlan: string; sortBy: string; sortOrder: 'asc' | 'desc';
@@ -25,7 +25,7 @@ export default function UsersTab(props: Props) {
         <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-end">
           <div className="relative flex-1">
             <Icon name="Search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input value={props.searchQuery} onChange={(e) => props.onSearchChange(e.target.value)} placeholder="Найти по телефону или ID" className="h-11 pl-10" />
+            <Input value={props.searchQuery} onChange={(e) => props.onSearchChange(e.target.value)} placeholder="Найти по email, телефону или ID" className="h-11 pl-10" />
           </div>
           <UsersFilters filterStatus={props.filterStatus} filterPlan={props.filterPlan} sortBy={props.sortBy} sortOrder={props.sortOrder} onFilterChange={props.onFilterChange} />
         </div>

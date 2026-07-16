@@ -230,7 +230,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({'success': True, 'userId': target_user_id})
                 }
             
-            # DELETE admin_delete - удалить подписку
+            # DELETE admin_delete - удалить пользователя и связанные пользовательские данные
             if method == 'DELETE' and query_params.get('action') == 'admin_delete':
                 target_user_id = query_params.get('userId')
                 
@@ -240,14 +240,128 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                         'body': json.dumps({'error': 'userId required'})
                     }
-                
+
+                try:
+                    target_user_id_int = int(target_user_id)
+                except Exception:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Invalid userId'})
+                    }
+
+                cur.execute(f"SELECT id FROM {SCHEMA}.users WHERE id = %s", (target_user_id_int,))
+                if not cur.fetchone():
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'User not found'})
+                    }
+
+                stats = {}
+
+                cur.execute(f"SELECT id FROM {SCHEMA}.rsya_projects WHERE user_id = %s", (target_user_id_int,))
+                project_ids = [row['id'] for row in cur.fetchall()]
+
+                if project_ids:
+                    cur.execute(
+                        f"""DELETE FROM {SCHEMA}.task_history
+                           WHERE task_id IN (
+                             SELECT id FROM {SCHEMA}.rsya_tasks WHERE project_id = ANY(%s)
+                           )""",
+                        (project_ids,)
+                    )
+                    stats['task_history'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.block_queue WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['block_queue'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_campaign_locks WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_campaign_locks'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_pending_reports WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_pending_reports'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_project_schedule WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_project_schedule'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_goals WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_goals'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_campaigns WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_campaigns'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_platform_stats WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_platform_stats'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_campaign_batches WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_campaign_batches'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_cleaning_execution_logs WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_cleaning_execution_logs'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_blocking_logs WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_blocking_logs'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.task_processing_status WHERE task_id IN (SELECT id FROM {SCHEMA}.rsya_tasks WHERE project_id = ANY(%s))", (project_ids,))
+                    stats['task_processing_status'] = cur.rowcount
+
+                    cur.execute(f"DELETE FROM {SCHEMA}.rsya_tasks WHERE project_id = ANY(%s)", (project_ids,))
+                    stats['rsya_tasks'] = cur.rowcount
+                else:
+                    stats.update({
+                        'task_history': 0,
+                        'block_queue': 0,
+                        'rsya_campaign_locks': 0,
+                        'rsya_pending_reports': 0,
+                        'rsya_project_schedule': 0,
+                        'rsya_goals': 0,
+                        'rsya_campaigns': 0,
+                        'rsya_platform_stats': 0,
+                        'rsya_campaign_batches': 0,
+                        'rsya_cleaning_execution_logs': 0,
+                        'rsya_blocking_logs': 0,
+                        'task_processing_status': 0,
+                        'rsya_tasks': 0,
+                    })
+
+                cur.execute(f"DELETE FROM {SCHEMA}.rsya_projects WHERE user_id = %s", (target_user_id_int,))
+                stats['rsya_projects'] = cur.rowcount
+
+                cur.execute(f"SELECT id FROM {SCHEMA}.clustering_projects WHERE user_id = %s", (target_user_id_int,))
+                clustering_project_ids = [row['id'] for row in cur.fetchall()]
+                if clustering_project_ids:
+                    cur.execute(f"DELETE FROM {SCHEMA}.clustering_results WHERE project_id = ANY(%s)", (clustering_project_ids,))
+                    stats['clustering_results'] = cur.rowcount
+                else:
+                    stats['clustering_results'] = 0
+                cur.execute(f"DELETE FROM {SCHEMA}.clustering_projects WHERE user_id = %s", (target_user_id_int,))
+                stats['clustering_projects'] = cur.rowcount
+
+                cur.execute(f"DELETE FROM {SCHEMA}.wordstat_tasks WHERE user_id = %s", (target_user_id_int,))
+                stats['wordstat_tasks'] = cur.rowcount
+
+                cur.execute(f"DELETE FROM {SCHEMA}.referrals WHERE referred_user_id = %s", (target_user_id_int,))
+                stats['referrals'] = cur.rowcount
+
+                cur.execute(f"DELETE FROM {SCHEMA}.partners WHERE user_id = %s", (target_user_id_int,))
+                stats['partners'] = cur.rowcount
+
                 cur.execute(f"DELETE FROM {SCHEMA}.subscriptions WHERE user_id = %s", (target_user_id,))
+                stats['subscriptions'] = cur.rowcount
+
+                cur.execute(f"DELETE FROM {SCHEMA}.user_email_auth WHERE user_id = %s", (target_user_id_int,))
+                stats['user_email_auth'] = cur.rowcount
+
+                cur.execute(f"DELETE FROM {SCHEMA}.users WHERE id = %s", (target_user_id_int,))
+                stats['users'] = cur.rowcount
+
                 conn.commit()
                 
                 return {
                     'statusCode': 200,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'success': True})
+                    'body': json.dumps({'success': True, 'deleted': stats})
                 }
             
             # GET admin_affiliates - статистика партнеров

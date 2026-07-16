@@ -943,6 +943,8 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
         SELECT 
             p.id,
             p.user_id,
+            u.phone as user_phone,
+            a.email as user_email,
             p.name,
             p.client_login,
             p.is_configured,
@@ -963,6 +965,8 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
             lb.completed_at as last_batch_completed_at,
             lb.processing_time_sec as last_batch_processing_time_sec
         FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON u.id = p.user_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.user_email_auth a ON a.user_id = p.user_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_project_schedule s ON s.project_id = p.id
@@ -973,7 +977,7 @@ def get_rsya_projects(cur) -> Dict[str, Any]:
             ORDER BY b.created_at DESC
             LIMIT 1
         ) lb ON true
-        GROUP BY p.id, p.user_id, p.name, p.client_login, p.is_configured,
+        GROUP BY p.id, p.user_id, u.phone, a.email, p.name, p.client_login, p.is_configured,
                  s.next_run_at, s.last_run_at, s.interval_hours, s.is_active,
                  lb.status, lb.completed_at, lb.processing_time_sec
         ORDER BY p.id DESC
@@ -991,6 +995,8 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
     cur.execute("""
         SELECT 
             p.*,
+            u.phone as user_phone,
+            a.email as user_email,
             COUNT(DISTINCT t.id) as tasks_count,
             COUNT(DISTINCT CASE WHEN t.enabled THEN t.id END) as active_tasks_count,
             COUNT(DISTINCT l.id) as total_executions,
@@ -1006,6 +1012,8 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
             lb.processing_time_sec as last_batch_processing_time_sec,
             lb.error_message as last_batch_error
         FROM t_p97630513_yandex_cleaning_serv.rsya_projects p
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.users u ON u.id = p.user_id
+        LEFT JOIN t_p97630513_yandex_cleaning_serv.user_email_auth a ON a.user_id = p.user_id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_tasks t ON t.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_cleaning_execution_logs l ON l.project_id = p.id
         LEFT JOIN t_p97630513_yandex_cleaning_serv.rsya_project_schedule s ON s.project_id = p.id
@@ -1017,7 +1025,7 @@ def get_rsya_project_detail(cur, project_id: int) -> Dict[str, Any]:
             LIMIT 1
         ) lb ON true
         WHERE p.id = %s
-        GROUP BY p.id, s.next_run_at, s.last_run_at, s.interval_hours, s.is_active,
+        GROUP BY p.id, u.phone, a.email, s.next_run_at, s.last_run_at, s.interval_hours, s.is_active,
                  lb.status, lb.started_at, lb.completed_at, lb.processing_time_sec, lb.error_message
     """, (project_id,))
     

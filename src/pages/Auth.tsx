@@ -187,7 +187,7 @@ export default function Auth() {
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center">
         <div className="grid w-full items-center gap-8 lg:grid-cols-[1fr_440px]">
           <div className="hidden lg:block">
-            <Link to="/" className="mb-10 inline-flex items-center gap-3 text-slate-700 hover:text-slate-950">
+            <Link to="/" className="mb-6 inline-flex items-center gap-3 text-slate-700 hover:text-slate-950">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
                 <Icon name="ShieldCheck" size={22} />
               </div>
@@ -198,14 +198,14 @@ export default function Auth() {
             </Link>
 
             <div className="max-w-xl">
-              <div className="mb-5 inline-flex rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+              <div className="mb-3 inline-flex rounded-full bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
                 Закрытый бета-тест
               </div>
               <h1 className="text-5xl font-bold leading-tight tracking-normal text-slate-950">
                 Вход в сервис автоматической чистки площадок
               </h1>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                Регистрируйтесь по почте, подтверждайте кодом и подключайте проекты без SMS и ручной выдачи доступа.
+                DirectKit автоматически находит слабые площадки РСЯ, проверяет их по заданным правилам и помогает не сливать бюджет на некачественный трафик.
               </p>
             </div>
           </div>

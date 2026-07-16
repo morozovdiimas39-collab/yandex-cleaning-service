@@ -7,8 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 const menuItems = [
   { icon: 'ShieldCheck', label: 'Чистка площадок', path: '/rsya' },
   { icon: 'LifeBuoy', label: 'Получить помощь', href: 'https://t.me/mooz26' },
-  { icon: 'Headphones', label: 'Поддержка', href: 'mailto:support@directkit.ru' },
-  { icon: 'Send', label: 'Мой Telegram', href: 'https://t.me/mooz26' },
   { icon: 'UserRound', label: 'Профиль', path: '/profile' },
 ];
 

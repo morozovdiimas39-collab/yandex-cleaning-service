@@ -23,18 +23,18 @@ def extract_campaign_counter_ids(campaign: Dict[str, Any]) -> List[str]:
         if normalized and normalized not in counter_ids:
             counter_ids.append(normalized)
 
-    add_values(campaign.get('CounterIds'))
-    for field_name in (
-        'TextCampaign',
-        'DynamicTextCampaign',
-        'SmartCampaign',
-        'UnifiedCampaign',
-        'CpmBannerCampaign',
-        'MobileAppCampaign',
-    ):
-        nested = campaign.get(field_name)
-        if isinstance(nested, dict):
-            add_values(nested.get('CounterIds'))
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            if 'CounterIds' in value:
+                add_values(value.get('CounterIds'))
+            for nested_value in value.values():
+                walk(nested_value)
+            return
+        if isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(campaign)
 
     return counter_ids
 

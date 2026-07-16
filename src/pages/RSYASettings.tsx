@@ -90,6 +90,24 @@ const buildCountersFromCampaigns = (campaigns: Campaign[], campaignIds?: string[
   return Array.from(countersById.values());
 };
 
+const enrichDirectCountersWithMetrikaNames = (
+  directCounters: Counter[],
+  metrikaCounters: Counter[]
+): Counter[] => {
+  const metrikaById = new Map(metrikaCounters.map((counter) => [String(counter.id), counter]));
+
+  return directCounters.map((counter) => {
+    const metrikaCounter = metrikaById.get(String(counter.id));
+    if (!metrikaCounter) return counter;
+
+    return {
+      ...counter,
+      name: metrikaCounter.name || metrikaCounter.site || counter.name,
+      site: metrikaCounter.site || counter.site
+    };
+  });
+};
+
 export default function RSYASettings() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -146,6 +164,7 @@ export default function RSYASettings() {
       const token = projectData.project.yandex_token || authDraft.yandex_token;
       const clientLogin = projectData.project.client_login || authDraft.client_login || '';
       setActiveClientLogin(clientLogin);
+      setSelectedCounters(new Set(projectData.project.counter_ids || []));
       
       if (!token) {
         toast({ title: 'Нет токена Яндекса', variant: 'destructive' });
@@ -154,17 +173,13 @@ export default function RSYASettings() {
       }
 
       let loadedCampaigns: Campaign[] = [];
-      const savedCampaignIds = projectData.project.campaign_ids || [];
 
-      const [campaignsRes, countersRes] = await Promise.all([
-        fetch(YANDEX_DIRECT_URL, {
-          headers: {
-            'X-Auth-Token': token,
-            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
-          }
-        }),
-        fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
-      ]);
+      const campaignsRes = await fetch(YANDEX_DIRECT_URL, {
+        headers: {
+          'X-Auth-Token': token,
+          ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+        }
+      });
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
@@ -187,23 +202,6 @@ export default function RSYASettings() {
         setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
       }
 
-      if (countersRes.ok) {
-        const data = await countersRes.json();
-        const metrikaCounters = data.counters || [];
-        const fallbackCounters = metrikaCounters.length === 0
-          ? buildCountersFromCampaigns(loadedCampaigns, savedCampaignIds)
-          : [];
-        setCounters(metrikaCounters.length > 0 ? metrikaCounters : fallbackCounters);
-        
-        const savedCounterIds = projectData.project.counter_ids || [];
-        setSelectedCounters(new Set(savedCounterIds));
-        
-        // Загружаем цели для выбранных счетчиков
-        if (savedCounterIds.length > 0) {
-          await loadGoals(token, savedCounterIds);
-        }
-      }
-      
       setAutoAddNewCampaigns(projectData.project.auto_add_campaigns ?? true);
       
     } catch (error) {
@@ -289,19 +287,6 @@ export default function RSYASettings() {
 
     try {
       setSaving(true);
-      
-      // Загружаем цели перед сохранением, если выбраны счетчики
-      if (selectedCounters.size > 0) {
-        const projectResponse = await fetch(`${RSYA_PROJECTS_URL}?project_id=${projectId}`, {
-          headers: { 'X-User-Id': userId }
-        });
-        const projectData = await projectResponse.json();
-        const token = projectData.project.yandex_token;
-        
-        if (token) {
-          await loadGoals(token, Array.from(selectedCounters));
-        }
-      }
       
       const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'PUT',
@@ -439,39 +424,6 @@ export default function RSYASettings() {
               )}
             </CardContent>
           </Card>
-
-          {campaigns.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Счётчики Яндекс.Метрики (необязательно)</CardTitle>
-              <CardDescription>Выберите счётчики для отслеживания конверсий по целям</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {counters.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Icon name="AlertCircle" className="mx-auto mb-2" size={32} />
-                  <p className="text-sm">Счётчики Метрики не найдены</p>
-                  <p className="text-xs mt-1">Если у вас есть счётчики, проверьте доступ в Яндексе</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {counters.map(counter => (
-                    <div key={counter.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
-                      <Checkbox
-                        checked={selectedCounters.has(counter.id)}
-                        onCheckedChange={() => handleCounterChange(counter.id)}
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">{counter.name}</div>
-                        <div className="text-xs text-slate-500">{counter.site}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          )}
 
           {campaigns.length > 0 && (
           <div className="flex justify-end gap-3">

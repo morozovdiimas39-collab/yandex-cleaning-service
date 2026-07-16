@@ -1,5 +1,5 @@
 // RSYA Project Page - Tasks Management Interface
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,6 +49,18 @@ interface Goal {
   counter_name?: string;
 }
 
+interface Counter {
+  id: string;
+  name: string;
+  site?: string;
+}
+
+interface GoalCounterGroup {
+  id: string;
+  name: string;
+  goals: Goal[];
+}
+
 interface Project {
   id: number;
   name: string;
@@ -61,6 +73,7 @@ interface Project {
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'] || '';
 const RSYA_PREVIEW_URL = BACKEND_URLS['rsya-preview'] || '';
 const AUTOMATION_URL = BACKEND_URLS['rsya-automation'] || '';
+const YANDEX_DIRECT_URL = BACKEND_URLS['yandex-direct'] || '';
 
 interface PreviewPlatform {
   campaign_id: string;
@@ -101,8 +114,18 @@ export default function RSYAProject() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [createMode, setCreateMode] = useState<'smart' | 'expert'>('smart');
+  const [isNameStepDone, setIsNameStepDone] = useState(false);
+  const [createMode, setCreateMode] = useState<'smart' | 'expert' | null>(null);
+  const [createWizardStep, setCreateWizardStep] = useState<3 | 4>(3);
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
+  const [availableCounters, setAvailableCounters] = useState<Counter[]>([]);
+  const [taskGoals, setTaskGoals] = useState<Goal[]>([]);
+  const [selectedCounterIds, setSelectedCounterIds] = useState<Set<string>>(new Set());
+  const [counterSearch, setCounterSearch] = useState('');
+  const [goalSearch, setGoalSearch] = useState('');
+  const [loadingCounters, setLoadingCounters] = useState(false);
+  const [loadingGoals, setLoadingGoals] = useState(false);
+  const [conversionLoadError, setConversionLoadError] = useState('');
   const [preview, setPreview] = useState<TaskPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
@@ -126,6 +149,81 @@ export default function RSYAProject() {
     max_cpa: '',
     min_conversions: ''
   });
+
+  const goalCounterGroups = useMemo<GoalCounterGroup[]>(() => {
+    const groups = new Map<string, GoalCounterGroup>();
+
+    if (availableCounters.length > 0) {
+      availableCounters.forEach((counter) => {
+        groups.set(String(counter.id), {
+          id: String(counter.id),
+          name: counter.name || counter.site || `Счётчик ${counter.id}`,
+          goals: taskGoals.filter((goal) => String(goal.counter_id || '') === String(counter.id))
+        });
+      });
+
+      return Array.from(groups.values());
+    }
+
+    (taskGoals.length > 0 ? taskGoals : project?.goals || []).forEach((goal) => {
+      const counterId = String(goal.counter_id || 'unknown').trim();
+      const groupId = counterId || 'unknown';
+      const group = groups.get(groupId) || {
+        id: groupId,
+        name: goal.counter_name || (groupId === 'unknown' ? 'Счётчик без ID' : `Счётчик ${groupId}`),
+        goals: []
+      };
+      group.goals.push(goal);
+      groups.set(groupId, group);
+    });
+
+    return Array.from(groups.values());
+  }, [availableCounters, taskGoals, project?.goals]);
+
+  const selectedCounterGoals = useMemo(() => {
+    if (selectedCounterIds.size === 0) return [];
+    return goalCounterGroups
+      .filter((group) => selectedCounterIds.has(group.id))
+      .flatMap((group) => group.goals);
+  }, [goalCounterGroups, selectedCounterIds]);
+
+  const filteredCounterGroups = useMemo(() => {
+    const query = counterSearch.trim().toLowerCase();
+    const counters = query
+      ? goalCounterGroups.filter((counter) =>
+          `${counter.name} ${counter.id}`.toLowerCase().includes(query)
+        )
+      : goalCounterGroups;
+
+    return [...counters].sort((a, b) => {
+      const aSelected = selectedCounterIds.has(a.id) ? 1 : 0;
+      const bSelected = selectedCounterIds.has(b.id) ? 1 : 0;
+      if (aSelected !== bSelected) return bSelected - aSelected;
+      return a.name.localeCompare(b.name, 'ru');
+    });
+  }, [goalCounterGroups, counterSearch, selectedCounterIds]);
+
+  const filteredSelectedCounterGoals = useMemo(() => {
+    const query = goalSearch.trim().toLowerCase();
+    const goals = query
+      ? selectedCounterGoals.filter((goal) =>
+          `${goal.name} ${goal.id} ${goal.counter_name || ''}`.toLowerCase().includes(query)
+        )
+      : selectedCounterGoals;
+
+    return [...goals].sort((a, b) => {
+      const aSelected = formData.goal_ids.includes(a.id) ? 1 : 0;
+      const bSelected = formData.goal_ids.includes(b.id) ? 1 : 0;
+      if (aSelected !== bSelected) return bSelected - aSelected;
+      return a.name.localeCompare(b.name, 'ru');
+    });
+  }, [selectedCounterGoals, goalSearch, formData.goal_ids]);
+
+  useEffect(() => {
+    if (isCreateDialogOpen && project?.yandex_token) {
+      loadTaskCounters();
+    }
+  }, [isCreateDialogOpen, project?.yandex_token]);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -250,8 +348,85 @@ export default function RSYAProject() {
 		setFormData({ ...formData, goal_ids: [], goal_id: 'all' });
 	};
 
+  const loadTaskCounters = async () => {
+    if (!project?.yandex_token || !YANDEX_DIRECT_URL) return;
+
+    try {
+      setLoadingCounters(true);
+      setConversionLoadError('');
+      const response = await fetch(`${YANDEX_DIRECT_URL}?action=counters`, {
+        headers: { 'X-Auth-Token': project.yandex_token }
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Не удалось загрузить счётчики');
+      }
+
+      setAvailableCounters(data?.counters || []);
+    } catch (error: any) {
+      setAvailableCounters([]);
+      setConversionLoadError(error.message || 'Не удалось загрузить счётчики');
+    } finally {
+      setLoadingCounters(false);
+    }
+  };
+
+  const loadTaskGoals = async (counterIds: string[]) => {
+    if (!project?.yandex_token || !YANDEX_DIRECT_URL || counterIds.length === 0) {
+      setTaskGoals([]);
+      return;
+    }
+
+    try {
+      setLoadingGoals(true);
+      setConversionLoadError('');
+      const response = await fetch(`${YANDEX_DIRECT_URL}?action=goals&counter_ids=${counterIds.join(',')}`, {
+        headers: { 'X-Auth-Token': project.yandex_token }
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Не удалось загрузить конверсии');
+      }
+
+      setTaskGoals(data?.goals || []);
+    } catch (error: any) {
+      setTaskGoals([]);
+      setConversionLoadError(error.message || 'Не удалось загрузить конверсии');
+    } finally {
+      setLoadingGoals(false);
+    }
+  };
+
+  const toggleCounter = (counterId: string) => {
+    const nextCounters = new Set(selectedCounterIds);
+    if (nextCounters.has(counterId)) {
+      nextCounters.delete(counterId);
+    } else {
+      nextCounters.add(counterId);
+    }
+
+    const allowedGoalIds = new Set(
+      goalCounterGroups
+        .filter((group) => nextCounters.has(group.id))
+        .flatMap((group) => group.goals.map((goal) => goal.id))
+    );
+    const nextGoalIds = formData.goal_ids.filter((goalId) => allowedGoalIds.has(goalId));
+
+    const nextCounterIds = Array.from(nextCounters);
+
+    setSelectedCounterIds(nextCounters);
+    setFormData({
+      ...formData,
+      goal_ids: nextGoalIds,
+      goal_id: nextGoalIds.length === 1 ? nextGoalIds[0] : nextGoalIds.length > 1 ? 'selected' : 'all'
+    });
+    void loadTaskGoals(nextCounterIds);
+  };
+
 	const getGoalName = (goalId: string) => {
-		return project?.goals?.find((goal) => goal.id === goalId)?.name || `Цель ${goalId}`;
+		return taskGoals.find((goal) => goal.id === goalId)?.name || project?.goals?.find((goal) => goal.id === goalId)?.name || `Цель ${goalId}`;
 	};
 
 	const getTaskGoalsLabel = (task: Task) => {
@@ -270,7 +445,8 @@ export default function RSYAProject() {
 		const selectedGoalIds = formData.goal_ids.slice(0, 10);
 		const config: any = {
 			goal_id: selectedGoalIds.length === 1 ? selectedGoalIds[0] : selectedGoalIds.length > 1 ? 'selected' : 'all',
-			goal_ids: selectedGoalIds
+			goal_ids: selectedGoalIds,
+      protect_conversions: selectedGoalIds.length > 0
 		};
 
     if (createMode === 'smart') {
@@ -305,6 +481,15 @@ export default function RSYAProject() {
   const resetCreateForm = () => {
     setPreview(null);
     setPreviewConfirmed(false);
+    setIsNameStepDone(false);
+    setCreateMode(null);
+    setCreateWizardStep(3);
+    setSelectedCounterIds(new Set());
+    setActiveModules(new Set());
+    setTaskGoals([]);
+    setCounterSearch('');
+    setGoalSearch('');
+    setConversionLoadError('');
     setFormData({
       description: '',
       keywords: '',
@@ -327,6 +512,10 @@ export default function RSYAProject() {
   };
 
   const loadPreview = async () => {
+    if (!createMode) {
+      toast({ title: 'Выберите режим чистки', variant: 'destructive' });
+      return;
+    }
     if (!formData.description.trim()) {
       toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
       return;
@@ -370,7 +559,11 @@ export default function RSYAProject() {
     }
   };
 
-	const createTask = async () => {
+  const createTask = async () => {
+    if (!createMode) {
+      toast({ title: 'Выберите режим чистки', variant: 'destructive' });
+      return;
+    }
     if (!formData.description.trim()) {
       toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
       return;
@@ -666,8 +859,7 @@ export default function RSYAProject() {
           onOpenChange={(open) => {
             setIsCreateDialogOpen(open);
             if (!open) {
-              setPreview(null);
-              setPreviewConfirmed(false);
+              resetCreateForm();
             }
           }}
         >
@@ -685,128 +877,96 @@ export default function RSYAProject() {
             </DialogHeader>
 
             <div className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="description" className="text-base font-semibold">Название задачи</Label>
-                <Input
-                  id="description"
-                  placeholder="Например: Блокировка дорогих площадок"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="h-11"
-                />
-              </div>
+              {!isNameStepDone && (
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">1</span>
+                    <div className="min-w-0 flex-1">
+                      <Label htmlFor="description" className="text-lg font-bold text-slate-950">Название задачи</Label>
+                      <p className="mt-1 text-sm text-slate-500">Назовите задачу так, чтобы потом было понятно, какую чистку она выполняет.</p>
+                    </div>
+                  </div>
+                  <Input
+                    id="description"
+                    placeholder="Например: Блокировка дорогих площадок"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="h-12 text-base"
+                  />
+                  <Button
+                    type="button"
+                    disabled={!formData.description.trim()}
+                    onClick={() => setIsNameStepDone(true)}
+                    className="h-14 w-full rounded-xl bg-green-600 text-base font-semibold hover:bg-green-700"
+                  >
+                    Продолжить
+                  </Button>
+                </div>
+              )}
 
-              <Tabs value={createMode} onValueChange={(v) => setCreateMode(v as 'smart' | 'expert')}>
-                <TabsList className="grid w-full grid-cols-2 h-12 bg-gray-100">
-                  <TabsTrigger value="smart" className="flex items-center gap-2 data-[state=active]:bg-white">
-                    <Icon name="Sparkles" className="h-4 w-4" />
-                    <span>Умная очистка</span>
+              {isNameStepDone && !createMode && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">2</span>
+                  <Label className="text-lg font-bold text-slate-950">Выберите режим чистки</Label>
+                </div>
+                <Tabs
+                  value={createMode || ''}
+                  onValueChange={(v) => {
+                    setCreateMode(v as 'smart' | 'expert');
+                    setCreateWizardStep(3);
+                  }}
+                >
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-3 bg-transparent p-0">
+                  <TabsTrigger
+                    value="smart"
+                    className="group h-36 flex-col items-start justify-between rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-50 data-[state=active]:shadow-md"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 group-data-[state=active]:bg-emerald-600 group-data-[state=active]:text-white">
+                      <Icon name="Sparkles" className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block text-base font-bold text-slate-950">Умная очистка</span>
+                      <span className="mt-1 block whitespace-normal text-xs font-normal leading-relaxed text-slate-600">
+                        Готовые правила, ничего не нужно задавать вручную
+                      </span>
+                    </span>
                   </TabsTrigger>
-                  <TabsTrigger value="expert" className="flex items-center gap-2 data-[state=active]:bg-white">
-                    <Icon name="Settings" className="h-4 w-4" />
-                    <span>Режим эксперта</span>
+                  <TabsTrigger
+                    value="expert"
+                    className="group h-36 flex-col items-start justify-between rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-950 data-[state=active]:shadow-md"
+                  >
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-data-[state=active]:bg-white group-data-[state=active]:text-slate-950">
+                      <Icon name="Settings" className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block text-base font-bold text-slate-950 group-data-[state=active]:text-white">Режим эксперта</span>
+                      <span className="mt-1 block whitespace-normal text-xs font-normal leading-relaxed text-slate-600 group-data-[state=active]:text-slate-300">
+                        Гибкая настройка правил, порогов и исключений
+                      </span>
+                    </span>
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="smart" className="space-y-4 mt-6">
-	                  <div className="p-6 bg-blue-50 rounded-lg border-2 border-blue-200">
-	                    <div className="flex items-start gap-4">
-	                      <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-	                        <Icon name="Sparkles" className="h-6 w-6 text-white" />
-	                      </div>
-	                      <div>
-	                        <h4 className="font-bold text-blue-900 text-lg mb-2">Защитный пресет</h4>
-	                        <p className="text-sm text-blue-700 leading-relaxed">
-	                          Блокирует площадки без конверсий при заметном объеме кликов и дорогом CPA. Площадки с выбранными конверсиями не блокируются.
-	                        </p>
-	                      </div>
-	                    </div>
-	                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Icon name="Target" className="h-5 w-5 text-purple-500" />
-	                      <Label className="text-base font-semibold">Конверсии для защиты</Label>
-	                    </div>
-                    {(!project?.goals || project.goals.length === 0) ? (
-                      <div className="p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Сначала настройте счетчики Метрики в настройках проекта для загрузки целей
-                        </p>
-                      </div>
-                    ) : (
-	                      <div className="space-y-2 rounded-lg border-2 border-gray-200 bg-white p-3">
-	                        <button
-	                          type="button"
-	                          onClick={clearGoals}
-	                          className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
-	                            formData.goal_ids.length === 0 ? 'bg-green-50 text-green-800' : 'text-gray-700 hover:bg-gray-50'
-	                          }`}
-	                        >
-	                          Все конверсии
-	                        </button>
-	                        <div className="max-h-44 space-y-2 overflow-y-auto">
-	                          {project.goals.map((goal) => (
-	                            <label key={goal.id} className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-gray-50">
-	                              <Checkbox
-	                                checked={formData.goal_ids.includes(goal.id)}
-	                                onCheckedChange={() => toggleGoal(goal.id)}
-	                              />
-	                              <span className="text-sm">
-	                                <span className="font-medium text-gray-900">{goal.name}</span>
-	                                <span className="block text-xs text-gray-500">ID: {goal.id}</span>
-	                              </span>
-	                            </label>
-	                          ))}
-	                        </div>
-	                        <p className="text-xs text-gray-500">Можно выбрать до 10 целей. Это лимит Direct Reports.</p>
-	                      </div>
-	                    )}
-	                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
-	                      <Label className="text-base font-semibold">Логика условий</Label>
+                <TabsContent value="smart" className="mt-4">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-900">
+                    <div className="mb-1 flex items-center gap-2 font-semibold">
+                      <Icon name="Sparkles" className="h-4 w-4" />
+                      Ничего не нужно настраивать вручную
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, combine_operator: 'OR' })}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          formData.combine_operator === 'OR'
-                            ? 'border-indigo-400 bg-indigo-50 shadow-sm'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
-                      >
-                        <div className="text-left">
-	                          <div className="font-semibold text-gray-900 mb-1">Любое условие</div>
-	                          <div className="text-xs text-gray-600">
-	                            Заблокировать, если совпало хотя бы одно правило
-	                          </div>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, combine_operator: 'AND' })}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          formData.combine_operator === 'AND'
-                            ? 'border-purple-400 bg-purple-50 shadow-sm'
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
-                      >
-                        <div className="text-left">
-	                          <div className="font-semibold text-gray-900 mb-1">Все условия</div>
-	                          <div className="text-xs text-gray-600">
-	                            Заблокировать только при совпадении всех правил
-	                          </div>
-                        </div>
-                      </button>
-                    </div>
+                    Мы заранее подготовили правила чистки: сервис сам будет искать слабые площадки и защищать выбранные конверсии от случайной блокировки.
                   </div>
                 </TabsContent>
 
                 <TabsContent value="expert" className="space-y-6 mt-6">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700">
+                    <div className="mb-1 flex items-center gap-2 font-semibold text-slate-900">
+                      <Icon name="Settings" className="h-4 w-4" />
+                      Гибкая настройка под свои правила
+                    </div>
+                    Можно самостоятельно выбрать условия, исключения, метрики, пороги CPA и логику срабатывания задачи.
+                  </div>
+
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 pb-3 border-b">
                       <Icon name="Blocks" className="h-5 w-5 text-gray-600" />
@@ -1135,45 +1295,6 @@ export default function RSYAProject() {
                           </button>
                         </div>
                         <div className="space-y-3">
-                          <div>
-	                            <Label className="text-sm text-purple-900">Конверсии для расчета CPA</Label>
-                            {(!project?.goals || project.goals.length === 0) ? (
-                              <div className="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                <p className="text-sm text-yellow-800">
-                                  ⚠️ Настройте счетчики Метрики в настройках
-                                </p>
-                              </div>
-                            ) : (
-	                              <div className="mt-1 space-y-2 rounded-lg border-2 border-purple-200 bg-white p-3">
-	                                <button
-	                                  type="button"
-	                                  onClick={clearGoals}
-	                                  className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
-	                                    formData.goal_ids.length === 0 ? 'bg-purple-50 text-purple-800' : 'text-gray-700 hover:bg-gray-50'
-	                                  }`}
-	                                >
-	                                  Все конверсии
-	                                </button>
-	                                <div className="max-h-44 space-y-2 overflow-y-auto">
-	                                  {project.goals.map((goal) => (
-	                                    <label key={goal.id} className="flex items-start gap-3 rounded-md px-3 py-2 hover:bg-gray-50">
-	                                      <Checkbox
-	                                        checked={formData.goal_ids.includes(goal.id)}
-	                                        onCheckedChange={() => toggleGoal(goal.id)}
-	                                      />
-	                                      <span className="text-sm">
-	                                        <span className="font-medium text-gray-900">{goal.name}</span>
-	                                        <span className="block text-xs text-gray-500">
-	                                          {goal.counter_name ? `${goal.counter_name} · ` : ''}ID: {goal.id}
-	                                        </span>
-	                                      </span>
-	                                    </label>
-	                                  ))}
-	                                </div>
-	                                <p className="text-xs text-purple-700">Если ничего не выбрано, используются все конверсии из отчета Direct.</p>
-	                              </div>
-	                            )}
-	                          </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <Label className="text-sm text-purple-900">Макс. CPA (₽)</Label>
@@ -1210,12 +1331,240 @@ export default function RSYAProject() {
                   </div>
                 </TabsContent>
               </Tabs>
+              </div>
+              )}
 
-              <div className="space-y-4 pt-4 border-t">
+              {isNameStepDone && createMode && (
+              <>
+              {createWizardStep === 3 && (
+              <div className="space-y-3 rounded-xl border border-purple-100 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">3</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Icon name="Target" className="h-5 w-5 text-purple-500" />
+                      <Label className="text-base font-semibold">Конверсии для защиты</Label>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Выберите конверсии из своих счётчиков, которые нельзя терять при чистке площадок. Площадки с выбранными конверсиями будут защищены. Этот этап можно пропустить.
+                    </p>
+                  </div>
+                </div>
+
+                {loadingCounters ? (
+                  <div className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+                    <Icon name="Loader2" className="h-4 w-4 animate-spin" />
+                    Загружаю счётчики
+                  </div>
+                ) : conversionLoadError ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {conversionLoadError}
+                  </div>
+                ) : goalCounterGroups.length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Счётчики пока не найдены. Можно продолжить без выбора — защита по конверсиям просто не будет применяться.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-white via-purple-50/45 to-white p-3 shadow-sm">
+                    <div className="mb-3 grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-white bg-white/85 px-3 py-2 shadow-sm">
+                        <div className="text-lg font-bold leading-none text-slate-950">{goalCounterGroups.length}</div>
+                        <div className="mt-1 text-[11px] font-medium text-slate-500">счётчиков</div>
+                      </div>
+                      <div className="rounded-xl border border-white bg-white/85 px-3 py-2 shadow-sm">
+                        <div className="text-lg font-bold leading-none text-slate-950">{selectedCounterIds.size}</div>
+                        <div className="mt-1 text-[11px] font-medium text-slate-500">выбрано</div>
+                      </div>
+                      <div className="rounded-xl border border-white bg-white/85 px-3 py-2 shadow-sm">
+                        <div className="text-lg font-bold leading-none text-slate-950">{formData.goal_ids.length}</div>
+                        <div className="mt-1 text-[11px] font-medium text-slate-500">конверсий</div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                      <div className="min-h-0 rounded-xl border border-purple-100 bg-white p-3 shadow-sm">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Счётчики</div>
+                            <div className="text-xs text-slate-500">Выбранные закрепляются сверху</div>
+                          </div>
+                          {selectedCounterIds.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCounterIds(new Set());
+                                clearGoals();
+                                setGoalSearch('');
+                              }}
+                              className="text-xs font-medium text-purple-700 hover:text-purple-900"
+                            >
+                              Сбросить
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative mb-2">
+                          <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <Input
+                            value={counterSearch}
+                            onChange={(e) => setCounterSearch(e.target.value)}
+                            placeholder="Поиск счётчика"
+                            className="h-9 pl-9 text-sm"
+                          />
+                        </div>
+                        <div className="max-h-[280px] space-y-1 overflow-y-auto pr-1">
+                          {filteredCounterGroups.map((counter) => (
+                            <button
+                              key={counter.id}
+                              type="button"
+                              onClick={() => toggleCounter(counter.id)}
+                              className={`w-full rounded-xl border px-3 py-2 text-left transition-all ${
+                                selectedCounterIds.has(counter.id)
+                                  ? 'border-purple-300 bg-purple-50 shadow-sm'
+                                  : 'border-transparent bg-white hover:border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Checkbox checked={selectedCounterIds.has(counter.id)} className="pointer-events-none" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm font-semibold text-slate-950">{counter.name}</span>
+                                  <span className="block truncate text-xs text-slate-500">
+                                    ID: {counter.id}
+                                  </span>
+                                </span>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                  counter.goals.length > 0 ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {counter.goals.length}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                          {filteredCounterGroups.length === 0 && (
+                            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
+                              Ничего не найдено
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="min-h-0 rounded-xl border border-purple-100 bg-white p-3 shadow-sm">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">Конверсии</div>
+                            <div className="text-xs text-slate-500">Отмеченные защищают площадку от блокировки</div>
+                          </div>
+                          {formData.goal_ids.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                clearGoals();
+                                setGoalSearch('');
+                              }}
+                              className="text-xs font-medium text-purple-700 hover:text-purple-900"
+                            >
+                              Очистить
+                            </button>
+                          )}
+                        </div>
+                        {selectedCounterGoals.length > 0 && (
+                          <div className="relative mb-2">
+                            <Icon name="Search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                              value={goalSearch}
+                              onChange={(e) => setGoalSearch(e.target.value)}
+                              placeholder="Поиск конверсии"
+                              className="h-9 pl-9 text-sm"
+                            />
+                          </div>
+                        )}
+
+                      {selectedCounterIds.size === 0 ? (
+                        <div className="flex min-h-[180px] items-center justify-center rounded-xl border border-dashed border-purple-200 bg-purple-50/35 px-4 py-5 text-center text-sm text-slate-500">
+                          <div>
+                            <Icon name="MousePointerClick" className="mx-auto mb-2 h-5 w-5 text-purple-400" />
+                            Выберите счётчик слева, и здесь появятся его конверсии.
+                          </div>
+                        </div>
+                      ) : loadingGoals ? (
+                        <div className="flex min-h-[180px] items-center justify-center gap-2 rounded-lg border border-purple-100 bg-white px-4 py-5 text-sm text-slate-500">
+                          <Icon name="Loader2" className="h-4 w-4 animate-spin" />
+                          Загружаю конверсии
+                        </div>
+                      ) : selectedCounterGoals.length === 0 ? (
+                        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm text-slate-500">
+                          В выбранных счётчиках конверсии не найдены.
+                        </div>
+                      ) : (
+                        <div className="max-h-[280px] space-y-1 overflow-y-auto pr-1">
+                          {filteredSelectedCounterGoals.map((goal) => (
+                            <label
+                              key={goal.id}
+                              className={`flex items-start gap-3 rounded-xl border px-3 py-2 transition-all ${
+                                formData.goal_ids.includes(goal.id)
+                                  ? 'border-purple-300 bg-purple-50 shadow-sm'
+                                  : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={formData.goal_ids.includes(goal.id)}
+                                onCheckedChange={() => toggleGoal(goal.id)}
+                              />
+                              <span className="min-w-0 text-sm">
+                                <span className="block truncate font-semibold text-gray-900">{goal.name}</span>
+                                <span className="block truncate text-xs text-gray-500">
+                                  {goal.counter_name ? `${goal.counter_name} · ` : ''}ID: {goal.id}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                          {filteredSelectedCounterGoals.length === 0 && (
+                            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
+                              Конверсии не найдены
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs text-purple-700">Можно выбрать до 10 конверсий. Выбранные конверсии защищают площадки от ошибочной блокировки.</p>
+                  </div>
+                )}
+              </div>
+              )}
+
+              {createWizardStep === 3 && (
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    onClick={() => setCreateWizardStep(4)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Продолжить к логике условий
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateDialogOpen(false)}
+                  >
+                    Отмена
+                  </Button>
+                </div>
+              )}
+
+              {createWizardStep === 4 && (
+              <>
+              <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
-	                    <Label className="text-base font-semibold">Логика условий задачи</Label>
+                  <div className="mb-3 flex items-start gap-3">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">4</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Icon name="GitBranch" className="h-5 w-5 text-indigo-500" />
+	                      <Label className="text-base font-semibold">Логика условий задачи</Label>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Выберите, как система должна объединять активные правила перед блокировкой площадки.
+                      </p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -1240,6 +1589,9 @@ export default function RSYAProject() {
 	                          <div className="text-xs text-gray-600 leading-relaxed">
 	                            Площадка блокируется, если подходит хотя бы под одно активное правило.
 	                          </div>
+                            <div className="mt-2 rounded-md bg-white/80 px-2 py-1 text-xs text-indigo-700">
+                              Быстрее чистит мусор, но требует аккуратных правил.
+                            </div>
                         </div>
                       </div>
                     </button>
@@ -1265,6 +1617,9 @@ export default function RSYAProject() {
 	                          <div className="text-xs text-gray-600 leading-relaxed">
 	                            Площадка блокируется только если подходит под все активные правила сразу.
 	                          </div>
+                            <div className="mt-2 rounded-md bg-white/80 px-2 py-1 text-xs text-purple-700">
+                              Безопаснее: площадка должна провалиться по всем выбранным критериям.
+                            </div>
                         </div>
                       </div>
                     </button>
@@ -1312,12 +1667,6 @@ export default function RSYAProject() {
                     />
                   </div>
 
-                  {preview.reports_pending.length > 0 && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                      {preview.reports_pending.length} отчетов Direct готовятся асинхронно, предпросмотр неполный.
-                    </div>
-                  )}
-
                   {preview.errors.length > 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                       Ошибки по кампаниям: {preview.errors.slice(0, 3).map((error) => `${error.campaign_id}: ${error.status || ''}`).join(', ')}
@@ -1356,6 +1705,10 @@ export default function RSYAProject() {
                   Отмена
                 </Button>
               </div>
+              </>
+              )}
+              </>
+              )}
             </div>
           </DialogContent>
         </Dialog>

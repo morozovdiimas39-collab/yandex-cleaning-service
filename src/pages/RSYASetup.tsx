@@ -80,6 +80,24 @@ const buildCountersFromCampaigns = (campaigns: Campaign[]): Counter[] => {
   return Array.from(countersById.values());
 };
 
+const enrichDirectCountersWithMetrikaNames = (
+  directCounters: Counter[],
+  metrikaCounters: Counter[]
+): Counter[] => {
+  const metrikaById = new Map(metrikaCounters.map((counter) => [String(counter.id), counter]));
+
+  return directCounters.map((counter) => {
+    const metrikaCounter = metrikaById.get(String(counter.id));
+    if (!metrikaCounter) return counter;
+
+    return {
+      ...counter,
+      name: metrikaCounter.name || metrikaCounter.site || counter.name,
+      site: metrikaCounter.site || counter.site
+    };
+  });
+};
+
 export default function RSYASetup() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -143,15 +161,12 @@ export default function RSYASetup() {
 
       let loadedCampaigns: Campaign[] = [];
 
-      const [campaignsRes, countersRes] = await Promise.all([
-        fetch(YANDEX_DIRECT_URL, {
-          headers: {
-            'X-Auth-Token': token,
-            ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
-          }
-        }),
-        fetch(`${YANDEX_DIRECT_URL}?action=counters`, { headers: { 'X-Auth-Token': token } })
-      ]);
+      const campaignsRes = await fetch(YANDEX_DIRECT_URL, {
+        headers: {
+          'X-Auth-Token': token,
+          ...(clientLogin ? { 'X-Client-Login': clientLogin } : {})
+        }
+      });
 
       if (campaignsRes.ok) {
         const data = await campaignsRes.json();
@@ -176,12 +191,6 @@ export default function RSYASetup() {
         setCampaignsError('Не удалось загрузить кампании из Яндекс.Директа.');
       }
 
-      if (countersRes.ok) {
-        const data = await countersRes.json();
-        const metrikaCounters = data.counters || [];
-        setCounters(metrikaCounters.length > 0 ? metrikaCounters : buildCountersFromCampaigns(loadedCampaigns));
-      }
-      
     } catch (error) {
       console.error('Error loading data:', error);
       toast({ title: 'Ошибка загрузки данных', variant: 'destructive' });
@@ -251,13 +260,13 @@ export default function RSYASetup() {
             </Button>
             <div>
               <h1 className="text-4xl font-bold text-slate-900">Настройка проекта</h1>
-              <p className="text-lg text-slate-600">Выберите кампании и счётчики для очистки площадок</p>
+              <p className="text-lg text-slate-600">Выберите РСЯ-кампании для очистки площадок</p>
             </div>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>1. РСЯ-кампании для отслеживания</CardTitle>
+              <CardTitle>РСЯ-кампании для отслеживания</CardTitle>
               <CardDescription>
                 Показываются только кампании с включенными показами в сетях
                 {activeClientLogin ? ` · Client-Login: ${activeClientLogin}` : ' · Прямой аккаунт токена'}
@@ -330,39 +339,6 @@ export default function RSYASetup() {
               )}
             </CardContent>
           </Card>
-
-          {campaigns.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>2. Счётчики Яндекс.Метрики (необязательно)</CardTitle>
-              <CardDescription>Выберите счётчики для отслеживания конверсий</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {counters.map(counter => (
-                  <div key={counter.id} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded">
-                    <Checkbox
-                      checked={selectedCounters.has(counter.id)}
-                      onCheckedChange={() => {
-                        const newSelected = new Set(selectedCounters);
-                        if (newSelected.has(counter.id)) {
-                          newSelected.delete(counter.id);
-                        } else {
-                          newSelected.add(counter.id);
-                        }
-                        setSelectedCounters(newSelected);
-                      }}
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">{counter.name}</div>
-                      <div className="text-xs text-slate-500">{counter.site}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          )}
 
           {campaigns.length > 0 && (
           <div className="flex justify-end gap-3">

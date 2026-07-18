@@ -472,14 +472,17 @@ def process_campaign(
             if to_unblock:
                 unblock_sites(campaign_id, yandex_token, client_login, [s['domain'] for s in to_unblock])
                 print(f"🔄 Campaign {campaign_id}: rotated {len(to_unblock)} platforms")
+            to_block_domains = {p['domain'] for p in to_block}
         
         # 8. Добавляем новые блокировки в Директе
         actually_blocked = 0
+        actually_blocked_domains = set()
         block_attempt_success = True
         if to_block:
-            blocked_count = block_sites(campaign_id, yandex_token, client_login, [p['domain'] for p in to_block])
-            if blocked_count is not None:
-                actually_blocked = blocked_count
+            blocked_domains = block_sites(campaign_id, yandex_token, client_login, [p['domain'] for p in to_block])
+            if blocked_domains is not None:
+                actually_blocked_domains = set(blocked_domains)
+                actually_blocked = len(actually_blocked_domains)
                 print(f"🚫 Campaign {campaign_id}: blocked {actually_blocked} platforms in Yandex", flush=True)
             else:
                 block_attempt_success = False
@@ -502,7 +505,8 @@ def process_campaign(
             to_block_domains,
             block_attempt_success,
             context,
-            actually_blocked
+            actually_blocked,
+            actually_blocked_domains
         )
 
         return {
@@ -527,21 +531,27 @@ def write_execution_logs(
     to_block_domains,
     block_success: bool,
     context: Any,
-    actual_blocked_count: Optional[int] = None
+    actual_blocked_count: Optional[int] = None,
+    actual_blocked_domains=None
 ) -> None:
     request_id = getattr(context, 'request_id', None) or 'batch-worker'
     candidates_count = len(candidates)
+    actual_blocked_domains = actual_blocked_domains or set()
 
     for task in tasks:
         task_id = task['id']
         matched = task_matches.get(task_id, [])
-        blocked_examples = [p for p in matched if p['domain'] in to_block_domains]
+        attempted_examples = [p for p in matched if p['domain'] in to_block_domains]
+        blocked_examples = [p for p in attempted_examples if p['domain'] in actual_blocked_domains]
+        not_applied_examples = [p for p in attempted_examples if p['domain'] not in actual_blocked_domains]
         kept_examples = task_kept_examples.get(task_id, [])
         important_blocked = [p['domain'] for p in blocked_examples if is_important_platform(p['domain'])]
 
         metadata = {
             'campaign_id': str(campaign_id),
+            'attempted_block_examples': [p['domain'] for p in attempted_examples[:20]],
             'blocked_examples': [p['domain'] for p in blocked_examples[:20]],
+            'not_applied_examples': [p['domain'] for p in not_applied_examples[:20]],
             'kept_examples': [p['domain'] for p in kept_examples[:20]],
             'important_blocked_examples': important_blocked[:20],
             'important_platforms_checked': sorted(IMPORTANT_PLATFORMS),
@@ -561,15 +571,13 @@ def write_execution_logs(
             task_id,
             candidates_count,
             len(matched),
-            len(blocked_examples),
+            len(attempted_examples),
             blocked_count if block_success else 0,
             'completed' if block_success or not blocked_examples else 'error',
             str(request_id),
             json.dumps(metadata, ensure_ascii=False)
         ))
         execution_log_id = cursor.fetchone()['id']
-
-        blocking_action = 'blocked' if block_success and blocked_count > 0 else 'matched_not_blocked'
 
         for platform in blocked_examples[:100]:
             cursor.execute("""
@@ -583,12 +591,31 @@ def write_execution_logs(
                 task_id,
                 int(campaign_id),
                 platform['domain'],
-                blocking_action,
+                'blocked',
                 int(platform.get('clicks', 0) or 0),
                 float(platform.get('cost', 0) or 0),
                 int(platform.get('conversions', 0) or 0),
                 float(platform.get('cpa', 0) or 0),
                 'important_platform' if is_important_platform(platform['domain']) else None
+            ))
+
+        for platform in not_applied_examples[:100]:
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_blocking_logs
+                (execution_log_id, project_id, task_id, campaign_id, domain, action,
+                 clicks, cost, conversions, cpa, attempts, error_message)
+                VALUES (%s, %s, %s, %s, %s, 'matched_not_blocked', %s, %s, %s, %s, 0, %s)
+            """, (
+                execution_log_id,
+                project_id,
+                task_id,
+                int(campaign_id),
+                platform['domain'],
+                int(platform.get('clicks', 0) or 0),
+                float(platform.get('cost', 0) or 0),
+                int(platform.get('conversions', 0) or 0),
+                float(platform.get('cpa', 0) or 0),
+                'not_applied_to_excluded_sites'
             ))
 
         for platform in kept_examples[:30]:
@@ -1096,7 +1123,7 @@ def _canonical_excluded_site(site: str) -> str:
     return site[4:] if site.startswith('www.') else site
 
 
-def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> Optional[int]:
+def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains: List[str]) -> Optional[List[str]]:
     '''Блокирует площадки через Yandex Direct API'''
     
     # Получаем текущий список ExcludedSites
@@ -1128,7 +1155,7 @@ def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains:
     
     if not domains_to_add:
         print(f'✅ All {len(domains)} domains already blocked in campaign {campaign_id}')
-        return 0
+        return []
     
     # Добавляем новые домены (используем set для уникальности)
     new_excluded_list = []
@@ -1146,9 +1173,13 @@ def block_sites(campaign_id: str, yandex_token: str, client_login: str, domains:
     applied_sites = update_excluded_sites(yandex_token, campaign_id, new_excluded_list, client_login)
 
     if applied_sites is not None:
-        applied_set = set(site.lower() for site in applied_sites)
-        actually_added = len(applied_set - current_excluded_set)
-        print(f'✅ Blocked {actually_added} domains in campaign {campaign_id}')
+        applied_canonical = set(_canonical_excluded_site(site) for site in applied_sites)
+        actually_added = [
+            domain for domain in domains_to_add
+            if _canonical_excluded_site(domain) in applied_canonical
+            and _canonical_excluded_site(domain) not in current_excluded_canonical
+        ]
+        print(f'✅ Blocked {len(actually_added)} domains in campaign {campaign_id}')
         return actually_added
     else:
         print(f'❌ Failed to block domains in campaign {campaign_id}')
@@ -1300,10 +1331,22 @@ def update_excluded_sites(token: str, campaign_id: str, excluded_sites: List[str
                 invalid_sites.append((site_clean, 'contains_cyrillic'))
                 continue
             
-            # Проверяем на запрещенные символы (только буквы, цифры, точка, дефис)
-            if not all(char.isalnum() or char in ['.', '-'] for char in site_clean):
+            # ExcludedSites принимает не только домены, но и ID мобильных приложений.
+            # Для доменов "_" запрещен, но Android package name с "_" должен проходить.
+            if not all(char.isalnum() or char in ['.', '-', '_'] for char in site_clean):
                 invalid_sites.append((site_clean, 'invalid_chars'))
                 continue
+
+            if '_' in site_clean:
+                parts = site_clean.split('.')
+                looks_like_mobile_app = (
+                    len(parts) >= 2
+                    and all(part and not part.startswith('-') and not part.endswith('-') for part in parts)
+                    and any('_' in part for part in parts)
+                )
+                if not looks_like_mobile_app:
+                    invalid_sites.append((site_clean, 'invalid_underscore'))
+                    continue
             
             # Проверяем что нет двойных точек подряд
             if '..' in site_clean:

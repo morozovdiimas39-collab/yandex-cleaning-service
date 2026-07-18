@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const menuItems = [
   { icon: 'ShieldCheck', label: 'Чистка площадок', path: '/rsya' },
+  { icon: 'CreditCard', label: 'Оплата', path: '/billing' },
   { icon: 'LifeBuoy', label: 'Получить помощь', href: 'https://t.me/mooz26' },
   { icon: 'UserRound', label: 'Профиль', path: '/profile' },
 ];

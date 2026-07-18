@@ -220,13 +220,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             redirect_uri = os.environ.get('YANDEX_OAUTH_REDIRECT_URI', DEFAULT_REDIRECT_URI)
-            # Запрашиваем только доступ к Директу: для представителя лишние scope могут
-            # привести к unauthorized_client еще до проверки прав в Яндекс.Директе.
-            scope = 'direct:api'
             auth_url = 'https://oauth.yandex.ru/authorize?' + urlencode({
                 'response_type': 'code',
                 'client_id': client_id,
-                'scope': scope,
                 'state': user_id,
                 'redirect_uri': redirect_uri,
                 'force_confirm': 'yes'

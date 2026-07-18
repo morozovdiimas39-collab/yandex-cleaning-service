@@ -18,10 +18,19 @@ interface Project {
   has_token: boolean;
 }
 
+interface BillingStatus {
+  projectCount: number;
+  projectLimit: number;
+  remainingProjects: number;
+  pricePerProjectRub: number;
+}
+
 const RSYA_PROJECTS_URL = BACKEND_URLS['rsya-projects'];
+const SUBSCRIPTION_URL = BACKEND_URLS.subscription;
 
 export default function RSYAProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -34,6 +43,7 @@ export default function RSYAProjects() {
     const uid = userStr ? JSON.parse(userStr).id.toString() : '1';
     setUserId(uid);
     loadProjects(uid);
+    loadBilling(uid);
   }, []);
 
   const loadProjects = async (uid: string) => {
@@ -49,8 +59,23 @@ export default function RSYAProjects() {
     }
   };
 
+  const loadBilling = async (uid: string) => {
+    try {
+      const response = await fetch(SUBSCRIPTION_URL, { headers: { 'X-User-Id': uid } });
+      if (response.ok) {
+        const data = await response.json();
+        setBilling(data);
+      }
+    } catch {}
+  };
+
   const createProject = async () => {
     if (!newProjectName.trim()) return;
+    if (billing && billing.remainingProjects <= 0) {
+      setIsDialogOpen(false);
+      navigate('/billing');
+      return;
+    }
     try {
       const response = await fetch(RSYA_PROJECTS_URL, {
         method: 'POST',
@@ -60,8 +85,24 @@ export default function RSYAProjects() {
       if (response.ok) {
         const data = await response.json();
         setProjects([data.project, ...projects]);
+        loadBilling(userId);
         setIsDialogOpen(false);
         navigate(`/rsya/${data.project.id}`);
+      } else if (response.status === 402) {
+        const data = await response.json();
+        setBilling({
+          projectCount: data.project_count,
+          projectLimit: data.project_limit,
+          remainingProjects: data.remaining_projects,
+          pricePerProjectRub: data.price_per_project_rub,
+        });
+        setIsDialogOpen(false);
+        toast({
+          title: 'Лимит проектов исчерпан',
+          description: 'Первый проект бесплатный. Для следующего проекта нужна оплата.',
+          variant: 'destructive',
+        });
+        navigate('/billing');
       }
     } finally {}
   };
@@ -87,8 +128,19 @@ export default function RSYAProjects() {
             <div>
               <h1 className="text-3xl font-bold text-slate-900 mb-2">Чистка РСЯ</h1>
               <p className="text-slate-600">Управляйте проектами по чистке площадок РСЯ</p>
+              {billing && (
+                <p className="mt-2 text-sm text-slate-500">
+                  Доступно проектов: {billing.projectCount}/{billing.projectLimit}. Дополнительный проект — {billing.pricePerProjectRub} ₽.
+                </p>
+              )}
             </div>
-            <Button size="lg" onClick={() => setIsDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700">Создать проект</Button>
+            <Button
+              size="lg"
+              onClick={() => billing && billing.remainingProjects <= 0 ? navigate('/billing') : setIsDialogOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {billing && billing.remainingProjects <= 0 ? 'Оплатить проект' : 'Создать проект'}
+            </Button>
           </div>
 
           {projects.length === 0 && !loading ? (
@@ -122,6 +174,11 @@ export default function RSYAProjects() {
           <DialogHeader><DialogTitle>Новый проект РСЯ</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <Input placeholder="Название проекта" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} />
+            {billing && billing.remainingProjects <= 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Бесплатный лимит исчерпан. Следующий проект стоит {billing.pricePerProjectRub} ₽.
+              </div>
+            )}
             <Button onClick={createProject} className="w-full bg-emerald-600 hover:bg-emerald-700">Создать</Button>
           </div>
         </DialogContent>

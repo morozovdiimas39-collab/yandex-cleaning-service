@@ -32,6 +32,7 @@ import RSYAWorkersMonitoring from "./pages/RSYAWorkersMonitoring";
 import RSYAErrors from "./pages/RSYAErrors";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import Profile from "./pages/Profile";
+import BillingPage from "./pages/BillingPage";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
           <Route path="/o-nas" element={<AboutUsPage />} />
           <Route path="/project/:id" element={<Navigate to="/rsya" replace />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
           <Route path="/rsya" element={<ProtectedRoute><RSYAProjects /></ProtectedRoute>} />
           <Route path="/rsya/:id" element={<ProtectedRoute><RSYAProject /></ProtectedRoute>} />
           <Route path="/rsya/:id/auth" element={<ProtectedRoute><RSYAAuth /></ProtectedRoute>} />

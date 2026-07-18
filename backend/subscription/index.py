@@ -16,6 +16,10 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 SCHEMA = 't_p97630513_yandex_cleaning_serv'
+PRICE_PER_PROJECT_RUB = 250
+PRICE_PER_PROJECT_KOPEKS = PRICE_PER_PROJECT_RUB * 100
+BASE_FREE_PROJECTS = 1
+TRIAL_DAYS = 7
 
 
 def verify_admin_session(cur, headers: Dict[str, Any]):
@@ -46,6 +50,108 @@ def get_db_connection():
     if not dsn:
         raise Exception('DATABASE_URL not found in environment')
     return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
+
+def ensure_billing_tables(cur):
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.billing_project_payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            order_number TEXT NOT NULL UNIQUE,
+            order_id TEXT,
+            amount_kopeks INTEGER NOT NULL,
+            project_slots INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'pending',
+            raw_response JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            paid_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute(f"""
+        CREATE INDEX IF NOT EXISTS idx_billing_project_payments_user_status
+        ON {SCHEMA}.billing_project_payments (user_id, status)
+    """)
+
+def get_paid_project_slots(cur, user_id: int) -> int:
+    ensure_billing_tables(cur)
+    cur.execute(
+        f"""SELECT COALESCE(SUM(project_slots), 0) AS slots
+            FROM {SCHEMA}.billing_project_payments
+            WHERE user_id = %s AND status = 'paid'""",
+        (user_id,)
+    )
+    row = cur.fetchone()
+    return int(row['slots'] or 0)
+
+def get_project_count(cur, user_id: int) -> int:
+    cur.execute(
+        f"SELECT COUNT(*) AS count FROM {SCHEMA}.rsya_projects WHERE user_id = %s",
+        (user_id,)
+    )
+    row = cur.fetchone()
+    return int(row['count'] or 0)
+
+def ensure_trial_subscription(cur, user_id: int):
+    user_id_str = str(user_id)
+    cur.execute(f"SELECT * FROM {SCHEMA}.subscriptions WHERE user_id = %s", (user_id_str,))
+    existing = cur.fetchone()
+    if existing:
+        return existing
+
+    cur.execute(
+        f"""SELECT COUNT(*) AS count
+            FROM {SCHEMA}.billing_project_payments
+            WHERE user_id = %s AND status = 'paid'""",
+        (user_id,)
+    )
+    has_paid = int(cur.fetchone()['count'] or 0) > 0
+    if has_paid:
+        return None
+
+    now = datetime.now()
+    trial_ends = now + timedelta(days=TRIAL_DAYS)
+    cur.execute(
+        f"""INSERT INTO {SCHEMA}.subscriptions
+           (user_id, plan_type, status, trial_started_at, trial_ends_at)
+           VALUES (%s, %s, %s, %s, %s)
+           RETURNING *""",
+        (user_id_str, 'trial', 'active', now, trial_ends)
+    )
+    return cur.fetchone()
+
+def build_billing_status(cur, user_id: int) -> Dict[str, Any]:
+    ensure_billing_tables(cur)
+    subscription = ensure_trial_subscription(cur, user_id)
+    paid_slots = get_paid_project_slots(cur, user_id)
+    project_count = get_project_count(cur, user_id)
+    project_limit = BASE_FREE_PROJECTS + paid_slots
+    now = datetime.now()
+
+    trial_ends_at = subscription.get('trial_ends_at') if subscription else None
+    trial_started_at = subscription.get('trial_started_at') if subscription else None
+    trial_active = bool(trial_ends_at and now < trial_ends_at)
+    trial_days_left = 0
+    if trial_active:
+        trial_days_left = max(0, (trial_ends_at.date() - now.date()).days)
+    expires_at = trial_ends_at.isoformat() if trial_ends_at else None
+
+    return {
+        'hasAccess': True,
+        'planType': subscription.get('plan_type') if subscription else 'projects',
+        'status': subscription.get('status') if subscription else 'active',
+        'expiresAt': expires_at,
+        'subscriptionExpiresAt': expires_at,
+        'trialStartedAt': trial_started_at.isoformat() if trial_started_at else None,
+        'trialEndsAt': expires_at,
+        'trialActive': trial_active,
+        'trialDaysLeft': trial_days_left,
+        'pricePerProjectRub': PRICE_PER_PROJECT_RUB,
+        'baseFreeProjects': BASE_FREE_PROJECTS,
+        'paidProjectSlots': paid_slots,
+        'projectLimit': project_limit,
+        'projectCount': project_count,
+        'remainingProjects': max(0, project_limit - project_count)
+    }
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method: str = event.get('httpMethod', 'GET')
@@ -486,23 +592,211 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'error': 'User ID required'})
             }
         
-        # GET - проверка статуса подписки (пока сервис бесплатный — всегда доступ)
+        try:
+            user_id_int = int(user_id)
+        except Exception:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': 'Invalid user_id'})
+            }
+
+        # GET - статус биллинга: триал, лимиты проектов и оплаченные слоты
         if method == 'GET':
+            billing = build_billing_status(cur, user_id_int)
+            conn.commit()
             return {
                 'statusCode': 200,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({
-                    'hasAccess': True,
-                    'planType': 'free',
-                    'status': 'active',
-                    'expiresAt': None
-                })
+                'body': json.dumps(billing)
             }
         
         # POST - активация платной подписки или создание платежа (пока не используется)
         elif method == 'POST':
             body_data = json.loads(event.get('body', '{}'))
             action = body_data.get('action')
+
+            if action == 'create_project_payment':
+                try:
+                    project_slots = int(body_data.get('projectSlots') or 1)
+                except Exception:
+                    project_slots = 1
+                project_slots = max(1, min(project_slots, 100))
+
+                alfabank_login = os.environ.get('ALFABANK_LOGIN')
+                alfabank_password = os.environ.get('ALFABANK_PASSWORD')
+                if not alfabank_login or not alfabank_password:
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ALFABANK_CREDENTIALS_NOT_CONFIGURED'})
+                    }
+
+                ensure_billing_tables(cur)
+                request_id = str(getattr(context, 'request_id', '') or int(datetime.now().timestamp()))
+                order_number = f"DK-{user_id_int}-{int(datetime.now().timestamp())}-{request_id[:8]}"
+                amount_kopeks = project_slots * PRICE_PER_PROJECT_KOPEKS
+                api_base = os.environ.get('ALFABANK_API_URL', 'https://payment.alfabank.ru/payment/rest').rstrip('/')
+
+                payload = {
+                    'userName': alfabank_login,
+                    'password': alfabank_password,
+                    'orderNumber': order_number,
+                    'amount': amount_kopeks,
+                    'returnUrl': f'https://directkit.ru/billing?payment=success&order={order_number}',
+                    'failUrl': 'https://directkit.ru/billing?payment=failed',
+                    'description': f'DirectKit: {project_slots} проект(ов) РСЯ',
+                    'jsonParams': json.dumps({
+                        'user_id': user_id_int,
+                        'project_slots': project_slots
+                    })
+                }
+                alfabank_gateway = os.environ.get('ALFABANK_GATEWAY')
+                if alfabank_gateway:
+                    payload['gateway'] = alfabank_gateway
+
+                response = requests.post(f'{api_base}/register.do', data=payload, timeout=15)
+                if response.status_code != 200:
+                    return {
+                        'statusCode': 502,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ALFABANK_REGISTER_FAILED', 'statusCode': response.status_code})
+                    }
+
+                data = response.json()
+                if not data.get('formUrl'):
+                    return {
+                        'statusCode': 502,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ALFABANK_REGISTER_FAILED', 'details': data})
+                    }
+
+                cur.execute(
+                    f"""INSERT INTO {SCHEMA}.billing_project_payments
+                       (user_id, order_number, order_id, amount_kopeks, project_slots, status, raw_response)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                       ON CONFLICT (order_number) DO UPDATE
+                       SET order_id = EXCLUDED.order_id,
+                           amount_kopeks = EXCLUDED.amount_kopeks,
+                           project_slots = EXCLUDED.project_slots,
+                           raw_response = EXCLUDED.raw_response,
+                           updated_at = NOW()""",
+                    (user_id_int, order_number, data.get('orderId'), amount_kopeks, project_slots, 'pending', json.dumps(data))
+                )
+                conn.commit()
+
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'success': True,
+                        'payment_url': data['formUrl'],
+                        'order_id': data.get('orderId'),
+                        'order_number': order_number,
+                        'amount_kopeks': amount_kopeks,
+                        'project_slots': project_slots
+                    })
+                }
+
+            if action == 'check_project_payment':
+                order_number = body_data.get('orderNumber')
+                if not order_number:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Missing orderNumber'})
+                    }
+
+                alfabank_login = os.environ.get('ALFABANK_LOGIN')
+                alfabank_password = os.environ.get('ALFABANK_PASSWORD')
+                if not alfabank_login or not alfabank_password:
+                    return {
+                        'statusCode': 500,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ALFABANK_CREDENTIALS_NOT_CONFIGURED'})
+                    }
+
+                ensure_billing_tables(cur)
+                cur.execute(
+                    f"""SELECT * FROM {SCHEMA}.billing_project_payments
+                        WHERE user_id = %s AND order_number = %s
+                        LIMIT 1""",
+                    (user_id_int, order_number)
+                )
+                payment = cur.fetchone()
+                if not payment:
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'PAYMENT_NOT_FOUND'})
+                    }
+
+                api_base = os.environ.get('ALFABANK_API_URL', 'https://payment.alfabank.ru/payment/rest').rstrip('/')
+                response = requests.post(
+                    f'{api_base}/getOrderStatusExtended.do',
+                    data={
+                        'userName': alfabank_login,
+                        'password': alfabank_password,
+                        'orderNumber': order_number
+                    },
+                    timeout=15
+                )
+                if response.status_code != 200:
+                    return {
+                        'statusCode': 502,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ALFABANK_STATUS_FAILED', 'statusCode': response.status_code})
+                    }
+
+                data = response.json()
+                order_status = data.get('orderStatus')
+                is_paid = order_status == 2
+                new_status = 'paid' if is_paid else 'pending'
+                if order_status in (3, 4, 6):
+                    new_status = 'failed'
+
+                if is_paid and payment.get('status') != 'paid':
+                    cur.execute(
+                        f"""UPDATE {SCHEMA}.billing_project_payments
+                            SET status = 'paid',
+                                paid_at = NOW(),
+                                updated_at = NOW(),
+                                raw_response = %s::jsonb
+                            WHERE id = %s""",
+                        (json.dumps(data), payment['id'])
+                    )
+                elif payment.get('status') != 'paid':
+                    cur.execute(
+                        f"""UPDATE {SCHEMA}.billing_project_payments
+                            SET status = %s,
+                                updated_at = NOW(),
+                                raw_response = %s::jsonb
+                            WHERE id = %s""",
+                        (new_status, json.dumps(data), payment['id'])
+                    )
+
+                billing = build_billing_status(cur, user_id_int)
+                conn.commit()
+
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'success': True,
+                        'is_paid': is_paid,
+                        'status': order_status,
+                        'status_text': {
+                            0: 'Заказ зарегистрирован',
+                            1: 'Предавторизован',
+                            2: 'Оплачен',
+                            3: 'Отменён',
+                            4: 'Возвращён',
+                            5: 'Инициирована авторизация',
+                            6: 'Отклонён'
+                        }.get(order_status, 'Неизвестный статус'),
+                        'billing': billing
+                    })
+                }
             
             # Создание платежа через Альфа-Банк
             if action == 'create_payment':
@@ -521,12 +815,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 alfabank_login = os.environ.get('ALFABANK_LOGIN')
                 alfabank_password = os.environ.get('ALFABANK_PASSWORD')
                 
-                # TEMPORARY WORKAROUND: hardcoded password until secrets are fixed
-                if not alfabank_password:
-                    alfabank_password = 'Qwerty22456!'
-                
-                print(f'🔑 Credentials: login={alfabank_login[:3] if alfabank_login else "None"}*** (len={len(alfabank_login) if alfabank_login else 0}), password={"*" * len(alfabank_password) if alfabank_password else "None"}')
-                
                 if not alfabank_login or not alfabank_password:
                     return {
                         'statusCode': 500,
@@ -536,24 +824,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 
                 order_number = f"{user_id}_{plan}_{int(context.request_id[:8], 16)}"
                 
-                api_url = 'https://pay.alfabank.ru/payment/rest/register.do'
+                api_base = os.environ.get('ALFABANK_API_URL', 'https://payment.alfabank.ru/payment/rest').rstrip('/')
+                api_url = f'{api_base}/register.do'
                 
                 payload = {
                     'userName': alfabank_login,
                     'password': alfabank_password,
-                    'gateway': '773502993200',
                     'orderNumber': order_number,
-                    'amount': int(amount * 100),
-                    'returnUrl': f'https://devdirectkit.ru/subscription?payment=success&order={order_number}&plan={plan}',
-                    'failUrl': 'https://devdirectkit.ru/subscription?payment=failed',
+                    'amount': int(float(amount) * 100),
+                    'returnUrl': f'https://directkit.ru/billing?payment=success&order={order_number}&plan={plan}',
+                    'failUrl': 'https://directkit.ru/billing?payment=failed',
                     'description': f'Подписка DirectKit - 1 месяц',
                     'jsonParams': json.dumps({
                         'user_id': user_id,
                         'plan': plan
                     })
                 }
+                alfabank_gateway = os.environ.get('ALFABANK_GATEWAY')
+                if alfabank_gateway:
+                    payload['gateway'] = alfabank_gateway
                 
-                print(f'📤 Sending to Alfabank: order={order_number}, amount={payload["amount"]}, gateway={payload["gateway"]}')
+                print(f'📤 Sending to Alfabank: order={order_number}, amount={payload["amount"]}')
                 
                 response = requests.post(api_url, data=payload, timeout=10)
                 
@@ -607,7 +898,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 alfabank_login = os.environ.get('ALFABANK_LOGIN')
                 alfabank_password = os.environ.get('ALFABANK_PASSWORD')
                 
-                api_url = 'https://pay.alfabank.ru/payment/rest/getOrderStatusExtended.do'
+                api_base = os.environ.get('ALFABANK_API_URL', 'https://payment.alfabank.ru/payment/rest').rstrip('/')
+                api_url = f'{api_base}/getOrderStatusExtended.do'
                 
                 payload = {
                     'userName': alfabank_login,

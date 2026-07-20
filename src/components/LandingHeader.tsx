@@ -47,8 +47,7 @@ export default function LandingHeader({ onBetaClick, onSectionClick }: LandingHe
             onClick={onBetaClick}
             className="h-10 rounded-xl bg-emerald-600 px-4 text-xs font-black text-white shadow-lg shadow-emerald-600/15 hover:bg-emerald-700 sm:h-11 sm:px-5 sm:text-sm"
           >
-            <span className="sm:hidden">Заявка</span>
-            <span className="hidden sm:inline">Оставить заявку</span>
+            <span>Зарегистрироваться</span>
           </Button>
         </div>
       </div>

@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -115,7 +114,7 @@ export default function RSYAProject() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isNameStepDone, setIsNameStepDone] = useState(false);
-  const [createMode, setCreateMode] = useState<'smart' | 'expert' | null>(null);
+  const createMode: 'expert' = 'expert';
   const [createWizardStep, setCreateWizardStep] = useState<3 | 4>(3);
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   const [availableCounters, setAvailableCounters] = useState<Counter[]>([]);
@@ -449,31 +448,23 @@ export default function RSYAProject() {
       protect_conversions: selectedGoalIds.length > 0
 		};
 
-    if (createMode === 'smart') {
-      config.protect_conversions = true;
-      config.min_clicks = 20;
-      config.max_cpa = 500;
+    if (formData.keywords.trim()) {
+      config.keywords = formData.keywords.split(',').map(k => k.trim()).filter(Boolean);
     }
-
-    if (createMode === 'expert') {
-      if (formData.keywords.trim()) {
-        config.keywords = formData.keywords.split(',').map(k => k.trim()).filter(Boolean);
-      }
-      if (formData.exceptions.trim()) {
-        config.exceptions = formData.exceptions.split(',').map(e => e.trim()).filter(Boolean);
-      }
-      if (formData.min_impressions) config.min_impressions = parseInt(formData.min_impressions);
-      if (formData.max_impressions) config.max_impressions = parseInt(formData.max_impressions);
-      if (formData.min_clicks) config.min_clicks = parseInt(formData.min_clicks);
-      if (formData.max_clicks) config.max_clicks = parseInt(formData.max_clicks);
-      if (formData.min_cpc) config.min_cpc = parseFloat(formData.min_cpc);
-      if (formData.max_cpc) config.max_cpc = parseFloat(formData.max_cpc);
-      if (formData.min_ctr) config.min_ctr = parseFloat(formData.min_ctr);
-      if (formData.max_ctr) config.max_ctr = parseFloat(formData.max_ctr);
-      if (formData.min_cpa) config.min_cpa = parseFloat(formData.min_cpa);
-      if (formData.max_cpa) config.max_cpa = parseFloat(formData.max_cpa);
-      if (formData.min_conversions) config.min_conversions = parseInt(formData.min_conversions);
+    if (formData.exceptions.trim()) {
+      config.exceptions = formData.exceptions.split(',').map(e => e.trim()).filter(Boolean);
     }
+    if (formData.min_impressions) config.min_impressions = parseInt(formData.min_impressions);
+    if (formData.max_impressions) config.max_impressions = parseInt(formData.max_impressions);
+    if (formData.min_clicks) config.min_clicks = parseInt(formData.min_clicks);
+    if (formData.max_clicks) config.max_clicks = parseInt(formData.max_clicks);
+    if (formData.min_cpc) config.min_cpc = parseFloat(formData.min_cpc);
+    if (formData.max_cpc) config.max_cpc = parseFloat(formData.max_cpc);
+    if (formData.min_ctr) config.min_ctr = parseFloat(formData.min_ctr);
+    if (formData.max_ctr) config.max_ctr = parseFloat(formData.max_ctr);
+    if (formData.min_cpa) config.min_cpa = parseFloat(formData.min_cpa);
+    if (formData.max_cpa) config.max_cpa = parseFloat(formData.max_cpa);
+    if (formData.min_conversions) config.min_conversions = parseInt(formData.min_conversions);
 
     return config;
   };
@@ -482,7 +473,6 @@ export default function RSYAProject() {
     setPreview(null);
     setPreviewConfirmed(false);
     setIsNameStepDone(false);
-    setCreateMode(null);
     setCreateWizardStep(3);
     setSelectedCounterIds(new Set());
     setActiveModules(new Set());
@@ -512,10 +502,6 @@ export default function RSYAProject() {
   };
 
   const loadPreview = async () => {
-    if (!createMode) {
-      toast({ title: 'Выберите режим чистки', variant: 'destructive' });
-      return;
-    }
     if (!formData.description.trim()) {
       toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
       return;
@@ -560,10 +546,6 @@ export default function RSYAProject() {
   };
 
   const createTask = async () => {
-    if (!createMode) {
-      toast({ title: 'Выберите режим чистки', variant: 'destructive' });
-      return;
-    }
     if (!formData.description.trim()) {
       toast({ title: 'Ошибка', description: 'Введите название задачи', variant: 'destructive' });
       return;
@@ -904,61 +886,8 @@ export default function RSYAProject() {
                 </div>
               )}
 
-              {isNameStepDone && !createMode && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">2</span>
-                  <Label className="text-lg font-bold text-slate-950">Выберите режим чистки</Label>
-                </div>
-                <Tabs
-                  value={createMode || ''}
-                  onValueChange={(v) => {
-                    setCreateMode(v as 'smart' | 'expert');
-                    setCreateWizardStep(3);
-                  }}
-                >
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-3 bg-transparent p-0">
-                  <TabsTrigger
-                    value="smart"
-                    className="group h-36 flex-col items-start justify-between rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 data-[state=active]:border-emerald-500 data-[state=active]:bg-emerald-50 data-[state=active]:shadow-md"
-                  >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 group-data-[state=active]:bg-emerald-600 group-data-[state=active]:text-white">
-                      <Icon name="Sparkles" className="h-5 w-5" />
-                    </span>
-                    <span>
-                      <span className="block text-base font-bold text-slate-950">Умная очистка</span>
-                      <span className="mt-1 block whitespace-normal text-xs font-normal leading-relaxed text-slate-600">
-                        Готовые правила, ничего не нужно задавать вручную
-                      </span>
-                    </span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="expert"
-                    className="group h-36 flex-col items-start justify-between rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50 data-[state=active]:border-slate-900 data-[state=active]:bg-slate-950 data-[state=active]:shadow-md"
-                  >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-data-[state=active]:bg-white group-data-[state=active]:text-slate-950">
-                      <Icon name="Settings" className="h-5 w-5" />
-                    </span>
-                    <span>
-                      <span className="block text-base font-bold text-slate-950 group-data-[state=active]:text-white">Режим эксперта</span>
-                      <span className="mt-1 block whitespace-normal text-xs font-normal leading-relaxed text-slate-600 group-data-[state=active]:text-slate-300">
-                        Гибкая настройка правил, порогов и исключений
-                      </span>
-                    </span>
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="smart" className="mt-4">
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-900">
-                    <div className="mb-1 flex items-center gap-2 font-semibold">
-                      <Icon name="Sparkles" className="h-4 w-4" />
-                      Ничего не нужно настраивать вручную
-                    </div>
-                    Мы заранее подготовили правила чистки: сервис сам будет искать слабые площадки и защищать выбранные конверсии от случайной блокировки.
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="expert" className="mt-6 space-y-5">
+              {isNameStepDone && (
+              <div className="space-y-5">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4 flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white">
@@ -1125,12 +1054,10 @@ export default function RSYAProject() {
                       </div>
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
               </div>
               )}
 
-              {isNameStepDone && createMode && (
+              {isNameStepDone && (
               <>
               {createWizardStep === 3 && (
               <div className="space-y-3 rounded-xl border border-purple-100 bg-white p-4">

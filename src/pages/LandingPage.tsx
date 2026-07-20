@@ -86,6 +86,10 @@ export default function LandingPage() {
     setIsBetaModalOpen(true);
   };
 
+  const openRegistration = () => {
+    window.location.href = '/auth?mode=register';
+  };
+
   const scrollToSection = (sectionId: string) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -168,7 +172,7 @@ export default function LandingPage() {
         }}
       />
 
-      <LandingHeader onBetaClick={openBetaModal} onSectionClick={scrollToSection} />
+      <LandingHeader onBetaClick={openRegistration} onSectionClick={scrollToSection} />
 
       <main>
         <section id="hero" className="relative scroll-mt-20 overflow-hidden bg-[radial-gradient(circle_at_75%_18%,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#effbf5_54%,#e7f8f7_100%)] sm:scroll-mt-24">
@@ -187,11 +191,11 @@ export default function LandingPage() {
               <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row">
                 <Button
                   size="lg"
-                  onClick={openBetaModal}
+                  onClick={openRegistration}
                   className="h-auto min-h-14 w-full rounded-md bg-emerald-600 px-5 py-4 text-sm font-black leading-5 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:w-auto sm:px-7 sm:text-base"
                 >
                   <Icon name="Rocket" size={19} className="mr-2" />
-                  Оставить заявку на закрытый бета-тест
+                  Зарегистрироваться
                 </Button>
               </div>
             </div>
@@ -246,10 +250,10 @@ export default function LandingPage() {
 
             <Button
               size="lg"
-              onClick={openBetaModal}
+              onClick={openRegistration}
               className="mt-8 h-auto min-h-14 w-full rounded-xl bg-emerald-600 px-6 py-4 text-sm font-black leading-5 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:mt-10 sm:w-auto sm:px-8 sm:text-base"
             >
-              Записаться на закрытый бета-тест
+              Зарегистрироваться
             </Button>
           </div>
         </section>
@@ -358,10 +362,10 @@ export default function LandingPage() {
 
             <Button
               size="lg"
-              onClick={openBetaModal}
+              onClick={openRegistration}
               className="mt-8 h-14 w-full rounded-xl bg-emerald-600 px-8 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:w-auto"
             >
-              Оставить заявку
+              Зарегистрироваться
             </Button>
 
             {betaSubmitted && (
@@ -387,7 +391,7 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('savings')} className="hover:text-emerald-700">Экономия</button>
             <button onClick={() => scrollToSection('how-it-works')} className="hover:text-emerald-700">Как работает</button>
             <button onClick={() => scrollToSection('result')} className="hover:text-emerald-700">Результат</button>
-            <button onClick={openBetaModal} className="hover:text-emerald-700">Оставить заявку</button>
+            <button onClick={openRegistration} className="hover:text-emerald-700">Зарегистрироваться</button>
             <a href={`mailto:${leadEmail}`} className="break-all hover:text-emerald-700">{leadEmail}</a>
           </nav>
         </div>

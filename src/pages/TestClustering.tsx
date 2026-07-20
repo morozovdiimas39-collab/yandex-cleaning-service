@@ -473,7 +473,7 @@ export default function TestClustering() {
       });
       
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 150000);
+      timeoutId = setTimeout(() => controller.abort(), 90000);
 
       const response = await fetch(WORDSTAT_API_URL, {
         method: 'POST',
@@ -511,11 +511,18 @@ export default function TestClustering() {
       const allPhrases: Array<{phrase: string, count: number}> = [];
       
       data.results.forEach((result: any) => {
-        const topRequests = result.data?.topRequests || result.data?.TopRequests || [];
+        const topRequests = result.data?.results
+          || result.data?.topRequests
+          || result.data?.TopRequests
+          || result.data?.items
+          || result.data?.Items
+          || [];
         if (Array.isArray(topRequests)) {
           topRequests.forEach((req: any) => {
+            const phrase = req.phrase || req.query || req.text;
+            if (!phrase) return;
             allPhrases.push({
-              phrase: req.phrase,
+              phrase,
               count: req.count ?? req.shows ?? req.value ?? 0
             });
           });
@@ -740,7 +747,7 @@ export default function TestClustering() {
     } catch (error: any) {
       console.error('❌ Error in handleWordstatSubmit:', error);
       const message = error?.name === 'AbortError'
-        ? 'Wordstat не ответил за 150 секунд. Попробуйте меньше фраз или другой запрос.'
+        ? 'Wordstat не ответил за 90 секунд. Попробуйте меньше фраз или другой запрос.'
         : error?.message || 'неизвестная ошибка';
       toast.error(`Ошибка: ${message}`);
       // Не меняем step при ошибке, остаёмся там где были

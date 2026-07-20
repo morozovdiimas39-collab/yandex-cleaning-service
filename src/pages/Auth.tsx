@@ -30,6 +30,9 @@ export default function Auth() {
     if (ref) {
       localStorage.setItem('referral_code', ref);
     }
+    if (searchParams.get('mode') === 'register') {
+      setMode('register');
+    }
   }, [searchParams]);
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();

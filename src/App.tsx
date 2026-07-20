@@ -33,6 +33,7 @@ import RSYAErrors from "./pages/RSYAErrors";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import Profile from "./pages/Profile";
 import BillingPage from "./pages/BillingPage";
+import RSYASeoPage from "./pages/RSYASeoPage";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,10 @@ const App = () => (
           <Route path="/tseny" element={<PricingPage />} />
           <Route path="/about-us" element={<AboutUsPage />} />
           <Route path="/o-nas" element={<AboutUsPage />} />
+          <Route path="/chistka-ploshchadok-rsya" element={<RSYASeoPage page="cleaning" />} />
+          <Route path="/musornye-ploshchadki-rsya" element={<RSYASeoPage page="trash" />} />
+          <Route path="/zapreshchennye-ploshchadki-yandex-direct" element={<RSYASeoPage page="excluded" />} />
+          <Route path="/kak-otklyuchit-ploshchadki-rsya" element={<RSYASeoPage page="howToDisable" />} />
           <Route path="/project/:id" element={<Navigate to="/rsya" replace />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />

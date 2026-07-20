@@ -47,6 +47,20 @@ export type WordstatCollection = {
 const AI_PLANNER_URL = (BACKEND_URLS as Record<string, string>)['ai-keyword-planner'];
 const WORDSTAT_API_URL = BACKEND_URLS['wordstat-parser'];
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export function uniq(items: string[]): string[] {
   return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
 }
@@ -217,11 +231,11 @@ export async function loadKeywordPlan(input: {
   audience: string;
 }): Promise<KeywordPlan> {
   if (AI_PLANNER_URL) {
-    const response = await fetch(AI_PLANNER_URL, {
+    const response = await fetchWithTimeout(AI_PLANNER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
-    });
+    }, 25000);
 
     if (response.ok) {
       const data = await response.json();
@@ -271,7 +285,7 @@ async function requestWordstat(keywords: string[], region: string): Promise<Word
     return [];
   }
 
-  const response = await fetch(WORDSTAT_API_URL, {
+  const response = await fetchWithTimeout(WORDSTAT_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -284,7 +298,7 @@ async function requestWordstat(keywords: string[], region: string): Promise<Word
       numPhrases: 120,
       devices: ['all'],
     }),
-  });
+  }, 90000);
 
   if (!response.ok) {
     return [];
@@ -293,12 +307,19 @@ async function requestWordstat(keywords: string[], region: string): Promise<Word
   const data = await response.json();
   const phrases: WordstatPhrase[] = [];
   data.results?.forEach((result: any) => {
-    const topRequests = result.data?.topRequests || result.data?.TopRequests || [];
+    const topRequests = result.data?.results
+      || result.data?.topRequests
+      || result.data?.TopRequests
+      || result.data?.items
+      || result.data?.Items
+      || [];
     if (Array.isArray(topRequests)) {
       topRequests.forEach((item: any) => {
+        const phrase = item.phrase || item.query || item.text;
+        if (!phrase) return;
         phrases.push({
-          phrase: item.phrase,
-          count: item.count ?? item.shows ?? item.value ?? 0,
+          phrase,
+          count: Number(item.count ?? item.shows ?? item.value ?? 0) || 0,
         });
       });
     }

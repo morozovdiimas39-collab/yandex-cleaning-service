@@ -353,11 +353,11 @@ export default function LandingPage() {
         <section id="request" className="scroll-mt-20 border-y border-emerald-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#f8fffb_54%,#edfafa_100%)] py-12 text-slate-900 sm:scroll-mt-24 sm:py-20">
           <div className="mx-auto max-w-5xl px-4 text-center sm:px-6">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 sm:text-sm">Закрытый бета-тест</p>
-            <h2 className="mt-3 text-2xl font-black tracking-normal sm:text-3xl md:text-5xl">
-              Оставьте заявку на подключение
+              <h2 className="mt-3 text-2xl font-black tracking-normal sm:text-3xl md:text-5xl">
+              Зарегистрируйтесь и подключите первый проект
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
-              Уникальная возможность подключить сервис автоматической чистки площадок РСЯ до публичного запуска.
+              Создайте аккаунт, подключите Яндекс.Директ и проверьте автоматическую чистку площадок РСЯ на первом проекте.
             </p>
 
             <Button
@@ -405,10 +405,10 @@ export default function LandingPage() {
                 <Icon name="Sparkles" size={22} />
               </div>
               <DialogTitle className="pr-6 text-xl font-black leading-tight text-slate-900 sm:text-2xl">
-                Заявка на закрытый бета-тест
+                Регистрация в DirectKit
               </DialogTitle>
               <DialogDescription className="text-sm font-semibold leading-6 text-slate-600">
-                Оставьте телефон, и мы свяжемся для подключения чистки площадок РСЯ.
+                Создайте аккаунт и подключите первый проект для чистки площадок РСЯ.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -450,11 +450,11 @@ export default function LandingPage() {
                 disabled={isLeadSubmitting}
                 className="h-14 w-full rounded-xl bg-emerald-600 text-base font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {isLeadSubmitting ? 'Отправляем...' : 'Отправить заявку'}
+                {isLeadSubmitting ? 'Отправляем...' : 'Продолжить регистрацию'}
               </Button>
 
               <p className="text-center text-xs font-semibold leading-5 text-slate-500">
-                Нажимая кнопку, вы отправляете телефон для связи по закрытому бета-тесту.
+                Нажимая кнопку, вы отправляете телефон для регистрации и связи по подключению.
               </p>
             </form>
           )}

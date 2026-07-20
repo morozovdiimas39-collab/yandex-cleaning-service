@@ -33,6 +33,8 @@ import RSYAErrors from "./pages/RSYAErrors";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import Profile from "./pages/Profile";
 import BillingPage from "./pages/BillingPage";
+import ClusteringProjects from "./pages/ClusteringProjects";
+import TestClustering from "./pages/TestClustering";
 
 const queryClient = new QueryClient();
 
@@ -51,8 +53,8 @@ const App = () => (
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth" element={<Auth />} />
 
-          <Route path="/clustering" element={<ProtectedRoute><Navigate to="/rsya" replace /></ProtectedRoute>} />
-          <Route path="/clustering/:id" element={<ProtectedRoute><Navigate to="/rsya" replace /></ProtectedRoute>} />
+          <Route path="/clustering" element={<ProtectedRoute><ClusteringProjects /></ProtectedRoute>} />
+          <Route path="/clustering/:id" element={<ProtectedRoute><TestClustering /></ProtectedRoute>} />
 
           <Route path="/wordstat" element={<ProtectedRoute><Navigate to="/rsya" replace /></ProtectedRoute>} />
           <Route path="/minus-cleaner" element={<MinusPhraseCleaner />} />

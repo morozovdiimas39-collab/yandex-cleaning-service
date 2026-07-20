@@ -15,7 +15,7 @@ type SidebarProps = {
 export default function Sidebar({ collapsible = false }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdminImpersonation, stopAdminImpersonation } = useAuth();
 
   const [collapsed, setCollapsed] = useState(() => {
     if (!collapsible) return false;
@@ -141,6 +141,26 @@ export default function Sidebar({ collapsible = false }: SidebarProps) {
               narrow ? 'px-1.5' : 'px-3',
             )}
           >
+            {isAdminImpersonation && !narrow && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                <div className="flex items-start gap-2">
+                  <Icon name="BadgeCheck" size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-amber-900">Режим администратора</div>
+                    <div className="mt-1 truncate text-xs text-amber-800">{user.email || user.phone || user.userId}</div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={stopAdminImpersonation}
+                  className="mt-3 h-9 w-full border-amber-200 bg-white text-xs text-amber-900 hover:bg-amber-100"
+                >
+                  Вернуться в админку
+                </Button>
+              </div>
+            )}
+
             <div
               title={narrow ? user.userId : undefined}
               className={cn(

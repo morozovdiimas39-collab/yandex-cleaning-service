@@ -17,6 +17,7 @@ export default function Auth() {
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState('');
@@ -37,12 +38,37 @@ export default function Auth() {
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
-  const saveSession = (data: { userId: number; email: string; sessionToken: string }) => {
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').replace(/^8/, '7').slice(0, 11);
+    const normalized = digits.startsWith('7') ? digits : `7${digits}`.slice(0, 11);
+    const body = normalized.slice(1);
+    const p1 = body.slice(0, 3);
+    const p2 = body.slice(3, 6);
+    const p3 = body.slice(6, 8);
+    const p4 = body.slice(8, 10);
+
+    let result = '+7';
+    if (p1) result += ` (${p1}`;
+    if (p1.length === 3) result += ')';
+    if (p2) result += ` ${p2}`;
+    if (p3) result += `-${p3}`;
+    if (p4) result += `-${p4}`;
+    return result;
+  };
+
+  const normalizePhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').replace(/^8/, '7');
+    if (digits.length === 10) return `+7${digits}`;
+    if (digits.length === 11 && digits.startsWith('7')) return `+${digits}`;
+    return '';
+  };
+
+  const saveSession = (data: { userId: number; email: string; phone?: string; sessionToken: string }) => {
     const normalizedEmail = normalizeEmail(data.email);
     const user = {
       id: data.userId,
       email: normalizedEmail,
-      phone: '',
+      phone: data.phone || '',
       userId: `user_${data.userId}`,
       createdAt: new Date().toISOString(),
       sessionToken: data.sessionToken,
@@ -73,6 +99,11 @@ export default function Auth() {
       toast({ title: 'Укажите корректную почту', variant: 'destructive' });
       return;
     }
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      toast({ title: 'Укажите телефон', description: 'Телефон нужен для связи и поддержки аккаунта', variant: 'destructive' });
+      return;
+    }
     if (password.length < 8) {
       toast({ title: 'Пароль должен быть минимум 8 символов', variant: 'destructive' });
       return;
@@ -87,6 +118,7 @@ export default function Auth() {
       await requestAuth({
         action: 'register_email',
         email: normalizedEmail,
+        phone: normalizedPhone,
         password,
       });
       setEmail(normalizedEmail);
@@ -263,18 +295,33 @@ export default function Auth() {
               )}
 
               {isRegister && (
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Повторите пароль</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Еще раз пароль"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    onKeyDown={submitOnEnter(handleRegister)}
-                    autoComplete="new-password"
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Повторите пароль</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="Еще раз пароль"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      onKeyDown={submitOnEnter(handleRegister)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Телефон</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+7 (999) 000-00-00"
+                      value={phone}
+                      onChange={(event) => setPhone(formatPhone(event.target.value))}
+                      onKeyDown={submitOnEnter(handleRegister)}
+                      autoComplete="tel"
+                      required
+                    />
+                  </div>
+                </>
               )}
 
               {mode === 'verify' && (

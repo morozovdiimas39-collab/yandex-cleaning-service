@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { BACKEND_URLS } from '@/config/backend-urls';
 import { adminFetch } from '@/lib/admin-auth';
+import { useAuth } from '@/contexts/AuthContext';
 import AdminShell from '@/components/layout/AdminShell';
 import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
@@ -17,7 +18,9 @@ interface AdminOverview {
 
 export default function AdminPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const { impersonateUser } = useAuth();
   const isUsersPage = location.pathname.startsWith('/admin/users');
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -93,6 +96,27 @@ export default function AdminPage() {
     }
   };
 
+  const openUserCabinet = (targetUser: User) => {
+    const numericId = Number(targetUser.userId);
+    if (!Number.isFinite(numericId)) {
+      toast({ title: 'Не удалось открыть кабинет', description: 'У пользователя некорректный ID.', variant: 'destructive' });
+      return;
+    }
+
+    impersonateUser({
+      id: numericId,
+      userId: targetUser.userId,
+      email: targetUser.email,
+      phone: targetUser.phone,
+      createdAt: targetUser.createdAt || new Date().toISOString(),
+      sessionToken: `admin-impersonation-${targetUser.userId}`,
+      hasAccess: true,
+      adminImpersonated: true,
+    });
+    toast({ title: 'Открыт кабинет пользователя', description: targetUser.email || targetUser.phone || `ID ${targetUser.userId}` });
+    navigate('/rsya');
+  };
+
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return [...users]
@@ -119,7 +143,7 @@ export default function AdminPage() {
             if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
             if (filters.sortOrder !== undefined) setSortOrder(filters.sortOrder);
           }}
-          onLoadMore={() => !loadingMore && hasMore && loadUsers(offset)} onUpdateUser={updateSubscription} onDeleteUser={deleteUser}
+          onLoadMore={() => !loadingMore && hasMore && loadUsers(offset)} onUpdateUser={updateSubscription} onDeleteUser={deleteUser} onImpersonateUser={openUserCabinet}
         />
       ) : <DashboardTab stats={stats} adminOverview={adminOverview} onUpdateSubscription={updateSubscription} />}
     </AdminShell>

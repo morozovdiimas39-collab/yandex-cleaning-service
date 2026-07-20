@@ -118,11 +118,43 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     # Получаем данные из body (от Message Queue или прямого вызова)
-    # Message Queue триггер передаёт в messages[0].details.message.body
+    # Message Queue триггер может передать несколько сообщений за один вызов.
     if 'messages' in event:
-        # Триггер от Message Queue
-        message_body = event['messages'][0]['details']['message']['body']
-        data = json.loads(message_body)
+        results = []
+        has_failed = False
+
+        for message in event.get('messages') or []:
+            try:
+                message_body = message['details']['message']['body']
+                data = json.loads(message_body)
+                result = process_batch_message(data, context)
+                results.append(result)
+                if result.get('statusCode', 500) >= 500:
+                    has_failed = True
+            except Exception as e:
+                has_failed = True
+                print(f"❌ Failed to process MQ message: {e}", flush=True)
+                results.append({
+                    'statusCode': 500,
+                    'body': json.dumps({'error': str(e)})
+                })
+
+        status_code = 500 if has_failed else 200
+        return {
+            'statusCode': status_code,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({
+                'success': not has_failed,
+                'messages_processed': len(results),
+                'results': [
+                    {
+                        'statusCode': result.get('statusCode'),
+                        'body': json.loads(result.get('body') or '{}')
+                    }
+                    for result in results
+                ]
+            }, ensure_ascii=False)
+        }
     else:
         # Прямой вызов (для тестов) — читаем из БД
         body_str = event.get('body', '{}')
@@ -131,7 +163,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             print('📭 Empty body, checking database for pending batches...')
             return process_from_database()
         data = json.loads(body_str) if isinstance(body_str, str) else body_str
-    
+
+    return process_batch_message(data, context)
+
+
+def process_batch_message(data: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    '''Обрабатывает один батч кампаний из MQ/HTTP/DB.'''
     batch_id = data.get('batch_id')
     project_id = data.get('project_id')
     campaign_ids = data.get('campaign_ids', [])
@@ -154,6 +191,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     start_time = time.time()
+    conn = None
+    cursor = None
     
     try:
         conn = psycopg2.connect(dsn)
@@ -234,6 +273,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 processing_time_sec = %s
             WHERE id = %s
         """, (processing_time, batch_id))
+
+        cursor.execute("""
+            SELECT COUNT(*) AS active_batches
+            FROM t_p97630513_yandex_cleaning_serv.rsya_campaign_batches
+            WHERE project_id = %s
+              AND status IN ('pending', 'processing')
+        """, (project_id,))
+        active_batches = int((cursor.fetchone() or {}).get('active_batches') or 0)
+        if active_batches == 0:
+            cursor.execute("""
+                UPDATE t_p97630513_yandex_cleaning_serv.rsya_project_schedule
+                SET last_run_at = NOW(),
+                    next_run_at = NOW() + make_interval(hours => interval_hours),
+                    updated_at = NOW()
+                WHERE project_id = %s
+            """, (project_id,))
+            print(f"🕒 Project {project_id}: all batches completed, next run shifted from finish time", flush=True)
         
         conn.commit()
         cursor.close()

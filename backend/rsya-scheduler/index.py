@@ -10,7 +10,9 @@ import requests
 # Константы для расчёта батчей
 AVG_TIME_PER_CAMPAIGN = 7  # секунд на обработку 1 кампании (по факту ~6-7 сек)
 SAFE_TIMEOUT = 25  # 25 сек (Cloud Function timeout 30 сек с запасом)
-BATCH_SIZE = 7  # 7 кампаний × 7 сек = ~49 сек, но с параллельной обработкой укладываемся в 25 сек
+BATCH_SIZE = int(os.environ.get('RSYA_CAMPAIGN_BATCH_SIZE', '7'))
+SCHEDULER_PROJECT_LIMIT = int(os.environ.get('RSYA_SCHEDULER_PROJECT_LIMIT', '50'))
+SCHEDULER_FORCE_PROJECT_LIMIT = int(os.environ.get('RSYA_SCHEDULER_FORCE_PROJECT_LIMIT', '100'))
 VALID_PROJECT_FILTER = """
                   AND p.is_configured = TRUE
                   AND p.campaign_ids IS NOT NULL
@@ -101,8 +103,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                   AND p.yandex_token IS NOT NULL
                   {valid_project_filter}
                 ORDER BY s.project_id
-                LIMIT 10
-            """.format(valid_project_filter=VALID_PROJECT_FILTER))
+                LIMIT %s
+            """.format(valid_project_filter=VALID_PROJECT_FILTER), (SCHEDULER_FORCE_PROJECT_LIMIT,))
         else:
             # Обычный режим — по расписанию
             cursor.execute("""
@@ -121,8 +123,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                   AND p.yandex_token IS NOT NULL
                   {valid_project_filter}
                 ORDER BY s.next_run_at
-                LIMIT 5
-            """.format(valid_project_filter=VALID_PROJECT_FILTER))
+                LIMIT %s
+            """.format(valid_project_filter=VALID_PROJECT_FILTER), (SCHEDULER_PROJECT_LIMIT,))
         
         projects = cursor.fetchall()
         print(f"📊 Found {len(projects)} projects to schedule")
@@ -378,7 +380,7 @@ def fetch_current_rsya_campaign_ids(yandex_token: str, client_login: str) -> Lis
     }
 
     response = requests.post(
-        'https://api.direct.yandex.com/json/v501/campaigns',
+        'https://api.direct.yandex.com/json/v5/campaigns',
         headers=headers,
         json=payload,
         timeout=30

@@ -80,7 +80,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         body_data = json.loads(body_str)
         keywords: List[str] = body_data.get('keywords', [])
+        single_phrase = body_data.get('phrase')
+        if not keywords and single_phrase:
+            keywords = [str(single_phrase)]
+
         regions: List[int] = body_data.get('regions', [213])
+        single_region = body_data.get('region')
+        if single_region and not body_data.get('regions'):
+            regions = [single_region]
         num_phrases: int = body_data.get('numPhrases', 2000)
         devices: List[str] = body_data.get('devices', ['all'])
         

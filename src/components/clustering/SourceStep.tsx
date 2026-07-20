@@ -10,6 +10,7 @@ import {
   findCity,
   loadKeywordPlan,
   collectWordstatWithAi,
+  AiKeywordCluster,
   KeywordPlan,
   WordstatCollection,
   WordstatPhrase,
@@ -30,7 +31,7 @@ interface SourceStepProps {
   setObjectAddress: (address: string) => void;
   onNext: () => void;
   onWordstatClick?: () => void;
-  onAiApply?: (keywords: string, city?: City, minusWords?: string[], verifiedPhrases?: WordstatPhrase[]) => void;
+  onAiApply?: (keywords: string, city?: City, minusWords?: string[], verifiedPhrases?: WordstatPhrase[], clusters?: AiKeywordCluster[]) => void;
   onManualKeywordsEdit?: () => void;
   isLoading?: boolean;
 }
@@ -116,7 +117,13 @@ export default function SourceStep({
 
       setSource('manual');
       if (onAiApply) {
-        onAiApply(keywords, selectedCity, nextPlan.minusWords, result.verifiedPhrases);
+        onAiApply(
+          keywords,
+          selectedCity,
+          result.minusWords || nextPlan.minusWords,
+          result.verifiedPhrases,
+          result.clusters,
+        );
       } else {
         setManualKeywords(keywords);
       }

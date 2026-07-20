@@ -4,6 +4,54 @@ from typing import Dict, Any, List
 import psycopg2
 import psycopg2.extras
 
+SCHEMA = 't_p97630513_yandex_cleaning_serv'
+BASE_FREE_PROJECTS = 1
+PRICE_PER_PROJECT_RUB = 250
+
+def ensure_billing_tables(cursor):
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS {SCHEMA}.billing_project_payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            order_number TEXT NOT NULL UNIQUE,
+            order_id TEXT,
+            amount_kopeks INTEGER NOT NULL,
+            project_slots INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'pending',
+            raw_response JSONB,
+            created_at TIMESTAMP DEFAULT NOW(),
+            paid_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cursor.execute(f"""
+        CREATE INDEX IF NOT EXISTS idx_billing_project_payments_user_status
+        ON {SCHEMA}.billing_project_payments (user_id, status)
+    """)
+
+def get_project_limit_info(cursor, user_id: int) -> Dict[str, Any]:
+    ensure_billing_tables(cursor)
+    cursor.execute(
+        f"SELECT COUNT(*) FROM {SCHEMA}.rsya_projects WHERE user_id = %s",
+        (user_id,)
+    )
+    project_count = int(cursor.fetchone()[0] or 0)
+    cursor.execute(
+        f"""SELECT COALESCE(SUM(project_slots), 0)
+            FROM {SCHEMA}.billing_project_payments
+            WHERE user_id = %s AND status = 'paid'""",
+        (user_id,)
+    )
+    paid_slots = int(cursor.fetchone()[0] or 0)
+    project_limit = BASE_FREE_PROJECTS + paid_slots
+    return {
+        'project_count': project_count,
+        'project_limit': project_limit,
+        'paid_project_slots': paid_slots,
+        'remaining_projects': max(0, project_limit - project_count),
+        'price_per_project_rub': PRICE_PER_PROJECT_RUB
+    }
+
 
 def _normalize_list(value) -> List[str]:
     if not value:
@@ -827,6 +875,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # POST /projects - создать проект (если нет action)
         if method == 'POST' and not body_data.get('action'):
             project_name = body_data.get('name', 'Новый проект')
+            limit_info = get_project_limit_info(cursor, user_id_int)
+
+            if limit_info['project_count'] >= limit_info['project_limit']:
+                cursor.close()
+                conn.close()
+                return {
+                    'statusCode': 402,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({
+                        'error': 'PROJECT_LIMIT_REACHED',
+                        'message': 'Бесплатно доступен 1 проект. Чтобы создать больше проектов, оплатите дополнительные слоты.',
+                        **limit_info
+                    })
+                }
             
             cursor.execute(
                 "INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_projects (name, user_id) VALUES (%s, %s) RETURNING id, name, created_at",
@@ -1016,6 +1078,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 """,
                 (client_login, project_id)
             )
+
+            cursor.execute("""
+                INSERT INTO t_p97630513_yandex_cleaning_serv.rsya_project_schedule (project_id, interval_hours, next_run_at, is_active)
+                VALUES (%s, 8, NOW(), TRUE)
+                ON CONFLICT (project_id)
+                DO UPDATE SET
+                    interval_hours = COALESCE(t_p97630513_yandex_cleaning_serv.rsya_project_schedule.interval_hours, 8),
+                    next_run_at = NOW(),
+                    is_active = TRUE,
+                    updated_at = NOW()
+            """, (project_id,))
             
             conn.commit()
             

@@ -15,6 +15,8 @@ import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import WordstatParserPage from "./pages/WordstatParserPage";
 import ClusteringKeywordsPage from "./pages/ClusteringKeywordsPage";
+import ClusteringProjects from "./pages/ClusteringProjects";
+import TestClustering from "./pages/TestClustering";
 import YandexDirectOperatorsPage from "./pages/YandexDirectOperatorsPage";
 import MinusWordsGeneratorPage from "./pages/MinusWordsGeneratorPage";
 import BlogPage from "./pages/BlogPage";
@@ -33,8 +35,7 @@ import RSYAErrors from "./pages/RSYAErrors";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import Profile from "./pages/Profile";
 import BillingPage from "./pages/BillingPage";
-import ClusteringProjects from "./pages/ClusteringProjects";
-import TestClustering from "./pages/TestClustering";
+import DeveloperQuiz from "./pages/DeveloperQuiz";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/projects" element={<ProtectedRoute><Navigate to="/rsya" replace /></ProtectedRoute>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/developer-quiz" element={<DeveloperQuiz />} />
 
           <Route path="/clustering" element={<ProtectedRoute><ClusteringProjects /></ProtectedRoute>} />
           <Route path="/clustering/:id" element={<ProtectedRoute><TestClustering /></ProtectedRoute>} />

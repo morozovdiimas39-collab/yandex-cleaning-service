@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import Sidebar from '@/components/Sidebar';
 import { BACKEND_URLS } from '@/config/backend-urls';
@@ -108,20 +110,24 @@ export default function BillingPage() {
 
   const createPayment = async () => {
     if (!userId) return;
+    const slots = Math.max(1, Math.floor(projectSlots || 1));
+    setProjectSlots(slots);
     setPaying(true);
     try {
       const response = await fetch(SUBSCRIPTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-        body: JSON.stringify({ action: 'create_project_payment', projectSlots }),
+        body: JSON.stringify({ action: 'create_project_payment', projectSlots: slots }),
       });
       const data = await response.json();
-      if (!response.ok || !data.payment_url) throw new Error(data?.error || 'payment_failed');
+      if (!response.ok || !data.payment_url) {
+        throw new Error(data?.message || data?.details?.errorMessage || data?.error || 'payment_failed');
+      }
       window.location.href = data.payment_url;
-    } catch {
+    } catch (error) {
       toast({
         title: 'Не удалось создать платеж',
-        description: 'Проверьте настройки Альфа-Банка в облачной функции.',
+        description: error instanceof Error ? error.message : 'Проверьте настройки Альфа-Банка в облачной функции.',
         variant: 'destructive',
       });
       setPaying(false);
@@ -196,22 +202,43 @@ export default function BillingPage() {
                 <p className="mt-2 max-w-xl text-slate-300">
                   Оплата открывает возможность создавать дополнительные проекты РСЯ. Текущие проекты и задачи не меняются.
                 </p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                  {[1, 3, 5].map((count) => (
-                    <button
-                      key={count}
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <Label htmlFor="project-slots" className="text-slate-200">
+                    Сколько проектов добавить
+                  </Label>
+                  <div className="mt-3 grid grid-cols-[52px_1fr_52px] gap-3">
+                    <Button
                       type="button"
-                      onClick={() => setProjectSlots(count)}
-                      className={`rounded-2xl border px-4 py-4 text-left transition ${
-                        projectSlots === count
-                          ? 'border-emerald-400 bg-emerald-500/15'
-                          : 'border-white/10 bg-white/5 hover:bg-white/10'
-                      }`}
+                      variant="secondary"
+                      onClick={() => setProjectSlots((value) => Math.max(1, value - 1))}
+                      className="h-12 rounded-xl bg-white/10 text-white hover:bg-white/15"
                     >
-                      <div className="text-2xl font-bold">+{count}</div>
-                      <div className="mt-1 text-sm text-slate-300">{count * (billing?.pricePerProjectRub || 250)} ₽</div>
-                    </button>
-                  ))}
+                      <Icon name="Minus" size={18} />
+                    </Button>
+                    <Input
+                      id="project-slots"
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={projectSlots}
+                      onChange={(event) => {
+                        const nextValue = Number.parseInt(event.target.value, 10);
+                        setProjectSlots(Number.isFinite(nextValue) ? Math.max(1, nextValue) : 1);
+                      }}
+                      className="h-12 rounded-xl border-white/10 bg-white text-center text-lg font-bold text-slate-950"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setProjectSlots((value) => value + 1)}
+                      className="h-12 rounded-xl bg-white/10 text-white hover:bg-white/15"
+                    >
+                      <Icon name="Plus" size={18} />
+                    </Button>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-300">
+                    Можно указать любое нужное количество проектов.
+                  </p>
                 </div>
               </div>
 

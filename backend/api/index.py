@@ -20,6 +20,7 @@ PASSWORD_ITERATIONS = 210_000
 EMAIL_CODE_TTL_MINUTES = 15
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 _AUTH_SCHEMA_READY = False
+_USERS_PHONE_COLUMN_READY = False
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -70,6 +71,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif endpoint == 'verify':
             ensure_email_auth_schema(cur, conn)
             return handle_verify(event, cur, conn)
+        elif endpoint == 'profile':
+            ensure_email_auth_schema(cur, conn)
+            return handle_profile(event, cur, conn)
         elif endpoint == 'projects':
             return handle_projects(event, cur, conn)
         else:
@@ -118,7 +122,7 @@ def parse_json_body(event: Dict[str, Any]) -> Dict[str, Any]:
         return {}
 
 def ensure_email_auth_schema(cur, conn) -> None:
-    global _AUTH_SCHEMA_READY
+    global _AUTH_SCHEMA_READY, _USERS_PHONE_COLUMN_READY
     if _AUTH_SCHEMA_READY:
         return
 
@@ -137,10 +141,46 @@ def ensure_email_auth_schema(cur, conn) -> None:
         )
     """)
     conn.commit()
+
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = 'users'
+          AND column_name = 'phone'
+        """,
+        (SCHEMA,)
+    )
+    _USERS_PHONE_COLUMN_READY = cur.fetchone() is not None
+
+    if not _USERS_PHONE_COLUMN_READY:
+        try:
+            cur.execute(f"ALTER TABLE {SCHEMA}.users ADD COLUMN phone VARCHAR(64)")
+            conn.commit()
+            _USERS_PHONE_COLUMN_READY = True
+        except psycopg2.Error as exc:
+            conn.rollback()
+            if exc.pgcode == '42501':
+                print('Users.phone column is missing, but DB role is not table owner; skip automatic migration')
+            else:
+                raise
+
     _AUTH_SCHEMA_READY = True
 
 def normalize_email(email: str) -> str:
     return (email or '').strip().lower()
+
+def normalize_phone(phone: str) -> str:
+    digits = re.sub(r'\D+', '', phone or '')
+    if len(digits) == 11 and digits.startswith('8'):
+        digits = '7' + digits[1:]
+    if len(digits) == 10:
+        digits = '7' + digits
+    return f'+{digits}' if digits else ''
+
+def phone_is_valid(phone: str) -> bool:
+    return bool(re.fullmatch(r'\+7\d{10}', phone or ''))
 
 def password_is_valid(password: str) -> bool:
     return len(password) >= 8
@@ -337,10 +377,13 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
 
     if action == 'register_email':
         email = normalize_email(body_data.get('email', ''))
+        phone = normalize_phone(body_data.get('phone', ''))
         password = str(body_data.get('password') or '')
 
         if not EMAIL_RE.match(email):
             return response_json(400, {'error': 'Укажите корректную почту'})
+        if not phone_is_valid(phone):
+            return response_json(400, {'error': 'Укажите телефон в формате +7'})
         if not password_is_valid(password):
             return response_json(400, {'error': 'Пароль должен быть минимум 8 символов'})
 
@@ -359,6 +402,10 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
 
         if existing_user:
             user_id = existing_user[0]
+            cur.execute(
+                f"UPDATE {SCHEMA}.users SET phone = %s WHERE id = %s",
+                (phone, user_id)
+            )
             cur.execute(
                 f"""
                 UPDATE {SCHEMA}.user_email_auth
@@ -386,7 +433,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
                 VALUES (%s, NULL, NULL, FALSE)
                 RETURNING id
                 """,
-                (build_email_placeholder_phone(email),)
+                (phone,)
             )
             user_id = cur.fetchone()[0]
             cur.execute(
@@ -456,9 +503,10 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
 
         cur.execute(
             f"""
-            SELECT user_id, verification_code, code_expires_at
-            FROM {SCHEMA}.user_email_auth
-            WHERE LOWER(email) = LOWER(%s)
+            SELECT a.user_id, a.verification_code, a.code_expires_at, u.phone
+            FROM {SCHEMA}.user_email_auth a
+            JOIN {SCHEMA}.users u ON u.id = a.user_id
+            WHERE LOWER(a.email) = LOWER(%s)
             """,
             (email,)
         )
@@ -466,7 +514,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
         if not user:
             return response_json(404, {'error': 'Пользователь не найден'})
 
-        user_id, stored_code, expires_at = user
+        user_id, stored_code, expires_at, phone = user
         if stored_code != code:
             return response_json(400, {'error': 'Неверный код подтверждения'})
         if expires_at and datetime.now() > expires_at:
@@ -498,6 +546,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             'success': True,
             'userId': user_id,
             'email': email,
+            'phone': phone,
             'sessionToken': session_token
         })
 
@@ -510,9 +559,10 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
 
         cur.execute(
             f"""
-            SELECT user_id, password_salt, password_hash, password_iterations, verified_at
-            FROM {SCHEMA}.user_email_auth
-            WHERE LOWER(email) = LOWER(%s)
+            SELECT a.user_id, a.password_salt, a.password_hash, a.password_iterations, a.verified_at, u.phone
+            FROM {SCHEMA}.user_email_auth a
+            JOIN {SCHEMA}.users u ON u.id = a.user_id
+            WHERE LOWER(a.email) = LOWER(%s)
             """,
             (email,)
         )
@@ -520,7 +570,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
         if not user or not user[1] or not user[2]:
             return response_json(401, {'error': 'Неверная почта или пароль'})
 
-        user_id, salt, stored_hash, iterations, verified_at = user
+        user_id, salt, stored_hash, iterations, verified_at, phone = user
         supplied_hash = hash_password(password, salt, int(iterations or PASSWORD_ITERATIONS))
         if not hmac.compare_digest(supplied_hash, stored_hash):
             return response_json(401, {'error': 'Неверная почта или пароль'})
@@ -535,6 +585,7 @@ def handle_auth(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             'success': True,
             'userId': user_id,
             'email': email,
+            'phone': phone,
             'sessionToken': session_token
         })
     
@@ -681,6 +732,53 @@ def handle_verify(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'valid': False, 'error': 'Invalid or expired token'})
         }
+
+def handle_profile(event: Dict[str, Any], cur, conn) -> Dict[str, Any]:
+    method = event.get('httpMethod', 'GET')
+    headers = event.get('headers', {})
+    session_token = headers.get('x-session-token') or headers.get('X-Session-Token')
+    user_id = verify_session(cur, session_token)
+
+    if not user_id:
+        return response_json(401, {'error': 'Invalid or expired session'})
+
+    if method == 'GET':
+        cur.execute(
+            f"""
+            SELECT u.id, u.phone, a.email
+            FROM {SCHEMA}.users u
+            LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
+            WHERE u.id = %s
+            """,
+            (user_id,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return response_json(404, {'error': 'Пользователь не найден'})
+        return response_json(200, {'userId': row[0], 'phone': row[1], 'email': row[2]})
+
+    if method == 'POST':
+        body_data = parse_json_body(event)
+        phone = normalize_phone(body_data.get('phone', ''))
+        if not phone_is_valid(phone):
+            return response_json(400, {'error': 'Укажите телефон в формате +7'})
+
+        cur.execute(f"UPDATE {SCHEMA}.users SET phone = %s WHERE id = %s", (phone, user_id))
+        conn.commit()
+
+        cur.execute(
+            f"""
+            SELECT u.id, u.phone, a.email
+            FROM {SCHEMA}.users u
+            LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
+            WHERE u.id = %s
+            """,
+            (user_id,)
+        )
+        row = cur.fetchone()
+        return response_json(200, {'success': True, 'userId': row[0], 'phone': row[1], 'email': row[2]})
+
+    return response_json(405, {'error': 'Method not allowed'})
 
 def verify_session(cur, session_token: str) -> Optional[int]:
     '''Проверяет токен сессии и возвращает user_id или None'''

@@ -114,6 +114,44 @@ SCHEMA = {
     ],
 }
 
+CLUSTER_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "clusters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "intent": {"type": "string"},
+                    "color": {"type": "string"},
+                    "icon": {"type": "string"},
+                    "phrases": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "phrase": {"type": "string"},
+                                "count": {"type": "number"},
+                            },
+                            "required": ["phrase", "count"],
+                        },
+                    },
+                },
+                "required": ["name", "intent", "color", "icon", "phrases"],
+            },
+        },
+        "minusWords": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["clusters", "minusWords"],
+}
+
 
 def unique(items):
     seen = set()
@@ -224,6 +262,58 @@ def build_fallback_plan(body: Dict[str, Any], reason: str = "openai_unavailable"
     }
 
 
+def build_fallback_clusters(body: Dict[str, Any], reason: str = "openai_unavailable") -> Dict[str, Any]:
+    phrases = body.get("phrases") or []
+    plan = body.get("plan") or {}
+    source_clusters = plan.get("clusters") or []
+    used = set()
+    clusters = []
+    colors = ["blue", "emerald", "purple", "orange", "teal", "indigo"]
+    icons = ["Folder", "Search", "Tags", "Target", "Layers", "Sparkles"]
+
+    for index, source_cluster in enumerate(source_clusters[:8]):
+        examples = [str(item).lower() for item in source_cluster.get("examples", []) if item]
+        matched = []
+        for phrase in phrases:
+            text = str(phrase.get("phrase") or "").lower()
+            if not text or text in used:
+                continue
+            if any(example.split(" ")[0] in text for example in examples if example):
+                used.add(text)
+                matched.append({"phrase": phrase.get("phrase"), "count": phrase.get("count", 0)})
+
+        if matched:
+            clusters.append({
+                "name": source_cluster.get("name") or f"Сегмент {index + 1}",
+                "intent": source_cluster.get("intent") or "commercial",
+                "color": colors[index % len(colors)],
+                "icon": icons[index % len(icons)],
+                "phrases": matched,
+            })
+
+    rest = []
+    for phrase in phrases:
+        text = str(phrase.get("phrase") or "").lower()
+        if text and text not in used:
+            rest.append({"phrase": phrase.get("phrase"), "count": phrase.get("count", 0)})
+
+    if rest:
+        clusters.append({
+            "name": "Остальные фразы",
+            "intent": "mixed",
+            "color": "slate",
+            "icon": "Folder",
+            "phrases": rest,
+        })
+
+    return {
+        "clusters": clusters,
+        "minusWords": unique((plan.get("minusWords") or []) + (body.get("minusWords") or [])),
+        "source": "fallback",
+        "fallbackReason": reason,
+    }
+
+
 def response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "statusCode": status_code,
@@ -254,7 +344,91 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
+        if body.get("action") == "cluster_phrases":
+            return response(200, build_fallback_clusters(body, "openai_key_not_configured"))
         return response(200, build_fallback_plan(body, "openai_key_not_configured"))
+
+    proxy_url = os.environ.get("OPENAI_PROXY_URL") or os.environ.get("PROXY_URL")
+
+    if body.get("action") == "cluster_phrases":
+        phrases = body.get("phrases") or []
+        if not isinstance(phrases, list) or len(phrases) == 0:
+            return response(400, {"error": "phrases required"})
+
+        if not proxy_url:
+            return response(200, build_fallback_clusters(body, "openai_proxy_not_configured"))
+
+        cluster_payload = json.dumps(
+            {
+                "business": body.get("business", ""),
+                "region": body.get("region", ""),
+                "plan": body.get("plan") or {},
+                "phrases": phrases[:700],
+                "minusWords": body.get("minusWords") or [],
+            },
+            ensure_ascii=False,
+        )
+
+        cluster_prompt = """
+Ты senior performance-маркетолог для Яндекс Директа.
+Сгруппируй реальные Wordstat-фразы в понятные рекламные кластеры.
+Правила:
+- не придумывай новые фразы и частотность;
+- используй только переданные phrases;
+- каждая фраза должна попасть максимум в один кластер;
+- названия кластеров должны быть короткими и понятными для рекламодателя;
+- мусорные, нецелевые и информационные фразы можно выделять отдельными сегментами;
+- верни также минус-слова, если они явно нужны по смыслу.
+"""
+
+        try:
+            openai_response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": os.environ.get("OPENAI_MODEL", "gpt-4.1-mini"),
+                    "input": [
+                        {"role": "system", "content": cluster_prompt},
+                        {"role": "user", "content": cluster_payload},
+                    ],
+                    "text": {
+                        "format": {
+                            "type": "json_schema",
+                            "name": "keyword_clusters",
+                            "strict": True,
+                            "schema": CLUSTER_SCHEMA,
+                        }
+                    },
+                },
+                proxies={"http": proxy_url, "https": proxy_url} if proxy_url else None,
+                timeout=20,
+            )
+
+            if openai_response.status_code >= 400:
+                return response(200, build_fallback_clusters(body, f"openai_http_{openai_response.status_code}"))
+
+            data = openai_response.json()
+            output_text = data.get("output_text")
+            if not output_text:
+                for item in data.get("output", []):
+                    for content in item.get("content", []):
+                        if content.get("type") == "output_text":
+                            output_text = content.get("text")
+                            break
+                    if output_text:
+                        break
+
+            if not output_text:
+                return response(200, build_fallback_clusters(body, "openai_empty_output"))
+
+            clusters = json.loads(output_text)
+            clusters["source"] = "openai"
+            return response(200, clusters)
+        except Exception as exc:
+            return response(200, build_fallback_clusters(body, f"openai_exception:{str(exc)[:120]}"))
 
     payload_text = json.dumps(
         {
@@ -267,8 +441,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ensure_ascii=False,
     )
 
+    if not proxy_url:
+        return response(200, build_fallback_plan(body, "openai_proxy_not_configured"))
+
     model = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
-    proxy_url = os.environ.get("OPENAI_PROXY_URL") or os.environ.get("PROXY_URL")
     proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
 
     try:
@@ -294,7 +470,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 },
             },
             proxies=proxies,
-            timeout=60,
+            timeout=20,
         )
 
         if openai_response.status_code >= 400:

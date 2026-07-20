@@ -10,7 +10,7 @@ interface Props {
   filterStatus: string; filterPlan: string; sortBy: string; sortOrder: 'asc' | 'desc';
   searchQuery: string; onSearchChange: (value: string) => void;
   onFilterChange: (filters: { status?: string; plan?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => void;
-  onLoadMore: () => void; onUpdateUser: (userId: string, planType: string, days: number) => void; onDeleteUser: (userId: string) => void;
+  onLoadMore: () => void; onUpdateUser: (userId: string, planType: string, days: number) => void; onDeleteUser: (userId: string) => void; onImpersonateUser: (user: User) => void;
 }
 
 export default function UsersTab(props: Props) {
@@ -34,7 +34,7 @@ export default function UsersTab(props: Props) {
           <div className="flex min-h-72 items-center justify-center"><Icon name="Loader2" className="h-7 w-7 animate-spin text-emerald-600" /></div>
         ) : props.users.length === 0 ? (
           <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center"><Icon name="UsersRound" size={34} className="mb-3 text-slate-300" /><h2 className="font-medium">Пользователи не найдены</h2><p className="mt-1 text-sm text-slate-500">Измените поиск или фильтры.</p></div>
-        ) : <UsersTable users={props.users} onUpdateUser={props.onUpdateUser} onDeleteUser={props.onDeleteUser} />}
+        ) : <UsersTable users={props.users} onUpdateUser={props.onUpdateUser} onDeleteUser={props.onDeleteUser} onImpersonateUser={props.onImpersonateUser} />}
 
         {props.hasMore && !props.loading && (
           <div className="flex justify-center border-t border-slate-200 p-4"><Button variant="outline" onClick={props.onLoadMore} disabled={props.loadingMore}>{props.loadingMore ? <Icon name="Loader2" className="mr-2 h-4 w-4 animate-spin" /> : <Icon name="ChevronsDown" className="mr-2 h-4 w-4" />}Загрузить ещё</Button></div>

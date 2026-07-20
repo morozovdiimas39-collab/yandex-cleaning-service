@@ -22,6 +22,16 @@ BASE_FREE_PROJECTS = 1
 TRIAL_DAYS = 7
 
 
+def log_event(event_name: str, **fields):
+    safe_fields = {}
+    for key, value in fields.items():
+        if key.lower() in {'password', 'username', 'user_name', 'alfabank_password', 'alfabank_login', 'database_url'}:
+            safe_fields[key] = '***'
+        else:
+            safe_fields[key] = value
+    print(json.dumps({'event': event_name, **safe_fields}, ensure_ascii=False, default=str), flush=True)
+
+
 def verify_admin_session(cur, headers: Dict[str, Any]):
     token = (headers.get('x-admin-session') or headers.get('X-Admin-Session') or '').strip()
     if not token:
@@ -71,7 +81,6 @@ def ensure_billing_tables(cur):
         CREATE INDEX IF NOT EXISTS idx_billing_project_payments_user_status
         ON {SCHEMA}.billing_project_payments (user_id, status)
     """)
-
 def get_paid_project_slots(cur, user_id: int) -> int:
     ensure_billing_tables(cur)
     cur.execute(
@@ -155,6 +164,7 @@ def build_billing_status(cur, user_id: int) -> Dict[str, Any]:
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method: str = event.get('httpMethod', 'GET')
+    request_id = str(getattr(context, 'request_id', '') or '')
     
     # CORS OPTIONS
     if method == 'OPTIONS':
@@ -615,17 +625,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif method == 'POST':
             body_data = json.loads(event.get('body', '{}'))
             action = body_data.get('action')
+            log_event('subscription_post', request_id=request_id, action=action, user_id=user_id)
 
             if action == 'create_project_payment':
                 try:
                     project_slots = int(body_data.get('projectSlots') or 1)
                 except Exception:
                     project_slots = 1
-                project_slots = max(1, min(project_slots, 100))
+                project_slots = max(1, project_slots)
+                log_event('payment_start', request_id=request_id, user_id=user_id_int, project_slots=project_slots)
 
                 alfabank_login = os.environ.get('ALFABANK_LOGIN')
                 alfabank_password = os.environ.get('ALFABANK_PASSWORD')
                 if not alfabank_login or not alfabank_password:
+                    log_event(
+                        'payment_credentials_missing',
+                        request_id=request_id,
+                        has_login=bool(alfabank_login),
+                        has_password=bool(alfabank_password)
+                    )
                     return {
                         'statusCode': 500,
                         'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -633,10 +651,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
 
                 ensure_billing_tables(cur)
-                request_id = str(getattr(context, 'request_id', '') or int(datetime.now().timestamp()))
-                order_number = f"DK-{user_id_int}-{int(datetime.now().timestamp())}-{request_id[:8]}"
+                order_suffix = request_id or str(int(datetime.now().timestamp()))
+                order_number = f"DK-{user_id_int}-{int(datetime.now().timestamp())}-{order_suffix[:8]}"
                 amount_kopeks = project_slots * PRICE_PER_PROJECT_KOPEKS
                 api_base = os.environ.get('ALFABANK_API_URL', 'https://payment.alfabank.ru/payment/rest').rstrip('/')
+                log_event(
+                    'payment_prepared',
+                    request_id=request_id,
+                    user_id=user_id_int,
+                    order_number=order_number,
+                    amount_kopeks=amount_kopeks,
+                    api_host=api_base.replace('https://', '').replace('http://', '').split('/')[0],
+                    login_has_api_suffix=alfabank_login.endswith('-api'),
+                    gateway_present=bool(os.environ.get('ALFABANK_GATEWAY'))
+                )
 
                 payload = {
                     'userName': alfabank_login,
@@ -655,8 +683,51 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if alfabank_gateway:
                     payload['gateway'] = alfabank_gateway
 
-                response = requests.post(f'{api_base}/register.do', data=payload, timeout=15)
+                try:
+                    log_event('payment_alfa_request', request_id=request_id, order_number=order_number)
+                    response = requests.post(f'{api_base}/register.do', data=payload, timeout=(5, 15))
+                except requests.Timeout:
+                    log_event('payment_alfa_timeout', request_id=request_id, order_number=order_number)
+                    return {
+                        'statusCode': 504,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({
+                            'error': 'ALFABANK_GATEWAY_TIMEOUT',
+                            'message': 'Платежный шлюз Альфа-Банка не ответил вовремя.'
+                        })
+                    }
+                except requests.RequestException as exc:
+                    log_event(
+                        'payment_alfa_request_exception',
+                        request_id=request_id,
+                        order_number=order_number,
+                        exception_type=type(exc).__name__,
+                        exception=str(exc)[:500]
+                    )
+                    return {
+                        'statusCode': 502,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({
+                            'error': 'ALFABANK_GATEWAY_UNAVAILABLE',
+                            'message': 'Не удалось подключиться к платежному шлюзу Альфа-Банка.',
+                            'details': str(exc)[:500]
+                        })
+                    }
+                log_event(
+                    'payment_alfa_response',
+                    request_id=request_id,
+                    order_number=order_number,
+                    status_code=response.status_code,
+                    response_size=len(response.text or '')
+                )
                 if response.status_code != 200:
+                    log_event(
+                        'payment_alfa_bad_status',
+                        request_id=request_id,
+                        order_number=order_number,
+                        status_code=response.status_code,
+                        response_text=(response.text or '')[:500]
+                    )
                     return {
                         'statusCode': 502,
                         'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -664,6 +735,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     }
 
                 data = response.json()
+                log_event(
+                    'payment_alfa_data',
+                    request_id=request_id,
+                    order_number=order_number,
+                    error_code=data.get('errorCode'),
+                    error_message=data.get('errorMessage'),
+                    has_form_url=bool(data.get('formUrl')),
+                    has_order_id=bool(data.get('orderId'))
+                )
                 if not data.get('formUrl'):
                     return {
                         'statusCode': 502,
@@ -684,6 +764,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     (user_id_int, order_number, data.get('orderId'), amount_kopeks, project_slots, 'pending', json.dumps(data))
                 )
                 conn.commit()
+                log_event('payment_success', request_id=request_id, order_number=order_number, user_id=user_id_int)
 
                 return {
                     'statusCode': 200,

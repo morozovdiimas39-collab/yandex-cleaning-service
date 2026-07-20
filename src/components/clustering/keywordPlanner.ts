@@ -42,6 +42,17 @@ export type WordstatCollection = {
   candidateMasks: string[];
   rejectedMasks: string[];
   followUpMasks: string[];
+  clusters?: AiKeywordCluster[];
+  minusWords?: string[];
+  clusteringSource?: 'openai' | 'fallback';
+};
+
+export type AiKeywordCluster = {
+  name: string;
+  intent: string;
+  color: string;
+  icon: string;
+  phrases: WordstatPhrase[];
 };
 
 const AI_PLANNER_URL = (BACKEND_URLS as Record<string, string>)['ai-keyword-planner'];
@@ -223,6 +234,100 @@ export function fallbackWordstatPhrases(plan: KeywordPlan, region: string): Word
   ]).filter(Boolean) as WordstatPhrase[];
 }
 
+function clusterPhrasesLocally(plan: KeywordPlan, phrases: WordstatPhrase[]): AiKeywordCluster[] {
+  const colors = ['blue', 'emerald', 'purple', 'orange', 'teal', 'indigo'];
+  const icons = ['Folder', 'Search', 'Tags', 'Target', 'Layers', 'Sparkles'];
+  const used = new Set<string>();
+  const clusters: AiKeywordCluster[] = [];
+
+  plan.clusters.slice(0, 8).forEach((cluster, index) => {
+    const examples = cluster.examples.map((example) => example.toLowerCase()).filter(Boolean);
+    const matched = phrases.filter((phrase) => {
+      const text = phrase.phrase.toLowerCase();
+      if (used.has(text)) return false;
+      const isMatch = examples.some((example) => {
+        const firstWord = example.split(/\s+/)[0];
+        return firstWord.length > 2 && text.includes(firstWord);
+      });
+      if (isMatch) used.add(text);
+      return isMatch;
+    });
+
+    if (matched.length > 0) {
+      clusters.push({
+        name: cluster.name,
+        intent: cluster.intent || 'commercial',
+        color: colors[index % colors.length],
+        icon: icons[index % icons.length],
+        phrases: matched,
+      });
+    }
+  });
+
+  const rest = phrases.filter((phrase) => !used.has(phrase.phrase.toLowerCase()));
+  if (rest.length > 0) {
+    clusters.push({
+      name: 'Остальные фразы',
+      intent: 'mixed',
+      color: 'slate',
+      icon: 'Folder',
+      phrases: rest,
+    });
+  }
+
+  return clusters;
+}
+
+async function clusterWordstatPhrases(
+  plan: KeywordPlan,
+  phrases: WordstatPhrase[],
+  region: string,
+): Promise<{ clusters: AiKeywordCluster[]; minusWords: string[]; source: 'openai' | 'fallback' }> {
+  if (!AI_PLANNER_URL || phrases.length === 0) {
+    return {
+      clusters: clusterPhrasesLocally(plan, phrases),
+      minusWords: plan.minusWords,
+      source: 'fallback',
+    };
+  }
+
+  try {
+    const response = await fetchWithTimeout(AI_PLANNER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'cluster_phrases',
+        business: plan.translation.businessDescription,
+        region,
+        plan,
+        phrases: phrases.slice(0, 700),
+        minusWords: plan.minusWords,
+      }),
+    }, 25000);
+
+    if (!response.ok) {
+      throw new Error('AI clustering failed');
+    }
+
+    const data = await response.json();
+    const clusters = Array.isArray(data.clusters) && data.clusters.length > 0
+      ? data.clusters
+      : clusterPhrasesLocally(plan, phrases);
+
+    return {
+      clusters,
+      minusWords: Array.isArray(data.minusWords) ? data.minusWords : plan.minusWords,
+      source: data.source === 'openai' ? 'openai' : 'fallback',
+    };
+  } catch {
+    return {
+      clusters: clusterPhrasesLocally(plan, phrases),
+      minusWords: plan.minusWords,
+      source: 'fallback',
+    };
+  }
+}
+
 export async function loadKeywordPlan(input: {
   theme: string;
   services: string;
@@ -351,27 +456,40 @@ export async function collectWordstatWithAi(plan: KeywordPlan, region: string): 
 
     if (verifiedPhrases.length === 0) {
       const fallback = fallbackWordstatPhrases(plan, region);
+      const clusteredFallback = await clusterWordstatPhrases(plan, fallback, region);
       return {
         verifiedPhrases: fallback,
         candidateMasks,
         rejectedMasks: [],
         followUpMasks: makeFollowUpMasks(plan, fallback, region),
+        clusters: clusteredFallback.clusters,
+        minusWords: clusteredFallback.minusWords,
+        clusteringSource: clusteredFallback.source,
       };
     }
+
+    const clustered = await clusterWordstatPhrases(plan, verifiedPhrases, region);
 
     return {
       verifiedPhrases,
       candidateMasks,
       rejectedMasks,
       followUpMasks,
+      clusters: clustered.clusters,
+      minusWords: clustered.minusWords,
+      clusteringSource: clustered.source,
     };
   } catch {
     const fallback = fallbackWordstatPhrases(plan, region);
+    const clusteredFallback = await clusterWordstatPhrases(plan, fallback, region);
     return {
       verifiedPhrases: fallback,
       candidateMasks,
       rejectedMasks: [],
       followUpMasks: makeFollowUpMasks(plan, fallback, region),
+      clusters: clusteredFallback.clusters,
+      minusWords: clusteredFallback.minusWords,
+      clusteringSource: clusteredFallback.source,
     };
   }
 }

@@ -81,6 +81,12 @@ def ensure_billing_tables(cur):
         CREATE INDEX IF NOT EXISTS idx_billing_project_payments_user_status
         ON {SCHEMA}.billing_project_payments (user_id, status)
     """)
+    cur.execute(f"""
+        ALTER TABLE {SCHEMA}.subscriptions
+        ADD COLUMN IF NOT EXISTS manual_project_slots INTEGER NOT NULL DEFAULT 0
+    """)
+
+
 def get_paid_project_slots(cur, user_id: int) -> int:
     ensure_billing_tables(cur)
     cur.execute(
@@ -91,6 +97,16 @@ def get_paid_project_slots(cur, user_id: int) -> int:
     )
     row = cur.fetchone()
     return int(row['slots'] or 0)
+
+
+def get_manual_project_slots(cur, user_id: int) -> int:
+    ensure_billing_tables(cur)
+    cur.execute(
+        f"SELECT COALESCE(manual_project_slots, 0) AS slots FROM {SCHEMA}.subscriptions WHERE user_id = %s",
+        (str(user_id),)
+    )
+    row = cur.fetchone()
+    return int((row or {}).get('slots') or 0)
 
 def get_project_count(cur, user_id: int) -> int:
     cur.execute(
@@ -132,8 +148,9 @@ def build_billing_status(cur, user_id: int) -> Dict[str, Any]:
     ensure_billing_tables(cur)
     subscription = ensure_trial_subscription(cur, user_id)
     paid_slots = get_paid_project_slots(cur, user_id)
+    manual_slots = get_manual_project_slots(cur, user_id)
     project_count = get_project_count(cur, user_id)
-    project_limit = BASE_FREE_PROJECTS + paid_slots
+    project_limit = BASE_FREE_PROJECTS + paid_slots + manual_slots
     now = datetime.now()
 
     trial_ends_at = subscription.get('trial_ends_at') if subscription else None
@@ -157,6 +174,7 @@ def build_billing_status(cur, user_id: int) -> Dict[str, Any]:
         'pricePerProjectRub': PRICE_PER_PROJECT_RUB,
         'baseFreeProjects': BASE_FREE_PROJECTS,
         'paidProjectSlots': paid_slots,
+        'manualProjectSlots': manual_slots,
         'projectLimit': project_limit,
         'projectCount': project_count,
         'remainingProjects': max(0, project_limit - project_count)
@@ -189,6 +207,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         # Админские эндпоинты доступны только по серверной сессии.
         if verify_admin_session(cur, headers):
+            ensure_billing_tables(cur)
+
             def format_admin_user(row):
                 now = datetime.now()
                 sub_plan = row.get('plan_type')
@@ -213,7 +233,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'status': row.get('status') or ('active' if has_access else 'none'),
                     'hasAccess': has_access,
                     'expiresAt': expires_at,
-                    'createdAt': row['created_at'].isoformat() if row.get('created_at') else None
+                    'createdAt': row['created_at'].isoformat() if row.get('created_at') else None,
+                    'paidProjectSlots': int(row.get('paid_project_slots') or 0),
+                    'manualProjectSlots': int(row.get('manual_project_slots') or 0),
+                    'projectLimit': BASE_FREE_PROJECTS + int(row.get('paid_project_slots') or 0) + int(row.get('manual_project_slots') or 0)
                 }
 
             # GET admin_all - получить всех пользователей
@@ -226,10 +249,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                               s.user_id AS sub_user_id, s.plan_type, s.status,
                               s.trial_started_at, s.trial_ends_at,
                               s.subscription_started_at, s.subscription_ends_at,
-                              s.created_at AS sub_created_at
+                              s.created_at AS sub_created_at,
+                              COALESCE(s.manual_project_slots, 0) AS manual_project_slots,
+                              COALESCE(paid.slots, 0) AS paid_project_slots
                        FROM {SCHEMA}.users u
                        LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
                        LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
+                       LEFT JOIN (
+                           SELECT user_id, SUM(project_slots) AS slots
+                           FROM {SCHEMA}.billing_project_payments
+                           WHERE status = 'paid'
+                           GROUP BY user_id
+                       ) paid ON paid.user_id = u.id
                        ORDER BY u.created_at DESC
                        LIMIT %s OFFSET %s""",
                     (limit, offset)
@@ -267,10 +298,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                               s.user_id AS sub_user_id, s.plan_type, s.status,
                               s.trial_started_at, s.trial_ends_at,
                               s.subscription_started_at, s.subscription_ends_at,
-                              s.is_infinite, s.created_at AS sub_created_at
+                              s.is_infinite, s.created_at AS sub_created_at,
+                              COALESCE(s.manual_project_slots, 0) AS manual_project_slots,
+                              COALESCE(paid.slots, 0) AS paid_project_slots
                        FROM {SCHEMA}.users u
                        LEFT JOIN {SCHEMA}.user_email_auth a ON a.user_id = u.id
                        LEFT JOIN {SCHEMA}.subscriptions s ON s.user_id = CAST(u.id AS TEXT)
+                       LEFT JOIN (
+                           SELECT user_id, SUM(project_slots) AS slots
+                           FROM {SCHEMA}.billing_project_payments
+                           WHERE status = 'paid'
+                           GROUP BY user_id
+                       ) paid ON paid.user_id = u.id
                        WHERE CAST(u.id AS TEXT) = %s OR u.phone = %s OR LOWER(a.email) = LOWER(%s)
                        LIMIT 1""",
                     (target_user_id, target_user_id, target_user_id)
@@ -289,6 +328,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 target_user_id = body_data.get('userId')
                 plan_type = body_data.get('planType', 'trial')
                 days = int(body_data.get('days', 1))
+                manual_project_slots_raw = body_data.get('manualProjectSlots')
+                manual_project_slots = None
+                if manual_project_slots_raw is not None:
+                    manual_project_slots = max(0, int(manual_project_slots_raw))
                 
                 if not target_user_id:
                     return {
@@ -309,33 +352,35 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             f"""UPDATE {SCHEMA}.subscriptions 
                                SET plan_type = %s, status = %s, 
                                    trial_started_at = %s, trial_ends_at = %s,
+                                   manual_project_slots = COALESCE(%s, manual_project_slots),
                                    updated_at = %s
                                WHERE user_id = %s""",
-                            ('trial', 'active', now, ends_at, now, target_user_id)
+                            ('trial', 'active', now, ends_at, manual_project_slots, now, target_user_id)
                         )
                     else:
                         cur.execute(
                             f"""UPDATE {SCHEMA}.subscriptions 
                                SET plan_type = %s, status = %s,
                                    subscription_started_at = %s, subscription_ends_at = %s,
+                                   manual_project_slots = COALESCE(%s, manual_project_slots),
                                    updated_at = %s
                                WHERE user_id = %s""",
-                            ('monthly', 'active', now, ends_at, now, target_user_id)
+                            ('monthly', 'active', now, ends_at, manual_project_slots, now, target_user_id)
                         )
                 else:
                     if plan_type == 'trial':
                         cur.execute(
                             f"""INSERT INTO {SCHEMA}.subscriptions 
-                               (user_id, plan_type, status, trial_started_at, trial_ends_at)
-                               VALUES (%s, %s, %s, %s, %s)""",
-                            (target_user_id, 'trial', 'active', now, ends_at)
+                               (user_id, plan_type, status, trial_started_at, trial_ends_at, manual_project_slots)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (target_user_id, 'trial', 'active', now, ends_at, manual_project_slots or 0)
                         )
                     else:
                         cur.execute(
                             f"""INSERT INTO {SCHEMA}.subscriptions 
-                               (user_id, plan_type, status, subscription_started_at, subscription_ends_at)
-                               VALUES (%s, %s, %s, %s, %s)""",
-                            (target_user_id, 'monthly', 'active', now, ends_at)
+                               (user_id, plan_type, status, subscription_started_at, subscription_ends_at, manual_project_slots)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (target_user_id, 'monthly', 'active', now, ends_at, manual_project_slots or 0)
                         )
                 
                 conn.commit()

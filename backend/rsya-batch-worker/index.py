@@ -1319,8 +1319,8 @@ def get_excluded_sites(token: str, campaign_id: str, client_login: str = '') -> 
             print(f'🛡️ SAFETY: Aborting to prevent overwriting wrong campaign data!')
             return None
 
-        campaign_status = campaign_data.get('Status', 'UNKNOWN')
-        if campaign_status != 'ACCEPTED':
+        campaign_status = str(campaign_data.get('Status', 'UNKNOWN') or 'UNKNOWN').upper()
+        if campaign_status in {'DRAFT', 'ARCHIVED'}:
             print(f'⚠️ Campaign {campaign_id} has status {campaign_status}, cannot be modified')
             return 'UNMODIFIABLE'
         

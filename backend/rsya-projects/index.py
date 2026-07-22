@@ -28,6 +28,10 @@ def ensure_billing_tables(cursor):
         CREATE INDEX IF NOT EXISTS idx_billing_project_payments_user_status
         ON {SCHEMA}.billing_project_payments (user_id, status)
     """)
+    cursor.execute(f"""
+        ALTER TABLE {SCHEMA}.subscriptions
+        ADD COLUMN IF NOT EXISTS manual_project_slots INTEGER NOT NULL DEFAULT 0
+    """)
 
 def get_project_limit_info(cursor, user_id: int) -> Dict[str, Any]:
     ensure_billing_tables(cursor)
@@ -43,11 +47,18 @@ def get_project_limit_info(cursor, user_id: int) -> Dict[str, Any]:
         (user_id,)
     )
     paid_slots = int(cursor.fetchone()[0] or 0)
-    project_limit = BASE_FREE_PROJECTS + paid_slots
+    cursor.execute(
+        f"SELECT COALESCE(manual_project_slots, 0) FROM {SCHEMA}.subscriptions WHERE user_id = %s",
+        (str(user_id),)
+    )
+    manual_row = cursor.fetchone()
+    manual_slots = int((manual_row[0] if manual_row else 0) or 0)
+    project_limit = BASE_FREE_PROJECTS + paid_slots + manual_slots
     return {
         'project_count': project_count,
         'project_limit': project_limit,
         'paid_project_slots': paid_slots,
+        'manual_project_slots': manual_slots,
         'remaining_projects': max(0, project_limit - project_count),
         'price_per_project_rub': PRICE_PER_PROJECT_RUB
     }

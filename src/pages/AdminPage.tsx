@@ -8,7 +8,7 @@ import AdminShell from '@/components/layout/AdminShell';
 import DashboardTab from '@/components/admin/DashboardTab';
 import UsersTab from '@/components/admin/UsersTab';
 
-interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; paidProjectSlots?: number; manualProjectSlots?: number; projectLimit?: number; }
 interface Stats { total: number; activeTrial: number; activeMonthly: number; newToday: number; expiringWeek: number; }
 interface AdminOverview {
   overview: { totalProjects: number; activeProjects: number; totalTasks: number; activeTasks: number; totalUsers: number; totalClusteringProjects: number; totalWordstatTasks: number; totalBlockQueue: number; };
@@ -71,10 +71,10 @@ export default function AdminPage() {
     } catch (error) { console.error('Ошибка загрузки обзора:', error); }
   };
 
-  const updateSubscription = async (userId: string, planType: string, days: number) => {
+  const updateSubscription = async (userId: string, planType: string, days: number, manualProjectSlots?: number) => {
     try {
       const response = await adminFetch(`${BACKEND_URLS.subscription}?action=admin_update`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, planType, days })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, planType, days, manualProjectSlots })
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       toast({ title: 'Подписка обновлена', description: `${planType}, ${days} дн.` });

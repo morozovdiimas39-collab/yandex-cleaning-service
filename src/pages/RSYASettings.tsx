@@ -15,6 +15,7 @@ interface Campaign {
   /** Тип из API Директа */
   type?: string;
   state?: string;
+  status_payment?: string;
   /** РСЯ | ТК | МК — эвристика с бэкенда; если пусто, смотри type */
   channel?: string;
   network_enabled?: boolean;
@@ -41,8 +42,7 @@ const authDraftKey = (projectId?: string) => `rsya-auth-draft:${projectId || 'ne
 const isVisibleNetworkCampaign = (campaign: Campaign) => {
   const status = (campaign.status || '').toUpperCase();
   const state = (campaign.state || '').toUpperCase();
-  const hasNetwork = campaign.network_enabled === true || campaign.channel === 'РСЯ' || campaign.channel === 'МК';
-  return hasNetwork && status !== 'DRAFT' && state !== 'ARCHIVED';
+  return campaign.network_enabled === true && status !== 'DRAFT' && status !== 'ARCHIVED' && state !== 'ARCHIVED';
 };
 
 const isRunningCampaign = (campaign: Campaign) => (campaign.state || '').toUpperCase() === 'ON';
@@ -67,6 +67,7 @@ const campaignStateLabels: Record<string, string> = {
 const getCampaignStatusLabel = (campaign: Campaign) => {
   const state = (campaign.state || '').toUpperCase();
   const status = (campaign.status || '').toUpperCase();
+  if (state === 'OFF' && status === 'ACCEPTED') return 'Нет показов / нет бюджета';
   return campaignStateLabels[state] || campaignStatusLabels[status] || campaign.status || 'Неизвестно';
 };
 
@@ -353,7 +354,7 @@ export default function RSYASettings() {
             <CardHeader>
               <CardTitle>РСЯ-кампании для отслеживания</CardTitle>
               <CardDescription>
-                Показываются только кампании с включенными показами в сетях
+                Показываются РСЯ-кампании; черновики и архив скрыты
                 {activeClientLogin ? ` · Client-Login: ${activeClientLogin}` : ' · Прямой аккаунт токена'}
               </CardDescription>
             </CardHeader>

@@ -4,13 +4,13 @@ import Icon from '@/components/ui/icon';
 import UsersTable from './UsersTable';
 import UsersFilters from './UsersFilters';
 
-interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; }
+interface User { userId: string; email?: string; phone?: string; planType: string; status: string; expiresAt?: string | null; createdAt?: string | null; hasAccess?: boolean; paidProjectSlots?: number; manualProjectSlots?: number; projectLimit?: number; }
 interface Props {
   users: User[]; total: number; loading: boolean; loadingMore: boolean; hasMore: boolean;
   filterStatus: string; filterPlan: string; sortBy: string; sortOrder: 'asc' | 'desc';
   searchQuery: string; onSearchChange: (value: string) => void;
   onFilterChange: (filters: { status?: string; plan?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => void;
-  onLoadMore: () => void; onUpdateUser: (userId: string, planType: string, days: number) => void; onDeleteUser: (userId: string) => void; onImpersonateUser: (user: User) => void;
+  onLoadMore: () => void; onUpdateUser: (userId: string, planType: string, days: number, manualProjectSlots?: number) => void; onDeleteUser: (userId: string) => void; onImpersonateUser: (user: User) => void;
 }
 
 export default function UsersTab(props: Props) {

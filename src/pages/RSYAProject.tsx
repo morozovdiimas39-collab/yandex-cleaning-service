@@ -54,6 +54,12 @@ interface Counter {
   site?: string;
 }
 
+interface Campaign {
+  id: string;
+  name?: string;
+  counter_ids?: string[];
+}
+
 interface GoalCounterGroup {
   id: string;
   name: string;
@@ -64,6 +70,7 @@ interface Project {
   id: number;
   name: string;
   yandex_token?: string;
+  client_login?: string;
   campaign_ids?: string[];
   counter_ids?: string[];
   goals?: Goal[];
@@ -102,6 +109,51 @@ interface TaskPreview {
   errors: { campaign_id: string; status?: number; error?: string }[];
 }
 
+type CreateMode = 'smart' | 'expert';
+
+const buildCountersFromCampaigns = (campaigns: Campaign[], campaignIds?: string[]): Counter[] => {
+  const allowedIds = new Set((campaignIds || []).map(String));
+  const countersById = new Map<string, Counter>();
+
+  if (allowedIds.size === 0) {
+    return [];
+  }
+
+  campaigns.forEach((campaign) => {
+    if (!allowedIds.has(String(campaign.id))) return;
+
+    (campaign.counter_ids || []).forEach((counterId) => {
+      const id = String(counterId).trim();
+      if (!id || countersById.has(id)) return;
+
+      countersById.set(id, {
+        id,
+        name: `Счётчик ${id}`,
+        site: 'Из настроек стратегий кампаний'
+      });
+    });
+  });
+
+  return Array.from(countersById.values());
+};
+
+const enrichCampaignCounters = (campaignCounters: Counter[], metrikaCounters: Counter[]): Counter[] => {
+  const metrikaCountersById = new Map(
+    metrikaCounters.map((counter) => [String(counter.id), counter])
+  );
+
+  return campaignCounters.map((counter) => {
+    const id = String(counter.id);
+    const metrikaCounter = metrikaCountersById.get(id);
+
+    return {
+      ...counter,
+      name: metrikaCounter?.name || metrikaCounter?.site || counter.name || `Счётчик ${id}`,
+      site: metrikaCounter?.site || counter.site
+    };
+  });
+};
+
 export default function RSYAProject() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -114,7 +166,8 @@ export default function RSYAProject() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isNameStepDone, setIsNameStepDone] = useState(false);
-  const createMode: 'expert' = 'expert';
+  const [isModeStepDone, setIsModeStepDone] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode>('expert');
   const [createWizardStep, setCreateWizardStep] = useState<3 | 4>(3);
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   const [availableCounters, setAvailableCounters] = useState<Counter[]>([]);
@@ -151,33 +204,23 @@ export default function RSYAProject() {
 
   const goalCounterGroups = useMemo<GoalCounterGroup[]>(() => {
     const groups = new Map<string, GoalCounterGroup>();
+    const countersSource = availableCounters;
+    const goalsSource = taskGoals;
 
-    if (availableCounters.length > 0) {
-      availableCounters.forEach((counter) => {
+    if (countersSource.length > 0) {
+      countersSource.forEach((counter) => {
         groups.set(String(counter.id), {
           id: String(counter.id),
           name: counter.name || counter.site || `Счётчик ${counter.id}`,
-          goals: taskGoals.filter((goal) => String(goal.counter_id || '') === String(counter.id))
+          goals: goalsSource.filter((goal) => String(goal.counter_id || '') === String(counter.id))
         });
       });
 
       return Array.from(groups.values());
     }
 
-    (taskGoals.length > 0 ? taskGoals : project?.goals || []).forEach((goal) => {
-      const counterId = String(goal.counter_id || 'unknown').trim();
-      const groupId = counterId || 'unknown';
-      const group = groups.get(groupId) || {
-        id: groupId,
-        name: goal.counter_name || (groupId === 'unknown' ? 'Счётчик без ID' : `Счётчик ${groupId}`),
-        goals: []
-      };
-      group.goals.push(goal);
-      groups.set(groupId, group);
-    });
-
-    return Array.from(groups.values());
-  }, [availableCounters, taskGoals, project?.goals]);
+    return [];
+  }, [availableCounters, taskGoals]);
 
   const selectedCounterGoals = useMemo(() => {
     if (selectedCounterIds.size === 0) return [];
@@ -343,9 +386,14 @@ export default function RSYAProject() {
 		});
 	};
 
-	const clearGoals = () => {
+  const clearGoals = () => {
 		setFormData({ ...formData, goal_ids: [], goal_id: 'all' });
 	};
+
+  const getDirectHeaders = () => ({
+    'X-Auth-Token': project?.yandex_token || '',
+    ...(project?.client_login ? { 'X-Client-Login': project.client_login } : {})
+  });
 
   const loadTaskCounters = async () => {
     if (!project?.yandex_token || !YANDEX_DIRECT_URL) return;
@@ -353,19 +401,52 @@ export default function RSYAProject() {
     try {
       setLoadingCounters(true);
       setConversionLoadError('');
-      const response = await fetch(`${YANDEX_DIRECT_URL}?action=counters`, {
-        headers: { 'X-Auth-Token': project.yandex_token }
-      });
-      const data = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        throw new Error(data?.error || 'Не удалось загрузить счётчики');
+      const fetchDirectJson = async (url: string, fallbackError: string) => {
+        const response = await fetch(url, { headers: getDirectHeaders() });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.error) {
+          throw new Error(data?.error_detail || data?.message || data?.error || fallbackError);
+        }
+        return data;
+      };
+
+      const [campaignsResult, metrikaResult] = await Promise.allSettled([
+        fetchDirectJson(YANDEX_DIRECT_URL, 'Не удалось загрузить кампании'),
+        fetchDirectJson(`${YANDEX_DIRECT_URL}?action=counters`, 'Не удалось загрузить счётчики')
+      ]);
+
+      const campaigns = campaignsResult.status === 'fulfilled' ? (campaignsResult.value?.campaigns || []) : [];
+      const metrikaCounters = metrikaResult.status === 'fulfilled' ? (metrikaResult.value?.counters || []) : [];
+      const campaignCounters = buildCountersFromCampaigns(campaigns, project.campaign_ids);
+      const counters = enrichCampaignCounters(campaignCounters, metrikaCounters);
+
+      setAvailableCounters(counters);
+      if (counters.length > 0) {
+        void loadTaskGoals(counters.map((counter) => counter.id));
+      } else {
+        setTaskGoals([]);
+        setSelectedCounterIds(new Set());
+        setFormData((current) => ({ ...current, goal_id: 'all', goal_ids: [] }));
       }
 
-      setAvailableCounters(data?.counters || []);
+      if (counters.length === 0) {
+        const firstError =
+          campaignsResult.status === 'rejected'
+            ? campaignsResult.reason?.message
+            : metrikaResult.status === 'rejected'
+              ? metrikaResult.reason?.message
+              : '';
+        setConversionLoadError(
+          firstError || 'В выбранных кампаниях Директа не найдены счётчики Метрики в настройках стратегии.'
+        );
+      }
     } catch (error: any) {
       setAvailableCounters([]);
-      setConversionLoadError(error.message || 'Не удалось загрузить счётчики');
+      setTaskGoals([]);
+      setSelectedCounterIds(new Set());
+      setFormData((current) => ({ ...current, goal_id: 'all', goal_ids: [] }));
+      setConversionLoadError(error.message || 'Не удалось загрузить счётчики из выбранных кампаний Директа');
     } finally {
       setLoadingCounters(false);
     }
@@ -381,18 +462,27 @@ export default function RSYAProject() {
       setLoadingGoals(true);
       setConversionLoadError('');
       const response = await fetch(`${YANDEX_DIRECT_URL}?action=goals&counter_ids=${counterIds.join(',')}`, {
-        headers: { 'X-Auth-Token': project.yandex_token }
+        headers: getDirectHeaders()
       });
       const data = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        throw new Error(data?.error || 'Не удалось загрузить конверсии');
+      if (!response.ok || data?.error) {
+        throw new Error(data?.error_detail || data?.message || data?.error || 'Не удалось загрузить конверсии');
       }
 
-      setTaskGoals(data?.goals || []);
+      const goals = data?.goals || [];
+      const fallbackGoals = (project?.goals || []).filter((goal) => (
+        goal.counter_id ? counterIds.includes(String(goal.counter_id)) : true
+      ));
+      setTaskGoals(goals.length > 0 ? goals : fallbackGoals);
     } catch (error: any) {
-      setTaskGoals([]);
-      setConversionLoadError(error.message || 'Не удалось загрузить конверсии');
+      const fallbackGoals = (project?.goals || []).filter((goal) => (
+        goal.counter_id ? counterIds.includes(String(goal.counter_id)) : true
+      ));
+      setTaskGoals(fallbackGoals);
+      if (fallbackGoals.length === 0) {
+        setConversionLoadError(error.message || 'Не удалось загрузить конверсии');
+      }
     } finally {
       setLoadingGoals(false);
     }
@@ -443,6 +533,7 @@ export default function RSYAProject() {
 	const buildTaskConfig = () => {
 		const selectedGoalIds = formData.goal_ids.slice(0, 10);
 		const config: any = {
+      mode: createMode,
 			goal_id: selectedGoalIds.length === 1 ? selectedGoalIds[0] : selectedGoalIds.length > 1 ? 'selected' : 'all',
 			goal_ids: selectedGoalIds,
       protect_conversions: selectedGoalIds.length > 0
@@ -469,10 +560,29 @@ export default function RSYAProject() {
     return config;
   };
 
+  const selectCreateMode = (mode: CreateMode) => {
+    setCreateMode(mode);
+    setIsModeStepDone(true);
+    setCreateWizardStep(3);
+    setPreview(null);
+    setPreviewConfirmed(false);
+
+    if (mode === 'smart') {
+      setFormData((current) => ({
+        ...current,
+        combine_operator: 'AND',
+        min_clicks: current.min_clicks || '10',
+        min_cpa: current.min_cpa || '300'
+      }));
+    }
+  };
+
   const resetCreateForm = () => {
     setPreview(null);
     setPreviewConfirmed(false);
     setIsNameStepDone(false);
+    setIsModeStepDone(false);
+    setCreateMode('expert');
     setCreateWizardStep(3);
     setSelectedCounterIds(new Set());
     setActiveModules(new Set());
@@ -886,8 +996,66 @@ export default function RSYAProject() {
                 </div>
               )}
 
-              {isNameStepDone && (
+              {isNameStepDone && !isModeStepDone && (
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">2</span>
+                    <div className="min-w-0 flex-1">
+                      <Label className="text-lg font-bold text-slate-950">Режим чистки</Label>
+                      <p className="mt-1 text-sm text-slate-500">Выберите готовый сценарий или настройте правила вручную.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => selectCreateMode('smart')}
+                      className="group min-h-[150px] rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 text-left shadow-sm transition-all hover:border-emerald-300 hover:shadow-md"
+                    >
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
+                        <Icon name="Sparkles" className="h-6 w-6" />
+                      </div>
+                      <div className="text-lg font-bold text-slate-950">Умная очистка</div>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        Не нужно задавать правила самостоятельно. Сервис использует подготовленный безопасный пресет.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectCreateMode('expert')}
+                      className="group min-h-[150px] rounded-2xl border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 text-left shadow-sm transition-all hover:border-indigo-300 hover:shadow-md"
+                    >
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-sm">
+                        <Icon name="SlidersHorizontal" className="h-6 w-6" />
+                      </div>
+                      <div className="text-lg font-bold text-slate-950">Режим эксперта</div>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                        Гибкая настройка фильтров, исключений, метрик и логики условий под конкретную задачу.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isNameStepDone && isModeStepDone && createWizardStep === 3 && (
               <div className="space-y-5">
+                {createMode === 'smart' ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white">
+                        <Icon name="Sparkles" className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-950">Умная очистка включена</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                          Система будет искать площадки с заметным объемом кликов и дорогим CPA. Выбранные ниже конверсии будут защищены от ошибочной блокировки.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                <>
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4 flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-white">
@@ -1054,10 +1222,12 @@ export default function RSYAProject() {
                       </div>
                     </div>
                   </div>
+                </>
+                )}
               </div>
               )}
 
-              {isNameStepDone && (
+              {isNameStepDone && isModeStepDone && (
               <>
               {createWizardStep === 3 && (
               <div className="space-y-3 rounded-xl border border-purple-100 bg-white p-4">
